@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Potree Viewer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Potree CSS (from your repo) -->
+  <link rel="stylesheet" href="build/potree/potree.css" />
+  <link rel="stylesheet" href="libs/jquery-ui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="libs/openlayers3/ol.css" />
+  <link rel="stylesheet" href="libs/spectrum/spectrum.css" />
+  <link rel="stylesheet" href="libs/jstree/themes/mixed/style.css" />
+
+  <style>
+    html, body { height:100%; margin:0; overflow:hidden; }
+    #potree_sidebar_container { position:absolute; top:0; left:0; width:300px; height:100%; }
+    #potree_render_area     { position:absolute; top:0; left:300px; right:0; bottom:0; background:#000; }
+    .floating-toolbar {
+      position:absolute; top:12px; right:14px; display:flex; gap:8px; z-index:5;
+      background:rgba(20,20,30,.55); padding:8px; border-radius:10px; backdrop-filter: blur(4px);
+    }
+    .floating-toolbar button {
+      cursor:pointer; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:6px 10px; background:#1c2333; color:#fff;
+    }
+    .floating-toolbar button:hover { filter:brightness(1.1); }
+  </style>
+</head>
+<body>
+
+  <!-- Potree layout containers (match examples) -->
+  <div id="potree_sidebar_container"></div>
+  <div id="potree_render_area"></div>
+
+  <!-- Quick floating actions -->
+  <div class="floating-toolbar">
+    <button id="btnHome"   title="Fit to screen">Home</button>
+    <button id="btnEDL"    title="Toggle Eye-Dome Lighting">EDL</button>
+    <button id="btnBG"     title="Toggle Background">BG</button>
+    <button id="btnSidebar" title="Toggle Sidebar">☰</button>
+  </div>
+
+  <!-- Libraries -->
+  <script src="libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="libs/spectrum/spectrum.js"></script>
+  <script src="libs/jquery-ui/jquery-ui.min.js"></script>
+  <script src="libs/other/BinaryHeap.js"></script>
+  <script src="libs/tween/tween.min.js"></script>
+  <script src="libs/d3/d3.js"></script>
+  <script src="libs/proj4/proj4.js"></script>
+  <script src="libs/openlayers3/ol.js"></script>
+  <script src="libs/i18next/i18next.js"></script>
+
+  <!-- Potree -->
+  <script src="build/potree/potree.js"></script>
+  <script src="build/potree/navigation.js"></script>
+
+  <script>
+    // --- Helper: get ?src=... or fall back to your OCC-WAKE-008
+    const params = new URLSearchParams(location.search);
+    const defaultSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js";
+    const cloudSrc = params.get("src") || defaultSrc;
+
+    // --- Bootstrap the viewer with the example-like layout
+    const viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
+      useDefaultRenderLoop: true,
+      showVRButton: false
+    });
+
+    viewer.setEDLEnabled(true);
+    viewer.setFOV(60);
+    viewer.setPointBudget(1_500_000);
+    viewer.setBackground("gradient"); // "skybox", "gradient", "black", "white"
+    viewer.loadSettingsFromURL = false;
+
+    // Load the default Potree GUI into the sidebar container
+    viewer.setDOMElement(document.getElementById("potree_render_area"));
+    viewer.loadGUI(() => {
+      viewer.setLanguage('en');
+
+      // Expose extra menus like examples do:
+      $("#menu_tools").next().show();     // Measurements, profiles, annotations
+      $("#menu_clipping").next().show();  // Clipping volumes
+      $("#menu_scene").next().show();     // Scene settings
+
+      // Move GUI into our sidebar container
+      const sidebar = document.getElementById("potree_sidebar_container");
+      sidebar.appendChild(document.getElementById("potree_sidebar"));
+    });
+
+    // Load point cloud
+    Potree.loadPointCloud(cloudSrc, "PointCloud", (e) => {
+      const pc = e.pointcloud;
+      viewer.scene.addPointCloud(pc);
+
+      pc.material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+      pc.material.size = 1.0;
+
+      // Fit and set a reasonable move speed based on bounding sphere
+      viewer.fitToScreen();
+      viewer.setMoveSpeed(pc.boundingSphere.radius / 5);
+    });
+
+    // Floating toolbar actions
+    document.getElementById("btnHome").onclick = () => viewer.fitToScreen();
+    document.getElementById("btnEDL").onclick  = () => viewer.setEDLEnabled(!viewer.getEDLEnabled());
+    const bgs = ["gradient","black","white","skybox"]; let bgIdx = 0;
+    document.getElementById("btnBG").onclick   = () => { bgIdx = (bgIdx+1)%bgs.length; viewer.setBackground(bgs[bgIdx]); };
+    document.getElementById("btnSidebar").onclick = () => viewer.toggleSidebar();
+
+    // Keyboard: H toggles sidebar (like some examples)
+    window.addEventListener("keydown", (ev) => {
+      if (ev.key.toLowerCase() === "h") viewer.toggleSidebar();
+    });
+  </script>
+</body>
+</html>
