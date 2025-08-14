@@ -50,19 +50,32 @@
     <div class="grid">
       <!-- ===== Card 1: OCC-WAKE-008 ===== -->
       <div class="card">
-        <a class="thumb-link" id="open-1-img" aria-label="Open OCC-WAKE-008">
-          <img class="thumb" alt="OCC-WAK-008 thumbnail"
+        <a class="thumb-link" id="open-wake-img" aria-label="Open OCC-WAKE-008">
+          <img class="thumb" alt="OCC-WAKE-008 thumbnail"
                src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/thumbnail.png">
         </a>
         <div class="body">
-          <div class="title">OCC-WAK-008</div>
+          <div class="title">OCC-WAKE-008</div>
           <p class="muted">2025 Wake Fixed Site</p>
           <div class="row">
-            <a class="btn primary" id="open-1">Open</a>
+            <a class="btn primary" id="open-wake">Open</a>
           </div>
         </div>
       </div>
-
+      <!-- ===== Card 2: 20230318_OCC-BAK-008  ===== -->
+      <div class="card">
+        <a class="thumb-link" id="open-bak-img" aria-label="Open OCC-BAK-008">
+          <img class="thumb" alt="OCC-BAK-008 thumbnail"
+               src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230318_OCC-BAK-008/thumbnail.png">
+        </a>
+        <div class="body">
+          <div class="title">OCC-BAK-008</div>
+          <p class="muted">2023-03-18 Baker Fixed Site</p>
+          <div class="row">
+            <a class="btn primary" id="open-bak">Open</a>
+          </div>
+        </div>
+      </div>
       <!-- ===== Duplicate this block for more datasets =====
       <div class="card">
         <a class="thumb-link" id="open-2-img" aria-label="Open My Other Cloud">
@@ -85,12 +98,16 @@
   </div>
 
   <script>
-    // Wire links for Card 1
+    // OCC-WAKE-008
     const occWakeSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js";
     const occWakeURL = vlink(occWakeSrc, "OCC-WAKE-008");
     document.getElementById('open-1').href = occWakeURL;
     document.getElementById('open-1-img').href = occWakeURL;
-
+    // OCC-BAK-008 
+    const bakSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230318_OCC-BAK-008/cloud.js";
+    const bakURL = vlink(bakSrc, "OCC-BAK-008");
+    document.getElementById('open-bak').href = bakURL;
+    document.getElementById('open-bak-img').href = bakURL;
     // Example for Card 2 (if you add it):
     // const otherURL = vlink("https://storage.googleapis.com/YOUR_BUCKET/path/to/ept.json", "My Other Cloud");
     // document.getElementById('open-2').href = otherURL;
