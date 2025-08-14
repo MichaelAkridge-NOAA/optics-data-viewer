@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Optics Data Viewer – SFM</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1200px;margin:0 auto;padding:24px 16px}
+    header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    h1{margin:0 0 4px;font-weight:800;letter-spacing:.2px}
+    p.lead{margin:0;color:var(--muted)}
+    .back{color:var(--muted);text-decoration:none;border:1px solid var(--ring);padding:6px 10px;border-radius:10px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:18px}
+    .card{background:var(--card);border-radius:12px;border:1px solid var(--ring);overflow:hidden;display:flex;flex-direction:column}
+    .thumb{display:block;width:100%;height:110px;object-fit:cover;background:#0f172a;transition:transform .2s ease}
+    .thumb-link{display:block;line-height:0}
+    .thumb-link:focus .thumb, .thumb-link:hover .thumb{transform:scale(1.02)}
+    .body{padding:10px 12px 12px}
+    .title{margin:2px 0 0;font-size:15px;font-weight:700}
+    .muted{color:var(--muted);font-size:12px;margin:2px 0 8px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    a.btn{display:inline-block;padding:6px 10px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:13px}
+    a.primary{background:#2b79ff;border-color:#2b79ff;color:white}
+    footer{margin-top:20px;color:var(--muted);font-size:12px}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  </style>
+  <script>
+    // Build a link to ../viewer.html with ?src= and ?title=
+    function vlink(src, title){
+      const u = new URL('../viewer.html', location.href);
+      u.searchParams.set('src', src);
+      if (title) u.searchParams.set('title', title);
+      return u.toString();
+    }
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>SFM Datasets</h1>
+        <p class="lead">Photogrammetry point clouds.</p>
+      </div>
+      <a class="back" href="../">← Back to portal</a>
+    </header>
+
+    <div class="grid">
+      <!-- 20230318_OCC-BAK-008 -->
+      <div class="card">
+        <a class="thumb-link" id="open-bak-img" aria-label="Open OCC-BAK-008">
+          <img class="thumb" alt="OCC-BAK-008 thumbnail"
+               src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230318_OCC-BAK-008/thumbnail.png">
+        </a>
+        <div class="body">
+          <div class="title">OCC-BAK-008</div>
+          <p class="muted">2023-03-18 Baker Site</p>
+          <div class="row">
+            <a class="btn primary" id="open-bak">Open</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- OCC-WAKE-008 -->
+      <div class="card">
+        <a class="thumb-link" id="open-wake-img" aria-label="Open OCC-WAKE-008">
+          <img class="thumb" alt="OCC-WAKE-008 thumbnail"
+               src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/thumbnail.png">
+        </a>
+        <div class="body">
+          <div class="title">OCC-WAKE-008</div>
+          <p class="muted">2025 Wake Fixed Site</p>
+          <div class="row">
+            <a class="btn primary" id="open-wake">Open</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Duplicate a card and wire links below with <code>vlink(".../cloud.js","Title")</code>.
+    </footer>
+  </div>
+
+  <script>
+    // OCC-BAK-008
+    const bakSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230318_OCC-BAK-008/cloud.js";
+    const bakURL = vlink(bakSrc, "OCC-BAK-008");
+    document.getElementById('open-bak').href = bakURL;
+    document.getElementById('open-bak-img').href = bakURL;
+
+    // OCC-WAKE-008
+    const wakeSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js";
+    const wakeURL = vlink(wakeSrc, "OCC-WAKE-008");
+    document.getElementById('open-wake').href = wakeURL;
+    document.getElementById('open-wake-img').href = wakeURL;
+  </script>
+</body>
+</html>
