@@ -22,10 +22,8 @@
       background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
       z-index:9999; flex-direction:column; gap:10px
     }
-    #loading .spinner {
-      width:40px; height:40px; border-radius:50%;
-      border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite;
-    }
+    #loading .spinner { width:40px; height:40px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg) } }
 
     #error {
@@ -34,22 +32,23 @@
     }
 
     /* Quick controls panel (works before sidebar loads) */
-    .qc {
-      position:absolute; top:12px; right:14px; z-index:5; width:300px;
+    .panel {
+      position:absolute; top:12px; right:14px; z-index:5; width:320px;
       background:rgba(20,20,30,.6); padding:10px 12px; border-radius:12px;
       color:#eef; font:13px system-ui; backdrop-filter: blur(4px);
       border:1px solid rgba(255,255,255,.12)
     }
-    .qc h3 { margin:0 0 8px; font-size:14px; font-weight:700; color:#fff }
-    .qc .row { display:flex; align-items:center; gap:8px; margin:8px 0 }
-    .qc label { width:88px; color:#cfe }
-    .qc input[type="range"] { width:160px }
-    .qc select, .qc button {
+    .panel h3 { margin:0 0 8px; font-size:14px; font-weight:700; color:#fff }
+    .panel h4 { margin:10px 0 6px; font-size:13px; color:#cfe; font-weight:700 }
+    .row { display:flex; align-items:center; gap:8px; margin:8px 0 }
+    label { width:96px; color:#cfe }
+    input[type="range"] { width:170px }
+    select, button, input[type="text"] {
       background:#1c2333; color:#fff; border:1px solid rgba(255,255,255,.18);
       border-radius:8px; padding:6px 8px; cursor:pointer
     }
-    .qc .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px }
-    .qc small { color:#aaccffbb }
+    .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px }
+    .muted { color:#aaccffbb }
     .chip{
       position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
       padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
@@ -63,8 +62,8 @@
   <div id="error"></div>
   <div id="loading"><div class="spinner"></div><div>Loading point cloud…</div></div>
 
-  <!-- Quick Controls (point size, budget, attribute, measure, etc.) -->
-  <div class="qc" id="qc" style="display:none">
+  <!-- Quick Controls + Export (available immediately) -->
+  <div class="panel" id="panel" style="display:none">
     <h3 id="title">Point Cloud</h3>
 
     <div class="row">
@@ -80,25 +79,33 @@
     <div class="row">
       <label for="psize">Point size</label>
       <input id="psize" type="range" min="0.5" max="5" step="0.1" value="1.0" />
-      <small id="psizeVal">1.0</small>
+      <span class="muted" id="psizeVal">1.0</span>
     </div>
 
     <div class="row">
-      <label for="budget">Budget</label>
+      <label for="budget">Point budget</label>
       <input id="budget" type="range" min="500000" max="10000000" step="500000" value="1500000" />
-      <small id="budgetVal">1.5M</small>
+      <span class="muted" id="budgetVal">1.5M</span>
     </div>
 
     <div class="btns">
       <button id="btnHome"      title="Fit to screen">Home</button>
       <button id="btnEDL"       title="Toggle EDL">EDL</button>
       <button id="btnBG"        title="Background">BG</button>
-      <button id="btnSidebar"   title="Toggle Sidebar">Sidebar</button>
+      <button id="btnSidebar"   title="Sidebar / Tools">Sidebar</button>
       <button id="btnMeasure"   title="Measure distance">Measure</button>
       <button id="btnProfile"   title="Profile tool">Profile</button>
-      <!-- Add more: Volume/Clip etc. once sidebar is up -->
     </div>
-    <small>Tip: use Sidebar for advanced tools (clipping, volumes, exports)</small>
+
+    <h4>Export</h4>
+    <div class="btns">
+      <button id="btnShot"      title="Save PNG screenshot">Screenshot</button>
+      <button id="btnShare"     title="Copy shareable link">Share link</button>
+      <button id="btnSaveCam"   title="Download camera JSON">Save camera</button>
+      <button id="btnLoadCam"   title="Paste & load camera">Load camera</button>
+      <button id="btnMeasures"  title="Download measurements JSON">Measurements</button>
+    </div>
+    <div class="muted">Tip: use Sidebar for clipping, volumes, annotations, exports.</div>
   </div>
 
   <div class="chip" id="chip"></div>
@@ -119,18 +126,17 @@
   <script src="build/potree/navigation.js"></script>
 
   <script>
-    // --- Params
+    // ---- Params
     const qs = new URLSearchParams(location.search);
-    const src     = qs.get('src');                       // REQUIRED: cloud.js or ept.json
-    const title   = qs.get('title') || 'Point Cloud';
-    const initBudget  = parseInt(qs.get('budget') || '1500000', 10);
-    const initAttr    = qs.get('attr') || 'rgba';        // 'rgba', 'elevation', 'intensity', 'classification'
-    const chip   = document.getElementById('chip');
-    chip.textContent = title;
+    const src       = qs.get('src');                    // REQUIRED: cloud.js or ept.json
+    const title     = qs.get('title') || 'Point Cloud';
+    const initBudget= parseInt(qs.get('budget') || '1500000', 10);
+    const initAttr  = qs.get('attr') || 'rgba';
+    const chip      = document.getElementById('chip'); chip.textContent = title;
 
-    const errorBox = document.getElementById('error');
-    const loading  = document.getElementById('loading');
-    const qc       = document.getElementById('qc');
+    const errorBox  = document.getElementById('error');
+    const loading   = document.getElementById('loading');
+    const panel     = document.getElementById('panel');
 
     function showError(msg, details){
       errorBox.style.display = 'block';
@@ -144,7 +150,7 @@
       showError('Missing <code>?src=</code> URL parameter.',
         'Pass a public HTTPS URL to <code>cloud.js</code> (Potree 1.x) or <code>ept.json</code> (EPT).');
     } else {
-      // 1) Minimal viewer first (fast path)
+      // 1) Minimal viewer first (fast)
       const viewer = new Potree.Viewer(document.getElementById("potree_container"));
       viewer.setEDLEnabled(true);
       viewer.setFOV(60);
@@ -166,8 +172,6 @@
           viewer.fitToScreen();
           viewer.setMoveSpeed(pc.boundingSphere.radius / 5);
           loading.style.display = 'none';
-
-          // reveal quick controls (instant tweaks)
           setupQuickControls(viewer, pc);
 
           // 3) Load full GUI a moment later (non-blocking)
@@ -178,24 +182,20 @@
       }
     }
 
-    // --- Quick Controls (work even if sidebar not loaded yet)
+    // ---- Quick Controls + Export
     function setupQuickControls(viewer, pc){
-      qc.style.display = 'block';
+      panel.style.display = 'block';
       document.getElementById('title').textContent = (pc.name || 'Point Cloud');
+
       // Attribute
       const attrSel = document.getElementById('attr');
       attrSel.value = pc.material.activeAttributeName || 'rgba';
-      attrSel.onchange = () => {
-        pc.material.activeAttributeName = attrSel.value;
-      };
+      attrSel.onchange = () => { pc.material.activeAttributeName = attrSel.value; };
 
       // Point size
       const psize = document.getElementById('psize');
       const psizeVal = document.getElementById('psizeVal');
-      psize.oninput = () => {
-        pc.material.size = parseFloat(psize.value);
-        psizeVal.textContent = pc.material.size.toFixed(1);
-      };
+      psize.oninput = () => { pc.material.size = parseFloat(psize.value); psizeVal.textContent = pc.material.size.toFixed(1); };
 
       // Budget
       const budget = document.getElementById('budget');
@@ -203,46 +203,116 @@
       const fmt = (n)=> (n>=1e6? (n/1e6).toFixed(1)+'M' : (n/1e3).toFixed(0)+'k');
       budget.value = viewer.getPointBudget();
       budgetVal.textContent = fmt(viewer.getPointBudget());
-      budget.oninput = () => {
-        const b = parseInt(budget.value,10);
-        viewer.setPointBudget(b);
-        budgetVal.textContent = fmt(b);
-      };
+      budget.oninput = () => { const b = parseInt(budget.value,10); viewer.setPointBudget(b); budgetVal.textContent = fmt(b); };
 
       // Buttons
       document.getElementById('btnHome').onclick    = () => viewer.fitToScreen();
       document.getElementById('btnEDL').onclick     = () => viewer.setEDLEnabled(!viewer.getEDLEnabled());
       const bgs = ["gradient","black","white","skybox"]; let bgIdx = 0;
       document.getElementById('btnBG').onclick      = () => { bgIdx = (bgIdx+1)%bgs.length; viewer.setBackground(bgs[bgIdx]); };
-
-      // Sidebar toggle (works after GUI loads)
       document.getElementById('btnSidebar').onclick = () => viewer.toggleSidebar();
 
-      // Measurement (distance)
+      // Measurement tools
       document.getElementById('btnMeasure').onclick = () => {
         viewer.measuringTool.startInsertion({
           showDistances: true, showAngles: true, showCoordinates: false, closed: false,
           maxMarkers: 3, name: 'Distance'
         });
       };
-
-      // Profile tool
       document.getElementById('btnProfile').onclick = () => {
-        viewer.profileTool.startInsertion({
-          width: 2.0, name: 'Profile'
-        });
+        viewer.profileTool.startInsertion({ width: 2.0, name: 'Profile' });
+      };
+
+      // --- EXPORTS ---
+
+      // 1) Screenshot (PNG)
+      document.getElementById('btnShot').onclick = () => {
+        try {
+          // Try to use the renderer canvas
+          const dataURL = viewer.renderer.domElement.toDataURL('image/png');
+          const a = document.createElement('a');
+          a.href = dataURL; a.download = (pc.name || 'screenshot') + '.png';
+          document.body.appendChild(a); a.click(); a.remove();
+        } catch (err) {
+          alert('Screenshot failed. Some browsers require special flags for WebGL capture.');
+          console.error(err);
+        }
+      };
+
+      // 2) Share link (copies current params)
+      document.getElementById('btnShare').onclick = async () => {
+        const u = new URL(location.href.split('?')[0], location.href);
+        const params = new URLSearchParams();
+        params.set('src',  new URL(pc.pcoGeometry.url || pc.url || (pc.name || ''), location.href).toString() || '');
+        params.set('title', pc.name || 'Point Cloud');
+        params.set('budget', String(viewer.getPointBudget()));
+        params.set('attr', pc.material.activeAttributeName || 'rgba');
+        u.search = params.toString();
+        try { await navigator.clipboard.writeText(u.toString()); alert('Viewer link copied to clipboard'); }
+        catch { prompt('Copy link:', u.toString()); }
+      };
+
+      // 3) Save / Load camera
+      function getCameraState(){
+        const v = viewer.scene.view;
+        const cam = viewer.scene.getActiveCamera();
+        const pivot = v.getPivot ? v.getPivot() : new THREE.Vector3(0,0,0);
+        return {
+          position: cam.position.toArray(),
+          target: pivot.toArray ? pivot.toArray() : [0,0,0],
+          yaw: v.yaw, pitch: v.pitch, radius: v.radius, fov: v.fov
+        };
+      }
+      function setCameraState(state){
+        const v = viewer.scene.view;
+        if (state.position) viewer.scene.getActiveCamera().position.fromArray(state.position);
+        if (state.target && v.lookAt) v.lookAt(new THREE.Vector3().fromArray(state.target));
+        if (typeof state.yaw==='number') v.yaw = state.yaw;
+        if (typeof state.pitch==='number') v.pitch = state.pitch;
+        if (typeof state.radius==='number') v.radius = state.radius;
+        if (typeof state.fov==='number') v.fov = state.fov;
+        viewer.scene.view.updateCamera(viewer.scene.getActiveCamera(), viewer.renderer);
+      }
+      document.getElementById('btnSaveCam').onclick = () => {
+        const blob = new Blob([JSON.stringify(getCameraState(), null, 2)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = (pc.name || 'camera') + '.json'; document.body.appendChild(a); a.click(); a.remove();
+      };
+      document.getElementById('btnLoadCam').onclick = async () => {
+        const s = prompt('Paste camera JSON:');
+        if (!s) return;
+        try { setCameraState(JSON.parse(s)); viewer.fitToScreen(); }
+        catch (e){ alert('Invalid JSON'); }
+      };
+
+      // 4) Export measurements to JSON
+      document.getElementById('btnMeasures').onclick = () => {
+        try {
+          const out = [];
+          const ms = (viewer.measuringTool.measurements || viewer.measuringTool.measures || []);
+          for (const m of ms) {
+            const pts = (m.points || []).map(p => p.position.toArray());
+            out.push({ name: m.name || 'Measure', closed: !!m.closed, points: pts });
+          }
+          const blob = new Blob([JSON.stringify({ measurements: out }, null, 2)], {type:'application/json'});
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+          a.download = (pc.name || 'measurements') + '.json'; document.body.appendChild(a); a.click(); a.remove();
+        } catch (err) {
+          alert('No measurements found or export failed.');
+          console.error(err);
+        }
       };
     }
 
-    // --- Full Potree GUI (Tools/Clipping/Scene) – loaded AFTER first render
+    // ---- Full GUI after first render
     function ensureGUI(viewer){
-      if (document.getElementById("potree_sidebar")) return; // already loaded
+      if (document.getElementById("potree_sidebar")) return;
       viewer.loadGUI(() => {
         viewer.setLanguage('en');
-        $("#menu_tools").next().show();     // Measurements, profiles, annotations
-        $("#menu_clipping").next().show();  // Clipping volumes
-        $("#menu_scene").next().show();     // Scene settings
-        viewer.toggleSidebar(true);         // open it by default
+        $("#menu_tools").next().show();
+        $("#menu_clipping").next().show();
+        $("#menu_scene").next().show();
+        viewer.toggleSidebar(true);
       });
     }
   </script>
