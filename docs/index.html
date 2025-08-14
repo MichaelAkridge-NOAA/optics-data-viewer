@@ -25,13 +25,10 @@
     code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   </style>
   <script>
-    // Helper to build viewer links safely
     function vlink(src, title){
       const u = new URL('viewer.html', location.href);
       u.searchParams.set('src', src);
       if (title) u.searchParams.set('title', title);
-      // You can set defaults here too:
-      // u.searchParams.set('attr','rgba'); u.searchParams.set('budget','2000000');
       return u.toString();
     }
   </script>
@@ -45,8 +42,8 @@
       </div>
     </header>
 
-    <div class="grid" id="grid">
-      <!-- Example dataset card -->
+    <div class="grid">
+      <!-- OCC-WAKE-008 -->
       <div class="card">
         <img class="thumb" alt="OCC-WAKE-008 thumbnail"
              src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/thumbnail.jpg">
@@ -54,41 +51,22 @@
           <div class="title">OCC-WAKE-008</div>
           <p class="muted">Potree 1.x (cloud.js + data/)</p>
           <div class="row">
-            <a class="btn primary"
-               href=""
-               id="open-1">Open</a>
+            <a class="btn primary" id="open-1">Open</a>
           </div>
         </div>
       </div>
 
-      <!-- Duplicate cards for more datasets -->
-      <!--
-      <div class="card">
-        <img class="thumb" alt="My Other Cloud"
-             src="https://storage.googleapis.com/YOUR_BUCKET/your/other/thumb.jpg">
-        <div class="body">
-          <div class="title">My Other Cloud</div>
-          <p class="muted">EPT (ept.json)</p>
-          <div class="row">
-            <a class="btn primary" href="" id="open-2">Open</a>
-          </div>
-        </div>
-      </div>
-      -->
+      <!-- Duplicate for more datasets -->
     </div>
 
     <footer>
-      Add a dataset by duplicating a card and changing the image <code>src</code> and the link target in the script below.
+      Add a dataset by duplicating a card and wiring the <code>href</code> in the small script below.
     </footer>
   </div>
 
   <script>
-    // Wire up buttons with encoded viewer links
-    const occWakeSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js";
-    document.getElementById('open-1').href = vlink(occWakeSrc, "OCC-WAKE-008");
-
-    // Example for more datasets:
-    // document.getElementById('open-2').href = vlink("https://storage.googleapis.com/YOUR_BUCKET/path/ept.json", "My Other Cloud");
+    const occWake = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js";
+    document.getElementById('open-1').href = vlink(occWake, "OCC-WAKE-008");
   </script>
 </body>
-</html>
+</html

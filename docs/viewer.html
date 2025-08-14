@@ -5,6 +5,7 @@
   <title>Potree Viewer</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
 
+  <!-- Potree CSS -->
   <link rel="stylesheet" href="build/potree/potree.css" />
   <link rel="stylesheet" href="libs/jquery-ui/jquery-ui.min.css" />
   <link rel="stylesheet" href="libs/openlayers3/ol.css" />
@@ -12,9 +13,10 @@
   <link rel="stylesheet" href="libs/jstree/themes/mixed/style.css" />
 
   <style>
-    html, body { height:100%; margin:0; overflow:hidden; background:#000; }
-    #potree_sidebar_container { position:absolute; top:0; left:0; width:300px; height:100%; }
-    #potree_render_area     { position:absolute; top:0; left:300px; right:0; bottom:0; background:#000; }
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+    #potree_container { width:100%; height:100%; }
+
+    /* Loading + error */
     #loading {
       position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
       background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
@@ -25,10 +27,13 @@
       border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite;
     }
     @keyframes spin { to { transform:rotate(360deg) } }
+
     #error {
-      position:absolute; top:12px; left:320px; right:12px;
+      position:absolute; top:12px; left:12px; right:12px;
       background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
     }
+
+    /* Small floating controls (don’t depend on Potree GUI) */
     .floating-toolbar {
       position:absolute; top:12px; right:14px; display:flex; gap:8px; z-index:5;
       background:rgba(20,20,30,.55); padding:8px; border-radius:10px; backdrop-filter: blur(4px);
@@ -37,28 +42,29 @@
       cursor:pointer; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:6px 10px; background:#1c2333; color:#fff;
     }
     .floating-toolbar button:hover { filter:brightness(1.1); }
+
     .title-chip{
-      position:absolute; bottom:12px; left:310px; background:rgba(20,20,30,.55); color:#fff;
+      position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
       padding:6px 10px; border-radius:10px; font:13px system-ui
     }
   </style>
 </head>
 <body>
 
-  <div id="potree_sidebar_container"></div>
-  <div id="potree_render_area"></div>
+  <div id="potree_container"></div>
 
   <div id="error"></div>
   <div id="loading"><div class="spinner"></div><div>Loading point cloud…</div></div>
 
   <div class="floating-toolbar">
-    <button id="btnHome"    title="Fit to screen">Home</button>
-    <button id="btnEDL"     title="Toggle EDL">EDL</button>
-    <button id="btnBG"      title="Background">BG</button>
-    <button id="btnSidebar" title="Sidebar">☰</button>
+    <button id="btnHome" title="Fit to screen">Home</button>
+    <button id="btnEDL"  title="Toggle EDL">EDL</button>
+    <button id="btnBG"   title="Background">BG</button>
+    <button id="btnGUI"  title="Show Tools/Sidebar">Tools</button>
   </div>
   <div class="title-chip" id="chip"></div>
 
+  <!-- Libraries -->
   <script src="libs/jquery/jquery-3.1.1.min.js"></script>
   <script src="libs/spectrum/spectrum.js"></script>
   <script src="libs/jquery-ui/jquery-ui.min.js"></script>
@@ -69,19 +75,21 @@
   <script src="libs/openlayers3/ol.js"></script>
   <script src="libs/i18next/i18next.js"></script>
 
+  <!-- Potree -->
   <script src="build/potree/potree.js"></script>
   <script src="build/potree/navigation.js"></script>
 
   <script>
     const qs = new URLSearchParams(location.search);
-    const src     = qs.get('src');               // REQUIRED: cloud.js or ept.json
+    const src     = qs.get('src');                              // REQUIRED: cloud.js or ept.json
     const title   = qs.get('title') || 'Point Cloud';
     const budget  = parseInt(qs.get('budget') || '1500000', 10);
-    const attr    = qs.get('attr') || 'rgba';    // 'rgba', 'elevation', 'intensity', ...
+    const attr    = qs.get('attr') || 'rgba';                   // 'rgba', 'elevation', 'intensity', ...
 
     const errorBox = document.getElementById('error');
     const loading  = document.getElementById('loading');
     const chip     = document.getElementById('chip');
+    chip.textContent = title;
 
     function showError(msg, details){
       errorBox.style.display = 'block';
@@ -91,31 +99,19 @@
       loading.style.display = 'none';
     }
 
-    if(!src){
+    if (!src) {
       showError('Missing <code>?src=</code> URL parameter.',
         'Pass a public HTTPS URL to <code>cloud.js</code> (Potree 1.x) or <code>ept.json</code> (EPT).');
     } else {
-      chip.textContent = title;
-
-      const viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
-        useDefaultRenderLoop: true,
-        showVRButton: false
-      });
-      viewer.setPointBudget(budget);
+      // 1) Create the simple viewer first (like your working page)
+      const viewer = new Potree.Viewer(document.getElementById("potree_container"));
       viewer.setEDLEnabled(true);
       viewer.setFOV(60);
-      viewer.setBackground("gradient");
+      viewer.setPointBudget(budget);
       viewer.loadSettingsFromURL = false;
+      viewer.setBackground("gradient");
 
-      viewer.loadGUI(() => {
-        viewer.setLanguage('en');
-        $("#menu_tools").next().show();
-        $("#menu_clipping").next().show();
-        $("#menu_scene").next().show();
-        document.getElementById("potree_sidebar_container")
-          .appendChild(document.getElementById("potree_sidebar"));
-      });
-
+      // 2) Load cloud — this happens FIRST
       try{
         Potree.loadPointCloud(src, title, (e) => {
           const pc = e.pointcloud;
@@ -128,17 +124,37 @@
           viewer.fitToScreen();
           viewer.setMoveSpeed(pc.boundingSphere.radius / 5);
           loading.style.display = 'none';
+
+          // 3) (Optional) load the full Potree GUI AFTER we’ve rendered the cloud once
+          //    This prevents GUI issues from blocking the first frame.
+          //    Toggle with the “Tools” button as well.
+          function ensureGUI(){
+            if (document.getElementById("potree_sidebar")) return; // already loaded
+            viewer.loadGUI(() => {
+              viewer.setLanguage('en');
+              // Show useful menus by default
+              $("#menu_tools").next().show();
+              $("#menu_clipping").next().show();
+              $("#menu_scene").next().show();
+              viewer.toggleSidebar(true); // open it
+            });
+          }
+
+          // auto-load GUI once on success (comment out if you only want the button)
+          ensureGUI();
+
+          // Button to (re)open GUI if user closed it
+          document.getElementById("btnGUI").onclick = ensureGUI;
         });
       }catch(err){
         showError('Unexpected error while starting load.', String(err));
       }
 
-      // Toolbar
-      document.getElementById("btnHome").onclick    = () => viewer.fitToScreen();
-      document.getElementById("btnEDL").onclick     = () => viewer.setEDLEnabled(!viewer.getEDLEnabled());
+      // Minimal toolbar actions (don’t depend on Potree GUI)
+      document.getElementById("btnHome").onclick = () => viewer.fitToScreen();
+      document.getElementById("btnEDL").onclick  = () => viewer.setEDLEnabled(!viewer.getEDLEnabled());
       const bgs = ["gradient","black","white","skybox"]; let bgIdx = 0;
-      document.getElementById("btnBG").onclick      = () => { bgIdx = (bgIdx+1)%bgs.length; viewer.setBackground(bgs[bgIdx]); };
-      document.getElementById("btnSidebar").onclick = () => viewer.toggleSidebar();
+      document.getElementById("btnBG").onclick   = () => { bgIdx = (bgIdx+1)%bgs.length; viewer.setBackground(bgs[bgIdx]); };
     }
   </script>
 </body>
