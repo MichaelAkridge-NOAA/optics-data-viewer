@@ -5,7 +5,6 @@
   <title>Potree Viewer</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
 
-  <!-- Potree CSS -->
   <link rel="stylesheet" href="build/potree/potree.css" />
   <link rel="stylesheet" href="libs/jquery-ui/jquery-ui.min.css" />
   <link rel="stylesheet" href="libs/openlayers3/ol.css" />
@@ -16,8 +15,6 @@
     html, body { height:100%; margin:0; overflow:hidden; background:#000; }
     #potree_sidebar_container { position:absolute; top:0; left:0; width:300px; height:100%; }
     #potree_render_area     { position:absolute; top:0; left:300px; right:0; bottom:0; background:#000; }
-
-    /* Loading overlay */
     #loading {
       position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
       background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
@@ -28,14 +25,10 @@
       border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite;
     }
     @keyframes spin { to { transform:rotate(360deg) } }
-
-    /* Error banner */
     #error {
       position:absolute; top:12px; left:320px; right:12px;
       background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
     }
-
-    /* Quick toolbar */
     .floating-toolbar {
       position:absolute; top:12px; right:14px; display:flex; gap:8px; z-index:5;
       background:rgba(20,20,30,.55); padding:8px; border-radius:10px; backdrop-filter: blur(4px);
@@ -66,7 +59,6 @@
   </div>
   <div class="title-chip" id="chip"></div>
 
-  <!-- Libraries -->
   <script src="libs/jquery/jquery-3.1.1.min.js"></script>
   <script src="libs/spectrum/spectrum.js"></script>
   <script src="libs/jquery-ui/jquery-ui.min.js"></script>
@@ -77,17 +69,15 @@
   <script src="libs/openlayers3/ol.js"></script>
   <script src="libs/i18next/i18next.js"></script>
 
-  <!-- Potree -->
   <script src="build/potree/potree.js"></script>
   <script src="build/potree/navigation.js"></script>
 
   <script>
-    // Read query parameters
     const qs = new URLSearchParams(location.search);
-    const src   = qs.get('src'); // required: cloud.js or ept.json
-    const title = qs.get('title') || 'Point Cloud';
-    const budget = parseInt(qs.get('budget') || '1500000', 10);
-    const attr   = qs.get('attr') || 'rgba'; // 'rgba', 'elevation', 'intensity', etc.
+    const src     = qs.get('src');               // REQUIRED: cloud.js or ept.json
+    const title   = qs.get('title') || 'Point Cloud';
+    const budget  = parseInt(qs.get('budget') || '1500000', 10);
+    const attr    = qs.get('attr') || 'rgba';    // 'rgba', 'elevation', 'intensity', ...
 
     const errorBox = document.getElementById('error');
     const loading  = document.getElementById('loading');
@@ -107,7 +97,6 @@
     } else {
       chip.textContent = title;
 
-      // Init viewer
       const viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
         useDefaultRenderLoop: true,
         showVRButton: false
@@ -118,7 +107,6 @@
       viewer.setBackground("gradient");
       viewer.loadSettingsFromURL = false;
 
-      // Load GUI into sidebar
       viewer.loadGUI(() => {
         viewer.setLanguage('en');
         $("#menu_tools").next().show();
@@ -128,13 +116,11 @@
           .appendChild(document.getElementById("potree_sidebar"));
       });
 
-      // Load the cloud
       try{
         Potree.loadPointCloud(src, title, (e) => {
           const pc = e.pointcloud;
           viewer.scene.addPointCloud(pc);
 
-          // default style
           pc.material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
           pc.material.size = 1.0;
           pc.material.activeAttributeName = attr;
@@ -147,26 +133,12 @@
         showError('Unexpected error while starting load.', String(err));
       }
 
-      // Toolbar actions
+      // Toolbar
       document.getElementById("btnHome").onclick    = () => viewer.fitToScreen();
       document.getElementById("btnEDL").onclick     = () => viewer.setEDLEnabled(!viewer.getEDLEnabled());
       const bgs = ["gradient","black","white","skybox"]; let bgIdx = 0;
       document.getElementById("btnBG").onclick      = () => { bgIdx = (bgIdx+1)%bgs.length; viewer.setBackground(bgs[bgIdx]); };
       document.getElementById("btnSidebar").onclick = () => viewer.toggleSidebar();
-
-      // Network error hinting
-      window.addEventListener('error', (ev) => {
-        if (String(ev.message || '').includes('XMLHttpRequest')) {
-          showError('Network error fetching data.',
-            'Check that the URL is correct, the object is public, and CORS allows this origin.');
-        }
-      });
-
-      // Fetch a trivial HEAD to prompt earlier CORS errors (optional)
-      fetch(src, { method:'HEAD', mode:'cors' }).catch(() => {
-        showError('CORS or permissions problem contacting the data URL.',
-          `Data URL: <code>${src}</code><br>Make sure your bucket allows public reads and your CORS includes this site.`);
-      });
     }
   </script>
 </body>
