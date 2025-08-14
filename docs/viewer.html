@@ -33,19 +33,26 @@
       background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
     }
 
-    /* Small floating controls (don’t depend on Potree GUI) */
-    .floating-toolbar {
-      position:absolute; top:12px; right:14px; display:flex; gap:8px; z-index:5;
-      background:rgba(20,20,30,.55); padding:8px; border-radius:10px; backdrop-filter: blur(4px);
+    /* Quick controls panel (works before sidebar loads) */
+    .qc {
+      position:absolute; top:12px; right:14px; z-index:5; width:300px;
+      background:rgba(20,20,30,.6); padding:10px 12px; border-radius:12px;
+      color:#eef; font:13px system-ui; backdrop-filter: blur(4px);
+      border:1px solid rgba(255,255,255,.12)
     }
-    .floating-toolbar button {
-      cursor:pointer; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:6px 10px; background:#1c2333; color:#fff;
+    .qc h3 { margin:0 0 8px; font-size:14px; font-weight:700; color:#fff }
+    .qc .row { display:flex; align-items:center; gap:8px; margin:8px 0 }
+    .qc label { width:88px; color:#cfe }
+    .qc input[type="range"] { width:160px }
+    .qc select, .qc button {
+      background:#1c2333; color:#fff; border:1px solid rgba(255,255,255,.18);
+      border-radius:8px; padding:6px 8px; cursor:pointer
     }
-    .floating-toolbar button:hover { filter:brightness(1.1); }
-
-    .title-chip{
+    .qc .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px }
+    .qc small { color:#aaccffbb }
+    .chip{
       position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
-      padding:6px 10px; border-radius:10px; font:13px system-ui
+      padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
     }
   </style>
 </head>
@@ -56,13 +63,45 @@
   <div id="error"></div>
   <div id="loading"><div class="spinner"></div><div>Loading point cloud…</div></div>
 
-  <div class="floating-toolbar">
-    <button id="btnHome" title="Fit to screen">Home</button>
-    <button id="btnEDL"  title="Toggle EDL">EDL</button>
-    <button id="btnBG"   title="Background">BG</button>
-    <button id="btnGUI"  title="Show Tools/Sidebar">Tools</button>
+  <!-- Quick Controls (point size, budget, attribute, measure, etc.) -->
+  <div class="qc" id="qc" style="display:none">
+    <h3 id="title">Point Cloud</h3>
+
+    <div class="row">
+      <label for="attr">Attribute</label>
+      <select id="attr">
+        <option value="rgba">RGB</option>
+        <option value="elevation">Elevation</option>
+        <option value="intensity">Intensity</option>
+        <option value="classification">Classification</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label for="psize">Point size</label>
+      <input id="psize" type="range" min="0.5" max="5" step="0.1" value="1.0" />
+      <small id="psizeVal">1.0</small>
+    </div>
+
+    <div class="row">
+      <label for="budget">Budget</label>
+      <input id="budget" type="range" min="500000" max="10000000" step="500000" value="1500000" />
+      <small id="budgetVal">1.5M</small>
+    </div>
+
+    <div class="btns">
+      <button id="btnHome"      title="Fit to screen">Home</button>
+      <button id="btnEDL"       title="Toggle EDL">EDL</button>
+      <button id="btnBG"        title="Background">BG</button>
+      <button id="btnSidebar"   title="Toggle Sidebar">Sidebar</button>
+      <button id="btnMeasure"   title="Measure distance">Measure</button>
+      <button id="btnProfile"   title="Profile tool">Profile</button>
+      <!-- Add more: Volume/Clip etc. once sidebar is up -->
+    </div>
+    <small>Tip: use Sidebar for advanced tools (clipping, volumes, exports)</small>
   </div>
-  <div class="title-chip" id="chip"></div>
+
+  <div class="chip" id="chip"></div>
 
   <!-- Libraries -->
   <script src="libs/jquery/jquery-3.1.1.min.js"></script>
@@ -80,16 +119,18 @@
   <script src="build/potree/navigation.js"></script>
 
   <script>
+    // --- Params
     const qs = new URLSearchParams(location.search);
-    const src     = qs.get('src');                              // REQUIRED: cloud.js or ept.json
+    const src     = qs.get('src');                       // REQUIRED: cloud.js or ept.json
     const title   = qs.get('title') || 'Point Cloud';
-    const budget  = parseInt(qs.get('budget') || '1500000', 10);
-    const attr    = qs.get('attr') || 'rgba';                   // 'rgba', 'elevation', 'intensity', ...
+    const initBudget  = parseInt(qs.get('budget') || '1500000', 10);
+    const initAttr    = qs.get('attr') || 'rgba';        // 'rgba', 'elevation', 'intensity', 'classification'
+    const chip   = document.getElementById('chip');
+    chip.textContent = title;
 
     const errorBox = document.getElementById('error');
     const loading  = document.getElementById('loading');
-    const chip     = document.getElementById('chip');
-    chip.textContent = title;
+    const qc       = document.getElementById('qc');
 
     function showError(msg, details){
       errorBox.style.display = 'block';
@@ -103,58 +144,106 @@
       showError('Missing <code>?src=</code> URL parameter.',
         'Pass a public HTTPS URL to <code>cloud.js</code> (Potree 1.x) or <code>ept.json</code> (EPT).');
     } else {
-      // 1) Create the simple viewer first (like your working page)
+      // 1) Minimal viewer first (fast path)
       const viewer = new Potree.Viewer(document.getElementById("potree_container"));
       viewer.setEDLEnabled(true);
       viewer.setFOV(60);
-      viewer.setPointBudget(budget);
+      viewer.setPointBudget(initBudget);
       viewer.loadSettingsFromURL = false;
       viewer.setBackground("gradient");
 
-      // 2) Load cloud — this happens FIRST
+      // 2) Load cloud first
+      let pc = null;
       try{
         Potree.loadPointCloud(src, title, (e) => {
-          const pc = e.pointcloud;
+          pc = e.pointcloud;
           viewer.scene.addPointCloud(pc);
 
           pc.material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
           pc.material.size = 1.0;
-          pc.material.activeAttributeName = attr;
+          pc.material.activeAttributeName = initAttr;
 
           viewer.fitToScreen();
           viewer.setMoveSpeed(pc.boundingSphere.radius / 5);
           loading.style.display = 'none';
 
-          // 3) (Optional) load the full Potree GUI AFTER we’ve rendered the cloud once
-          //    This prevents GUI issues from blocking the first frame.
-          //    Toggle with the “Tools” button as well.
-          function ensureGUI(){
-            if (document.getElementById("potree_sidebar")) return; // already loaded
-            viewer.loadGUI(() => {
-              viewer.setLanguage('en');
-              // Show useful menus by default
-              $("#menu_tools").next().show();
-              $("#menu_clipping").next().show();
-              $("#menu_scene").next().show();
-              viewer.toggleSidebar(true); // open it
-            });
-          }
+          // reveal quick controls (instant tweaks)
+          setupQuickControls(viewer, pc);
 
-          // auto-load GUI once on success (comment out if you only want the button)
-          ensureGUI();
-
-          // Button to (re)open GUI if user closed it
-          document.getElementById("btnGUI").onclick = ensureGUI;
+          // 3) Load full GUI a moment later (non-blocking)
+          setTimeout(() => ensureGUI(viewer), 250);
         });
       }catch(err){
         showError('Unexpected error while starting load.', String(err));
       }
+    }
 
-      // Minimal toolbar actions (don’t depend on Potree GUI)
-      document.getElementById("btnHome").onclick = () => viewer.fitToScreen();
-      document.getElementById("btnEDL").onclick  = () => viewer.setEDLEnabled(!viewer.getEDLEnabled());
+    // --- Quick Controls (work even if sidebar not loaded yet)
+    function setupQuickControls(viewer, pc){
+      qc.style.display = 'block';
+      document.getElementById('title').textContent = (pc.name || 'Point Cloud');
+      // Attribute
+      const attrSel = document.getElementById('attr');
+      attrSel.value = pc.material.activeAttributeName || 'rgba';
+      attrSel.onchange = () => {
+        pc.material.activeAttributeName = attrSel.value;
+      };
+
+      // Point size
+      const psize = document.getElementById('psize');
+      const psizeVal = document.getElementById('psizeVal');
+      psize.oninput = () => {
+        pc.material.size = parseFloat(psize.value);
+        psizeVal.textContent = pc.material.size.toFixed(1);
+      };
+
+      // Budget
+      const budget = document.getElementById('budget');
+      const budgetVal = document.getElementById('budgetVal');
+      const fmt = (n)=> (n>=1e6? (n/1e6).toFixed(1)+'M' : (n/1e3).toFixed(0)+'k');
+      budget.value = viewer.getPointBudget();
+      budgetVal.textContent = fmt(viewer.getPointBudget());
+      budget.oninput = () => {
+        const b = parseInt(budget.value,10);
+        viewer.setPointBudget(b);
+        budgetVal.textContent = fmt(b);
+      };
+
+      // Buttons
+      document.getElementById('btnHome').onclick    = () => viewer.fitToScreen();
+      document.getElementById('btnEDL').onclick     = () => viewer.setEDLEnabled(!viewer.getEDLEnabled());
       const bgs = ["gradient","black","white","skybox"]; let bgIdx = 0;
-      document.getElementById("btnBG").onclick   = () => { bgIdx = (bgIdx+1)%bgs.length; viewer.setBackground(bgs[bgIdx]); };
+      document.getElementById('btnBG').onclick      = () => { bgIdx = (bgIdx+1)%bgs.length; viewer.setBackground(bgs[bgIdx]); };
+
+      // Sidebar toggle (works after GUI loads)
+      document.getElementById('btnSidebar').onclick = () => viewer.toggleSidebar();
+
+      // Measurement (distance)
+      document.getElementById('btnMeasure').onclick = () => {
+        viewer.measuringTool.startInsertion({
+          showDistances: true, showAngles: true, showCoordinates: false, closed: false,
+          maxMarkers: 3, name: 'Distance'
+        });
+      };
+
+      // Profile tool
+      document.getElementById('btnProfile').onclick = () => {
+        viewer.profileTool.startInsertion({
+          width: 2.0, name: 'Profile'
+        });
+      };
+    }
+
+    // --- Full Potree GUI (Tools/Clipping/Scene) – loaded AFTER first render
+    function ensureGUI(viewer){
+      if (document.getElementById("potree_sidebar")) return; // already loaded
+      viewer.loadGUI(() => {
+        viewer.setLanguage('en');
+        $("#menu_tools").next().show();     // Measurements, profiles, annotations
+        $("#menu_clipping").next().show();  // Clipping volumes
+        $("#menu_scene").next().show();     // Scene settings
+        viewer.toggleSidebar(true);         // open it by default
+      });
     }
   </script>
 </body>
