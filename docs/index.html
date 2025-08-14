@@ -5,51 +5,90 @@
   <title>Optics Data Viewer</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; }
+    :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); }
+    *{box-sizing:border-box}
     html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-    .wrap{max-width:980px;margin:0 auto;padding:40px 20px}
-    h1{font-weight:700;letter-spacing:.3px;margin:0 0 4px}
-    p{color:var(--muted);margin:0 0 24px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
-    .card{background:var(--card);border-radius:14px;padding:16px 16px 14px;border:1px solid rgba(255,255,255,.08)}
-    .card h3{margin:8px 0 4px;font-size:18px}
-    .card p{margin:0 0 10px}
-    .row{display:flex;gap:8px;flex-wrap:wrap}
-    a.btn{display:inline-block;padding:8px 12px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,.15)}
-    a.primary{background:#2b79ff;color:white;border-color:#2b79ff}
-    .muted{color:var(--muted);font-size:12px}
+    .wrap{max-width:1100px;margin:0 auto;padding:40px 20px}
+    header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    h1{margin:0 0 4px;font-weight:700;letter-spacing:.2px}
+    p.lead{margin:0;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:22px}
+    .card{background:var(--card);border-radius:14px;border:1px solid var(--ring);overflow:hidden;display:flex;flex-direction:column}
+    .thumb{aspect-ratio:16/9;background:#0f172a;display:block;width:100%;object-fit:cover}
+    .body{padding:12px 14px 14px}
+    .title{margin:4px 0 2px;font-size:18px;font-weight:700}
+    .muted{color:var(--muted);font-size:13px;margin:0 0 10px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    a.btn{display:inline-block;padding:8px 12px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,.15);color:var(--text)}
+    a.primary{background:#2b79ff;border-color:#2b79ff;color:white}
     footer{margin-top:28px;color:var(--muted);font-size:12px}
-    code{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   </style>
+  <script>
+    // Helper to build viewer links safely
+    function vlink(src, title){
+      const u = new URL('viewer.html', location.href);
+      u.searchParams.set('src', src);
+      if (title) u.searchParams.set('title', title);
+      // You can set defaults here too:
+      // u.searchParams.set('attr','rgba'); u.searchParams.set('budget','2000000');
+      return u.toString();
+    }
+  </script>
 </head>
 <body>
   <div class="wrap">
-    <h1>Optics Data Viewer</h1>
-    <p>Select a point cloud to open in the Potree viewer.</p>
+    <header>
+      <div>
+        <h1>Optics Data Viewer</h1>
+        <p class="lead">Browse point clouds with Potree. Click a card to open.</p>
+      </div>
+    </header>
 
-    <div class="grid">
-      <!-- Item 1 -->
+    <div class="grid" id="grid">
+      <!-- Example dataset card -->
       <div class="card">
-        <h3>OCC-WAKE-008</h3>
-        <p class="muted">Potree 1.x (cloud.js + data/)</p>
-        <div class="row">
-          <a class="btn primary"
-             href="viewer.html?src=https%3A%2F%2Fstorage.googleapis.com%2Fnmfs_odp_pifsc%2FPIFSC%2FESD%2FARP%2Fdata_management%2Ftemp%2Fsfm_test%2Focc-wake-008%2Fcloud.js">
-            Open
-          </a>
-          <a class="btn"
-             href="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js" target="_blank" rel="noopener">
-            cloud.js
-          </a>
+        <img class="thumb" alt="OCC-WAKE-008 thumbnail"
+             src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/thumbnail.jpg">
+        <div class="body">
+          <div class="title">OCC-WAKE-008</div>
+          <p class="muted">Potree 1.x (cloud.js + data/)</p>
+          <div class="row">
+            <a class="btn primary"
+               href=""
+               id="open-1">Open</a>
+          </div>
         </div>
       </div>
 
-      <!-- Add more datasets by cloning the card above -->
+      <!-- Duplicate cards for more datasets -->
+      <!--
+      <div class="card">
+        <img class="thumb" alt="My Other Cloud"
+             src="https://storage.googleapis.com/YOUR_BUCKET/your/other/thumb.jpg">
+        <div class="body">
+          <div class="title">My Other Cloud</div>
+          <p class="muted">EPT (ept.json)</p>
+          <div class="row">
+            <a class="btn primary" href="" id="open-2">Open</a>
+          </div>
+        </div>
+      </div>
+      -->
     </div>
 
     <footer>
-      Tip: add datasets by duplicating a card and changing the <code>src</code> URL.
+      Add a dataset by duplicating a card and changing the image <code>src</code> and the link target in the script below.
     </footer>
   </div>
+
+  <script>
+    // Wire up buttons with encoded viewer links
+    const occWakeSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js";
+    document.getElementById('open-1').href = vlink(occWakeSrc, "OCC-WAKE-008");
+
+    // Example for more datasets:
+    // document.getElementById('open-2').href = vlink("https://storage.googleapis.com/YOUR_BUCKET/path/ept.json", "My Other Cloud");
+  </script>
 </body>
 </html>
