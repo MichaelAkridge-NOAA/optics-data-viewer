@@ -1,5 +1,27 @@
-# optics-data-viewer
+# NOAA Optics Data Portal
 
+The **[Optics Data Portal Link](https://michaelakridge-noaa.github.io/optics-data-portal/)** is a public-facing entry point for browsing, previewing, and downloading NOAA datasets.  
+<a href="https://michaelakridge-noaa.github.io/optics-data-portal" target="_blank"><img src="./docs/img/portal.png"/></a>
+
+## Dataset Categories
+| Category | Description | Example Content |
+|----------|-------------|-----------------|
+| **SfM 3D Models** (`sfm/`) | Structure-from-Motion (SfM) photogrammetry point clouds, viewable in-browser with Potree. | Coral reef site 3D models |
+| **Object Detection** (`odj/`) | Labeled imagery with bounding box annotations for detection model training. | Fish detection datasets |
+| **Classification** (`class/`) | Image classification datasets, including CoralNet exports and labeled taxonomy datasets. | Coral bleaching classification |
+| **Segmentation** (`seg/`) | Semantic or instance segmentation datasets with polygon/mask annotations. | Coral segmentation masks |
+
+<a href="https://michaelakridge-noaa.github.io/optics-data-portal" target="_blank"><img src="./docs/img/sfm_example.gif"/></a>
+
+## Features
+- **Interactive 3D Point Cloud Viewer**  
+  Powered by [Potree](https://github.com/potree/potree), optimized for quick initial loading and detailed exploration.
+- **Category Landing Pages**  
+  Each dataset type has its own landing page with thumbnails, dataset descriptions, and open/view buttons.
+- **Dataset Thumbnails**  
+  Live datasets show actual thumbnails (e.g., from GCP), while upcoming datasets show placeholder icons.
+- **Responsive Design**  
+  Works on desktop, tablet, and mobile.
 
 ----------
 #### Disclaimer
