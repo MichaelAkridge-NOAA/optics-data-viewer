@@ -15,7 +15,7 @@
     .back{color:var(--muted);text-decoration:none;border:1px solid var(--ring);padding:6px 10px;border-radius:10px}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:18px}
     .card{background:var(--card);border-radius:12px;border:1px solid var(--ring);overflow:hidden;display:flex;flex-direction:column}
-    .thumb{display:block;width:100%;height:110px;object-fit:cover;background:#0f172a;transition:transform .2s ease}
+    .thumb{display:block;width:100%;height:100%;object-fit:cover;background:#0f172a;transition:transform .2s ease}
     .thumb-link{display:block;line-height:0}
     .thumb-link:focus .thumb, .thumb-link:hover .thumb{transform:scale(1.02)}
     .body{padding:10px 12px 12px}
@@ -78,9 +78,24 @@
         </div>
       </div>
     </div>
+      <!-- OCC-ASC-003 -->
+      <div class="card">
+        <a class="thumb-link" id="open-asc-img" aria-label="Open OCC-ASC-003">
+          <img class="thumb" alt="OCC-ASC-003 thumbnail"
+               src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/thumbnail.png">
+        </a>
+        <div class="body">
+          <div class="title">OCC-ASC-003</div>
+          <p class="muted">2022-07-24 OCC-ASC-003 Fixed Site</p>
+          <div class="row">
+            <a class="btn primary" id="open-asc">Open</a>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <footer>
-      Duplicate a card and wire links below with <code>vlink(".../cloud.js","Title")</code>.
+    
     </footer>
   </div>
 
@@ -96,6 +111,12 @@
     const wakeURL = vlink(wakeSrc, "OCC-WAKE-008");
     document.getElementById('open-wake').href = wakeURL;
     document.getElementById('open-wake-img').href = wakeURL;
+
+    // OCC-ASC-003
+    const ascSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js";
+    const ascURL = vlink(ascSrc, "20220724_OCC-ASC-003");
+    document.getElementById('open-asc').href = ascURL;
+    document.getElementById('open-asc-img').href = ascURL;
   </script>
 </body>
 </html>

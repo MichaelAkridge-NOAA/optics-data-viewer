@@ -2,26 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>ODJ – Object Detection Datasets</title>
+  <title>Object Detection Datasets - Optics Data Portal</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    html,body{height:100%;margin:0;background:#0b1220;color:#e8eefc;font:16px system-ui,Segoe UI,Roboto,Arial}
-    .center{min-height:100%;display:grid;place-items:center;padding:24px}
-    .card{max-width:720px;background:#121a2b;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:24px}
-    a{color:#8fb4ff}
-    .muted{color:#9fb0d0}
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-    .btn{display:inline-block;padding:8px 12px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,.15);color:#e8eefc}
+    :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); --accent:#2b79ff; }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:900px;margin:0 auto;padding:40px 20px;text-align:center}
+    h1{margin:0 0 10px;font-weight:800}
+    p.lead{margin:0;color:var(--muted)}
+    .icon{max-width:140px;margin:30px auto 20px;display:block}
+    .card{background:var(--card);border-radius:14px;border:1px solid var(--ring);padding:20px;margin-top:24px}
+    a.btn{display:inline-block;margin-top:20px;padding:10px 16px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,.15);color:var(--text)}
+    a.primary{background:var(--accent);border-color:var(--accent);color:white}
   </style>
 </head>
 <body>
-  <div class="center">
+  <div class="wrap">
+    <img src="../img/odj.png" alt="Object Detection Icon" class="icon">
+    <h1>Object Detection Datasets</h1>
+    <p class="lead">Bounding boxes and instances for model training and evaluation.</p>
+
     <div class="card">
-      <h1>ODJ – Object Detection</h1>
-      <p class="muted">This section will host image datasets and label files (e.g., COCO/YOLO). Coming soon.</p>
-      <div class="row">
-        <a class="btn" href="../">← Back to portal</a>
-      </div>
+      <h2>Coming Soon</h2>
+      <p>We’re preparing detection datasets (images + labels in COCO/YOLO formats) for release.</p>
+      <a href="../" class="btn primary">⬅ Back to Portal</a>
     </div>
   </div>
 </body>
