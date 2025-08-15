@@ -1,8 +1,8 @@
-# NOAA Optics Data Portal
+# NOAA Optics Dataset Portal
 
-The **[Optics Data Portal Link](https://michaelakridge-noaa.github.io/optics-data-portal/)** is a public-facing entry point for browsing, previewing, and downloading NOAA datasets.  
+The **[Optics Data Portal Link](https://michaelakridge-noaa.github.io/optics-data-viewer/)** is a public-facing entry point for browsing, previewing, and downloading NOAA datasets.  
 
-<a href="https://michaelakridge-noaa.github.io/optics-data-portal" target="_blank"><img src="./docs/img/portal.png"/></a>
+<a href="https://michaelakridge-noaa.github.io/optics-data-viewer" target="_blank"><img src="./docs/img/portal.png"/></a>
 
 ## Dataset Categories
 | Category | Description | Example Content |
@@ -12,7 +12,7 @@ The **[Optics Data Portal Link](https://michaelakridge-noaa.github.io/optics-dat
 | **Classification** (`class/`) | Image classification datasets, including CoralNet exports and labeled taxonomy datasets. | Coral bleaching classification |
 | **Segmentation** (`seg/`) | Semantic or instance segmentation datasets with polygon/mask annotations. | Coral segmentation masks |
 
-<a href="https://michaelakridge-noaa.github.io/optics-data-portal" target="_blank"><img src="./docs/img/sfm_example.gif"/></a>
+<a href="https://michaelakridge-noaa.github.io/optics-data-viewer" target="_blank"><img src="./docs/img/sfm_example.gif"/></a>
 
 ## Features
 - **Interactive 3D Point Cloud Viewer**  
