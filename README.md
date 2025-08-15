@@ -1,4 +1,4 @@
-# NOAA Optics Dataset Portal
+# NOAA Optics Data Portal
 
 The **[Optics Data Portal Link](https://michaelakridge-noaa.github.io/optics-data-viewer/)** is a public-facing entry point for browsing, previewing, and downloading NOAA datasets.  
 
