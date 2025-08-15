@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Optics Data Portal</title>
+  <title>NOAA Optics SI Data Portal</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); --accent:#2b79ff; }
@@ -22,32 +22,32 @@
     a.btn{display:inline-block;padding:8px 12px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,.15);color:var(--text)}
     a.primary{background:var(--accent);border-color:var(--accent);color:white}
     .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.08);margin-left:6px}
-    footer{margin-top:28px;color:var(--muted);font-size:12px}
+    footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center}
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <div>
-        <h1>Optics Data Portal</h1>
-        <p class="lead">Browse project datasets by category.</p>
+        <h1>NOAA Optics SI Data Portal</h1>
+        <p class="lead">Centralized access to marine optics datasets for research, analysis, and AI/ML development.</p>
       </div>
     </header>
 
     <div class="grid">
       <!-- SFM (live) -->
       <div class="card">
-        <a href="sfm/" aria-label="Open SFM datasets">
+        <a href="sfm/" aria-label="Open Structure-from-Motion datasets">
           <img class="thumb"
                src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/thumbnail.png"
-               alt="SFM Thumbnail">
+               alt="SfM Thumbnail">
         </a>
         <div class="body">
-          <div class="title">SFM 3D Model Data <span class="badge">live</span></div>
-          <p class="muted">Photogrammetry point clouds (Potree).</p>
+          <div class="title">Structure-from-Motion (SfM) 3D Model Data<span class="badge">Live</span></div>
+          <p class="muted">Photogrammetry-based 3D reconstructions and georeferenced point clouds of benthic habitats.</p>
           <div class="row">
             <a class="btn primary" href="sfm/">Open</a>
-            <a class="btn" href="sfm/">View datasets</a>
+            <a class="btn" href="sfm/">Browse Datasets</a>
           </div>
         </div>
       </div>
@@ -58,8 +58,8 @@
           <img class="thumb" src="img/odj_icon_2.png" alt="Object Detection icon">
         </a>
         <div class="body">
-          <div class="title">ODJ (Object Detection) <span class="badge">coming soon</span></div>
-          <p class="muted">Labeled imagery and bounding boxes.</p>
+          <div class="title">Object Detection <span class="badge">Coming Soon</span></div>
+          <p class="muted">Curated imagery with annotated bounding boxes for detecting species, structures, and equipment.</p>
           <div class="row">
             <a class="btn" href="odj/">Details</a>
           </div>
@@ -72,8 +72,8 @@
           <img class="thumb" src="img/class_icon.png" alt="Classification icon">
         </a>
         <div class="body">
-          <div class="title">CLASS (Classification) <span class="badge">coming soon</span></div>
-          <p class="muted">CoralNet & other taxonomy labels.</p>
+          <div class="title">Classification <span class="badge">Coming Soon</span></div>
+          <p class="muted">Image datasets labeled for species and habitat classification, including CoralNet exports.</p>
           <div class="row">
             <a class="btn" href="class/">Details</a>
           </div>
@@ -86,8 +86,8 @@
           <img class="thumb" src="img/seg_icon.png" alt="Segmentation icon">
         </a>
         <div class="body">
-          <div class="title">SEG (Segmentation) <span class="badge">coming soon</span></div>
-          <p class="muted">Masks/polygons for semantic or instance segmentation.</p>
+          <div class="title">Segmentation <span class="badge">Coming Soon</span></div>
+          <p class="muted">Pixel-level masks and vector polygons for benthic cover, coral colonies, and other features.</p>
           <div class="row">
             <a class="btn" href="seg/">Details</a>
           </div>
@@ -96,6 +96,7 @@
     </div>
 
     <footer>
+      2025 | NOAA Fisheries - Optics SI - PIFSC
     </footer>
   </div>
 </body>
