@@ -312,7 +312,15 @@
         $("#menu_tools").next().show();
         $("#menu_clipping").next().show();
         $("#menu_scene").next().show();
-        viewer.toggleSidebar(true);
+        // Force sidebar to show and make sure it's visible
+        viewer.toggleSidebar();
+        // Ensure the sidebar is actually visible
+        setTimeout(() => {
+          const sidebar = document.getElementById("potree_sidebar_container");
+          if (sidebar) {
+            sidebar.style.display = "block";
+          }
+        }, 100);
       });
     }
   </script>

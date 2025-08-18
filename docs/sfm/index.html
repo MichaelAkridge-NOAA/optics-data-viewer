@@ -35,6 +35,14 @@
       if (title) u.searchParams.set('title', title);
       return u.toString();
     }
+    
+    // Build a link to ../sfm-viewer.html with ?src= and ?title=
+    function sfmlink(src, title){
+      const u = new URL('../sfm-viewer.html', location.href);
+      u.searchParams.set('src', src);
+      if (title) u.searchParams.set('title', title);
+      return u.toString();
+    }
   </script>
 </head>
 <body>
@@ -59,6 +67,7 @@
           <p class="muted">2023-03-18 Baker Site</p>
           <div class="row">
             <a class="btn primary" id="open-bak">Open</a>
+            <a class="btn" id="open-bak-anim">Camera Animation</a>
           </div>
         </div>
       </div>
@@ -74,10 +83,12 @@
           <p class="muted">2025 Wake Fixed Site</p>
           <div class="row">
             <a class="btn primary" id="open-wake">Open</a>
+            <a class="btn" id="open-wake-anim">Camera Animation</a>
           </div>
         </div>
       </div>
-    </div>
+      </div>
+
       <!-- OCC-ASC-003 -->
       <div class="card">
         <a class="thumb-link" id="open-asc-img" aria-label="Open OCC-ASC-003">
@@ -89,12 +100,11 @@
           <p class="muted">2022-07-24 OCC-ASC-003 Fixed Site</p>
           <div class="row">
             <a class="btn primary" id="open-asc">Open</a>
+            <a class="btn" id="open-asc-anim">Camera Animation</a>
           </div>
         </div>
       </div>
-    </div>
-
-    <footer>
+    </div>    <footer>
     
     </footer>
   </div>
@@ -103,20 +113,26 @@
     // OCC-BAK-008
     const bakSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230318_OCC-BAK-008/cloud.js";
     const bakURL = vlink(bakSrc, "OCC-BAK-008");
+    const bakAnimURL = sfmlink(bakSrc, "OCC-BAK-008");
     document.getElementById('open-bak').href = bakURL;
     document.getElementById('open-bak-img').href = bakURL;
+    document.getElementById('open-bak-anim').href = bakAnimURL;
 
     // OCC-WAKE-008
     const wakeSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js";
     const wakeURL = vlink(wakeSrc, "OCC-WAKE-008");
+    const wakeAnimURL = sfmlink(wakeSrc, "OCC-WAKE-008");
     document.getElementById('open-wake').href = wakeURL;
     document.getElementById('open-wake-img').href = wakeURL;
+    document.getElementById('open-wake-anim').href = wakeAnimURL;
 
     // OCC-ASC-003
     const ascSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js";
     const ascURL = vlink(ascSrc, "20220724_OCC-ASC-003");
+    const ascAnimURL = sfmlink(ascSrc, "20220724_OCC-ASC-003");
     document.getElementById('open-asc').href = ascURL;
     document.getElementById('open-asc-img').href = ascURL;
+    document.getElementById('open-asc-anim').href = ascAnimURL;
   </script>
 </body>
 </html>

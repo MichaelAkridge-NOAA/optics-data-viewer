@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Optics Data Viewer - SFM with Camera Animation</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Potree CSS -->
+  <link rel="stylesheet" href="build/potree/potree.css" />
+  <link rel="stylesheet" href="libs/jquery-ui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="libs/openlayers3/ol.css" />
+  <link rel="stylesheet" href="libs/spectrum/spectrum.css" />
+  <link rel="stylesheet" href="libs/jstree/themes/mixed/style.css" />
+
+  <style>
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+    
+    /* Loading + error */
+    #loading {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
+      z-index:9999; flex-direction:column; gap:10px
+    }
+    #loading .spinner { width:40px; height:40px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg) } }
+
+    #error {
+      position:absolute; top:12px; left:12px; right:12px;
+      background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
+    }
+
+    .chip{
+      position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
+      padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
+    }
+  </style>
+</head>
+<body>
+
+  <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+    <div id="potree_render_area" style="background-image: url('build/potree/resources/images/background.jpg');">
+    </div>
+    <div id="potree_sidebar_container"> </div>
+  </div>
+
+  <div id="error"></div>
+  <div id="loading"><div class="spinner"></div><div>Loading point cloud with camera animation…</div></div>
+  <div class="chip" id="chip"></div>
+
+  <!-- Libraries -->
+  <script src="libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="libs/spectrum/spectrum.js"></script>
+  <script src="libs/jquery-ui/jquery-ui.min.js"></script>
+  <script src="libs/other/BinaryHeap.js"></script>
+  <script src="libs/tween/tween.min.js"></script>
+  <script src="libs/d3/d3.js"></script>
+  <script src="libs/proj4/proj4.js"></script>
+  <script src="libs/openlayers3/ol.js"></script>
+  <script src="libs/i18next/i18next.js"></script>
+  <script src="libs/jstree/jstree.js"></script>
+
+  <!-- Potree -->
+  <script src="build/potree/potree.js"></script>
+  <script src="libs/plasio/js/laslaz.js"></script>
+
+  <script>
+    // ---- Params
+    const qs = new URLSearchParams(location.search);
+    const src       = qs.get('src');                    // REQUIRED: cloud.js
+    const title     = qs.get('title') || 'SFM Point Cloud';
+    const chip      = document.getElementById('chip'); chip.textContent = title;
+
+    const errorBox  = document.getElementById('error');
+    const loading   = document.getElementById('loading');
+
+    function showError(msg, details){
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = `<strong>Couldn't load point cloud.</strong> ${msg}`
+        + (details ? `<div style="opacity:.9;margin-top:6px;font-size:13px">${details}</div>` : '');
+      console.error('Potree load error:', msg, details);
+      loading.style.display = 'none';
+    }
+
+    if (!src) {
+      showError('Missing <code>?src=</code> URL parameter.',
+        'Pass a public HTTPS URL to <code>cloud.js</code> (Potree format).');
+    } else {
+      // Initialize viewer
+      window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+      
+      viewer.setEDLEnabled(false);
+      viewer.setFOV(60);
+      viewer.setPointBudget(3_000_000);
+      viewer.loadSettingsFromURL();
+      viewer.setDescription(`
+      SFM Point Cloud with Camera Animation<br>
+      Create new animation paths via "Tools -> Navigation -> Camera Animation"<br>
+      Modify and play animations via "Scene -> Objects -> Other -> [animation object]".
+      `);
+      
+      // Load GUI immediately with sidebar visible
+      viewer.loadGUI(() => {
+        viewer.setLanguage('en');
+        $("#menu_scene").next().show();
+        $("#menu_tools").next().show();
+        viewer.toggleSidebar();
+      });
+      
+      // Load point cloud
+      Potree.loadPointCloud(src, title, e => {
+        let scene = viewer.scene;
+        let pointcloud = e.pointcloud;
+        
+        let material = pointcloud.material;
+        material.size = 1;
+        material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+        material.shape = Potree.PointShape.SQUARE;
+        
+        scene.addPointCloud(pointcloud);
+        
+        viewer.fitToScreen();
+        loading.style.display = 'none';
+        
+        // Create default camera animation if this is an SFM dataset
+        createDefaultCameraAnimation(pointcloud);
+      });
+    }
+
+    // Create a default camera animation for SFM datasets
+    function createDefaultCameraAnimation(pointcloud) {
+      try {
+        // Use the global THREE object (should be available from Potree)
+        if (typeof THREE !== 'undefined') {
+          const animation = new Potree.CameraAnimation(viewer);
+
+          // Get the bounding box center and size for camera positions
+          const box = pointcloud.boundingBox;
+          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+
+          // Create a circular camera path around the point cloud
+          const radius = maxDim * 1.5;
+          const height = center.z + size.z * 0.3;
+          const numPoints = 6;
+
+          for(let i = 0; i < numPoints; i++){
+            const angle = (i / numPoints) * Math.PI * 2;
+            const cp = animation.createControlPoint();
+
+            // Position camera in a circle around the center
+            cp.position.set(
+              center.x + Math.cos(angle) * radius,
+              center.y + Math.sin(angle) * radius,
+              height
+            );
+            
+            // Always look at the center
+            cp.target.copy(center);
+          }
+
+          viewer.scene.addCameraAnimation(animation);
+          
+          // Add camera animation controls to the GUI
+          addCameraAnimationControls(animation);
+        } else {
+          console.log('THREE.js not available for camera animation');
+        }
+      } catch (err) {
+        console.log('Camera animation not available:', err);
+      }
+    }
+
+    // Add camera animation controls to the Potree GUI
+    function addCameraAnimationControls(animation) {
+      viewer.onGUILoaded(() => {
+        let section = $(`
+          <h3 id="menu_camera_anim" class="accordion-header ui-widget"><span>Camera Animation</span></h3>
+          <div class="accordion-content ui-widget pv-menu-list"></div>
+        `);
+        let content = section.last();
+        content.html(`
+        <div class="pv-menu-list">
+          <span id="animation_keyframes"></span>
+          <span>
+            <span>Time: </span><span id="lblTime">0.00</span> 
+            <div id="sldTime"></div>
+            <div style="margin-top: 8px;">
+              <input name="play" type="button" value="Play Animation"/>
+              <input name="stop" type="button" value="Stop"/>
+            </div>
+          </span>
+        </div>
+        `);
+
+        const elPlay = content.find("input[name=play]");
+        const elStop = content.find("input[name=stop]");
+        elPlay.click(() => {
+          animation.play();
+        });
+        elStop.click(() => {
+          animation.stop();
+        });
+
+        const elSlider = content.find('#sldTime');
+        const elTimeLabel = content.find('#lblTime');
+        elSlider.slider({
+          value: 0,
+          min: 0,
+          max: 1,
+          step: 0.001,
+          slide: (event, ui) => { 
+            animation.set(ui.value);
+            elTimeLabel.text(ui.value.toFixed(2));
+          }
+        });
+
+        const elKeyframes = content.find("#animation_keyframes");
+
+        const updateKeyframes = () => {
+          elKeyframes.empty();
+          let index = 0;
+
+          const addNewKeyframeItem = (index) => {
+            let elNewKeyframe = $(`
+              <div style="display: flex; margin: 0.2em 0em">
+                <span style="flex-grow: 0;">
+                  <img name="add" src="${Potree.resourcePath}/icons/add.svg" style="width: 1.5em; height: 1.5em"/>
+                </span>
+                <span style="flex-grow: 1"></span>
+              </div>
+            `);
+
+            const elAdd = elNewKeyframe.find("img[name=add]");
+            elAdd.click(() => {
+              animation.createControlPoint(index);
+            });
+
+            elKeyframes.append(elNewKeyframe);
+          };
+
+          const addKeyframeItem = (index) => {
+            let elKeyframe = $(`
+              <div style="display: flex; margin: 0.2em 0em">
+                <span style="flex-grow: 0;">
+                  <img name="assign" src="${Potree.resourcePath}/icons/assign.svg" style="width: 1.5em; height: 1.5em"/>
+                </span>
+                <span style="flex-grow: 0;">
+                  <img name="move" src="${Potree.resourcePath}/icons/circled_dot.svg" style="width: 1.5em; height: 1.5em"/>
+                </span>
+                <span style="flex-grow: 0; width: 1.5em; height: 1.5em"></span>
+                <span style="flex-grow: 0; font-size: 1.2em">Keyframe ${index + 1}</span>
+                <span style="flex-grow: 1"></span>
+                <span style="flex-grow: 0;">
+                  <img name="delete" src="${Potree.resourcePath}/icons/remove.svg" style="width: 1.5em; height: 1.5em"/>
+                </span>
+              </div>
+            `);
+
+            const elAssign = elKeyframe.find("img[name=assign]");
+            const elMove = elKeyframe.find("img[name=move]");
+            const elDelete = elKeyframe.find("img[name=delete]");
+
+            elAssign.click(() => {
+              const cp = animation.controlPoints[index];
+              cp.position.copy(viewer.scene.view.position);
+              cp.target.copy(viewer.scene.view.getPivot());
+            });
+
+            elMove.click(() => {
+              const cp = animation.controlPoints[index];
+              viewer.scene.view.position.copy(cp.position);
+              viewer.scene.view.lookAt(cp.target);
+            });
+
+            elDelete.click(() => {
+              const cp = animation.controlPoints[index];
+              animation.removeControlPoint(cp);
+            });
+
+            elKeyframes.append(elKeyframe);
+          };
+
+          addNewKeyframeItem(index);
+
+          for(const cp of animation.controlPoints){
+            addKeyframeItem(index);
+            index++;
+            addNewKeyframeItem(index);
+          }
+        };
+
+        updateKeyframes();
+
+        animation.addEventListener("controlpoint_added", updateKeyframes);
+        animation.addEventListener("controlpoint_removed", updateKeyframes);
+
+        // Update time display during animation
+        const updateTime = () => {
+          if (animation.isPlaying) {
+            const t = animation.t || 0;
+            elTimeLabel.text(t.toFixed(2));
+            elSlider.slider('value', t);
+          }
+          requestAnimationFrame(updateTime);
+        };
+        updateTime();
+
+        section.first().click(() => content.slideToggle());
+        section.insertBefore($('#menu_about'));
+      });
+    }
+  </script>
+</body>
+</html>
