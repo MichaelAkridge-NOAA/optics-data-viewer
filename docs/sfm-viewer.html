@@ -105,6 +105,9 @@
         $("#menu_scene").next().show();
         $("#menu_tools").next().show();
         viewer.toggleSidebar();
+        
+        // Initialize export functionality in sidebar
+        initializeSidebarExports();
       });
       
       // Load point cloud
@@ -466,6 +469,140 @@
         console.error('Error clearing camera track:', error);
         alert('Error clearing camera track: ' + error.message);
       }
+    }
+
+    // Initialize sidebar export functionality
+    function initializeSidebarExports() {
+      // Wait for sidebar to be fully loaded
+      const checkSidebar = () => {
+        const btnScreenshot = document.getElementById('btnExportScreenshot');
+        const btnCamera = document.getElementById('btnExportCamera');
+        const btnMeasurements = document.getElementById('btnExportMeasurements');
+        const btnShareLink = document.getElementById('btnShareLink');
+        const btnLoadCamera = document.getElementById('btnLoadCamera');
+        const cameraFileInput = document.getElementById('cameraFileInput');
+
+        if (btnScreenshot && btnCamera && btnMeasurements && btnShareLink && btnLoadCamera && cameraFileInput) {
+          // Screenshot export
+          btnScreenshot.onclick = () => {
+            try {
+              const dataURL = viewer.renderer.domElement.toDataURL('image/png');
+              const a = document.createElement('a');
+              a.href = dataURL;
+              a.download = (title || 'sfm-screenshot') + '.png';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch (err) {
+              alert('Screenshot failed. Some browsers require special flags for WebGL capture.');
+              console.error(err);
+            }
+          };
+
+          // Camera export
+          btnCamera.onclick = () => {
+            const cameraData = getCameraState();
+            const blob = new Blob([JSON.stringify(cameraData, null, 2)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = (title || 'camera') + '.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          };
+
+          // Measurements export
+          btnMeasurements.onclick = () => {
+            try {
+              const out = [];
+              const ms = (viewer.measuringTool.measurements || viewer.measuringTool.measures || []);
+              for (const m of ms) {
+                const pts = (m.points || []).map(p => p.position.toArray());
+                out.push({ name: m.name || 'Measure', closed: !!m.closed, points: pts });
+              }
+              const blob = new Blob([JSON.stringify({ measurements: out }, null, 2)], {type: 'application/json'});
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = (title || 'measurements') + '.json';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch (err) {
+              alert('No measurements found or export failed.');
+              console.error(err);
+            }
+          };
+
+          // Share link
+          btnShareLink.onclick = async () => {
+            const u = new URL(location.href.split('?')[0], location.href);
+            const params = new URLSearchParams();
+            params.set('src', src || '');
+            params.set('title', title || 'SFM Point Cloud');
+            u.search = params.toString();
+            try {
+              await navigator.clipboard.writeText(u.toString());
+              alert('Viewer link copied to clipboard');
+            } catch {
+              prompt('Copy link:', u.toString());
+            }
+          };
+
+          // Load camera
+          btnLoadCamera.onclick = () => {
+            cameraFileInput.click();
+          };
+
+          cameraFileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                try {
+                  const cameraData = JSON.parse(e.target.result);
+                  setCameraState(cameraData);
+                  alert('Camera position loaded successfully');
+                } catch (err) {
+                  alert('Invalid camera file: ' + err.message);
+                }
+              };
+              reader.readAsText(file);
+            }
+          };
+
+        } else {
+          // Retry after a short delay
+          setTimeout(checkSidebar, 100);
+        }
+      };
+
+      checkSidebar();
+    }
+
+    // Camera state management functions
+    function getCameraState() {
+      const v = viewer.scene.view;
+      const cam = viewer.scene.getActiveCamera();
+      const pivot = v.getPivot ? v.getPivot() : new THREE.Vector3(0,0,0);
+      return {
+        position: cam.position.toArray(),
+        target: pivot.toArray ? pivot.toArray() : [0,0,0],
+        yaw: v.yaw,
+        pitch: v.pitch,
+        radius: v.radius,
+        fov: v.fov
+      };
+    }
+
+    function setCameraState(state) {
+      const v = viewer.scene.view;
+      if (state.position) viewer.scene.getActiveCamera().position.fromArray(state.position);
+      if (state.target && v.lookAt) v.lookAt(new THREE.Vector3().fromArray(state.target));
+      if (typeof state.yaw === 'number') v.yaw = state.yaw;
+      if (typeof state.pitch === 'number') v.pitch = state.pitch;
+      if (typeof state.radius === 'number') v.radius = state.radius;
+      if (typeof state.fov === 'number') v.fov = state.fov;
+      viewer.scene.view.updateCamera(viewer.scene.getActiveCamera(), viewer.renderer);
     }
   </script>
 </body>
