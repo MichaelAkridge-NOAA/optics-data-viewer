@@ -39,7 +39,7 @@
 <body>
 
   <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
-    <div id="potree_render_area" style="background-image: url('build/potree/resources/images/background.jpg');">
+    <div id="potree_render_area">
     </div>
     <div id="potree_sidebar_container"> </div>
   </div>
@@ -190,17 +190,67 @@
               <input name="play" type="button" value="Play Animation"/>
               <input name="stop" type="button" value="Stop"/>
             </div>
+            <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #333;">
+              <div style="margin-bottom: 6px; font-weight: bold; color: #cfe;">Camera Track Management</div>
+              <div style="margin-bottom: 4px;">
+                <input name="saveTrack" type="button" value="Save Track" style="margin-right: 4px;"/>
+                <input name="loadTrack" type="button" value="Load Track"/>
+              </div>
+              <div style="margin-bottom: 4px;">
+                <input name="clearTrack" type="button" value="Clear Track" style="margin-right: 4px;"/>
+                <input name="newTrack" type="button" value="New Track"/>
+              </div>
+              <input type="file" id="trackFileInput" accept=".json" style="display: none;"/>
+            </div>
           </span>
         </div>
         `);
 
         const elPlay = content.find("input[name=play]");
         const elStop = content.find("input[name=stop]");
+        const elSaveTrack = content.find("input[name=saveTrack]");
+        const elLoadTrack = content.find("input[name=loadTrack]");
+        const elClearTrack = content.find("input[name=clearTrack]");
+        const elNewTrack = content.find("input[name=newTrack]");
+        const elFileInput = content.find("#trackFileInput");
+
         elPlay.click(() => {
           animation.play();
         });
         elStop.click(() => {
           animation.stop();
+        });
+
+        // Save camera track to JSON file
+        elSaveTrack.click(() => {
+          saveCameraTrack(animation);
+        });
+
+        // Load camera track from JSON file
+        elLoadTrack.click(() => {
+          elFileInput.click();
+        });
+
+        // Clear all keyframes
+        elClearTrack.click(() => {
+          if (confirm('Are you sure you want to clear all keyframes?')) {
+            clearCameraTrack(animation);
+          }
+        });
+
+        // Create new empty track
+        elNewTrack.click(() => {
+          if (confirm('Create a new empty camera track? This will clear existing keyframes.')) {
+            clearCameraTrack(animation);
+          }
+        });
+
+        // Handle file input change
+        elFileInput.on('change', function(e) {
+          const file = e.target.files[0];
+          if (file) {
+            loadCameraTrack(animation, file);
+          }
         });
 
         const elSlider = content.find('#sldTime');
@@ -310,6 +360,112 @@
         section.first().click(() => content.slideToggle());
         section.insertBefore($('#menu_about'));
       });
+    }
+
+    // Camera track management functions
+    function saveCameraTrack(animation) {
+      try {
+        const trackData = {
+          version: "1.0",
+          created: new Date().toISOString(),
+          title: title || "Camera Track",
+          pointCloudSrc: src,
+          duration: animation.duration || 10,
+          controlPoints: []
+        };
+
+        // Export all control points
+        for (let i = 0; i < animation.controlPoints.length; i++) {
+          const cp = animation.controlPoints[i];
+          trackData.controlPoints.push({
+            index: i,
+            position: cp.position.toArray(),
+            target: cp.target.toArray(),
+            time: cp.time || (i / (animation.controlPoints.length - 1))
+          });
+        }
+
+        // Create and download the file
+        const blob = new Blob([JSON.stringify(trackData, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(title || 'camera-track').replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        console.log('Camera track saved successfully');
+        alert(`Camera track saved with ${trackData.controlPoints.length} keyframes`);
+      } catch (error) {
+        console.error('Error saving camera track:', error);
+        alert('Error saving camera track: ' + error.message);
+      }
+    }
+
+    function loadCameraTrack(animation, file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const trackData = JSON.parse(e.target.result);
+          
+          // Validate the track data
+          if (!trackData.controlPoints || !Array.isArray(trackData.controlPoints)) {
+            throw new Error('Invalid camera track file format');
+          }
+
+          // Clear existing control points
+          clearCameraTrack(animation);
+
+          // Load control points
+          for (const cpData of trackData.controlPoints) {
+            if (cpData.position && cpData.target && cpData.position.length === 3 && cpData.target.length === 3) {
+              const cp = animation.createControlPoint();
+              cp.position.fromArray(cpData.position);
+              cp.target.fromArray(cpData.target);
+              if (cpData.time !== undefined) {
+                cp.time = cpData.time;
+              }
+            }
+          }
+
+          // Set duration if available
+          if (trackData.duration) {
+            animation.duration = trackData.duration;
+          }
+
+          console.log('Camera track loaded successfully');
+          alert(`Camera track loaded with ${trackData.controlPoints.length} keyframes`);
+          
+          // Reset animation to beginning
+          animation.set(0);
+          
+        } catch (error) {
+          console.error('Error loading camera track:', error);
+          alert('Error loading camera track: ' + error.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function clearCameraTrack(animation) {
+      try {
+        // Remove all control points
+        const controlPoints = [...animation.controlPoints]; // Create a copy to avoid modification during iteration
+        for (const cp of controlPoints) {
+          animation.removeControlPoint(cp);
+        }
+        
+        // Reset animation
+        animation.set(0);
+        animation.stop();
+        
+        console.log('Camera track cleared');
+      } catch (error) {
+        console.error('Error clearing camera track:', error);
+        alert('Error clearing camera track: ' + error.message);
+      }
     }
   </script>
 </body>
