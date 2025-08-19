@@ -504,6 +504,10 @@
     let pointCloudData = {};
     let isAnimating = false;
     let animationId = null;
+    
+    // Manual alignment controls - declare at global scope
+    let currentAlignment = { x: 4.79, y: 3.50, z: -0.71 }; // Start with configured values
+    let basePosition = null;
 
     const errorBox = document.getElementById('error');
     const loading = document.getElementById('loading');
@@ -801,10 +805,6 @@
         console.error('Error initializing map:', error);
       }
     }
-
-    // Manual alignment controls
-    let currentAlignment = { x: 4.79, y: 3.50, z: -0.71 }; // Start with configured values
-    let basePosition = null;
 
     function initializeAlignmentControls() {
       // Get slider elements
