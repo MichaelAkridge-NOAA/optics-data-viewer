@@ -220,8 +220,8 @@
           url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js",
           //url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-tut-017-2023/cloud.js",
           color: new THREE.Color(0.3, 0.7, 1.0), // Blue tint for 2018
-          position: [0, 0, 0], // Aligned to same position
-          scale: [1, 1, 1],
+          position: [0, 0, 0], // Base position
+          scale: [1, 1, 1], // Base scale
           rotation: [0, 0, 0]
         },
         {
@@ -230,8 +230,8 @@
           url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js",
           //url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-tut-017-2023/cloud.js",
           color: new THREE.Color(1.0, 0.7, 0.3), // Orange tint for 2023
-          position: [0, 0, 0], // Aligned to same position  
-          scale: [1, 1, 1],
+          position: [0, 0, 0], // Will be adjusted by smart alignment
+          scale: [1, 1, 1], // Will be adjusted by smart alignment
           rotation: [0, 0, 0]
         }
       ],
@@ -329,7 +329,7 @@
                   material.color = config.color;
                 }
                 
-                // Apply transformations
+                // Apply transformations with smart alignment
                 if (config.position && config.position.length === 3) {
                   pointcloud.position.set(config.position[0], config.position[1], config.position[2]);
                 }
@@ -338,6 +338,25 @@
                 }
                 if (config.rotation && config.rotation.length === 3) {
                   pointcloud.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+                }
+                
+                // Smart alignment for second point cloud
+                if (config.year === 2023 && Object.keys(pointCloudData).length > 0) {
+                  const firstCloud = Object.values(pointCloudData)[0].pointcloud;
+                  if (firstCloud && firstCloud.boundingBox) {
+                    // Position the second cloud at the same location as the first
+                    const firstCenter = firstCloud.boundingBox.getCenter(new THREE.Vector3());
+                    pointcloud.position.copy(firstCenter);
+                    
+                    // Scale to roughly match the first cloud's size
+                    const firstSize = firstCloud.boundingBox.getSize(new THREE.Vector3()).length();
+                    const secondSize = pointcloud.boundingBox.getSize(new THREE.Vector3()).length();
+                    if (secondSize > 0) {
+                      const scaleFactor = firstSize / secondSize * 0.8; // Make it slightly smaller for visibility
+                      pointcloud.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                      console.log(`Scaled ${config.name} by factor ${scaleFactor.toFixed(3)}`);
+                    }
+                  }
                 }
                 
                 // Store reference
@@ -530,15 +549,11 @@
       
       isAnimating = true;
       let startTime = Date.now();
-      const rotationDuration = 20000; // 20 seconds for full rotation
+      const rotationDuration = 15000; // 15 seconds for full rotation
       
-      // Store initial camera position for smooth rotation
-      const initialCamera = viewer.scene.getActiveCamera();
-      const initialPosition = initialCamera.position.clone();
-      const centerPoint = new THREE.Vector3(0, 0, 0); // Rotate around center
-      
-      // Calculate rotation radius based on initial distance
-      const initialDistance = initialPosition.distanceTo(centerPoint);
+      // Get Potree's view system
+      const view = viewer.scene.view;
+      const initialYaw = view.yaw || 0;
       
       function animate() {
         if (!isAnimating) return;
@@ -548,14 +563,13 @@
         const progress = (elapsed % rotationDuration) / rotationDuration;
         const angle = progress * Math.PI * 2; // Full circle
         
-        // Calculate new camera position in circular motion
-        const x = centerPoint.x + Math.cos(angle) * initialDistance;
-        const z = centerPoint.z + Math.sin(angle) * initialDistance;
-        const y = initialPosition.y; // Keep same height
+        // Update yaw for smooth rotation around the point clouds
+        view.yaw = initialYaw + angle;
         
-        // Update camera position
-        initialCamera.position.set(x, y, z);
-        initialCamera.lookAt(centerPoint);
+        // Force view update
+        if (view.update) {
+          view.update();
+        }
         
         animationId = requestAnimationFrame(animate);
       }
