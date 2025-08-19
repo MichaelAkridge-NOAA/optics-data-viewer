@@ -177,7 +177,7 @@
     </div>
 
     <div class="animation-controls">
-      <button class="animation-btn" id="toggle-animation">▶ Animate</button>
+      <button class="animation-btn" id="toggle-animation">🔄 Rotate View</button>
       <button class="animation-btn" id="reset-view">Reset View</button>
     </div>
   </div>
@@ -220,7 +220,7 @@
           url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js",
           //url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-tut-017-2023/cloud.js",
           color: new THREE.Color(0.3, 0.7, 1.0), // Blue tint for 2018
-          position: [0, 0, 0],
+          position: [0, 0, 0], // Aligned to same position
           scale: [1, 1, 1],
           rotation: [0, 0, 0]
         },
@@ -230,7 +230,7 @@
           url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js",
           //url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-tut-017-2023/cloud.js",
           color: new THREE.Color(1.0, 0.7, 0.3), // Orange tint for 2023
-          position: [0, 0, 0],
+          position: [0, 0, 0], // Aligned to same position  
           scale: [1, 1, 1],
           rotation: [0, 0, 0]
         }
@@ -515,7 +515,7 @@
       
       if (isAnimating) {
         stopAnimation();
-        btn.textContent = '▶ Animate';
+        btn.textContent = '🔄 Rotate View';
         btn.classList.remove('playing');
       } else {
         startAnimation();
@@ -524,33 +524,40 @@
       }
     }
 
-    // Start time animation
+    // Start smooth camera rotation animation
     function startAnimation() {
       if (isAnimating) return;
       
       isAnimating = true;
-      let currentTime = 0;
-      const duration = 4000; // 4 seconds per cycle
+      let startTime = Date.now();
+      const rotationDuration = 20000; // 20 seconds for full rotation
+      
+      // Store initial camera position for smooth rotation
+      const initialCamera = viewer.scene.getActiveCamera();
+      const initialPosition = initialCamera.position.clone();
+      const centerPoint = new THREE.Vector3(0, 0, 0); // Rotate around center
+      
+      // Calculate rotation radius based on initial distance
+      const initialDistance = initialPosition.distanceTo(centerPoint);
       
       function animate() {
         if (!isAnimating) return;
         
-        currentTime += 50; // 50ms intervals
-        const progress = (currentTime % duration) / duration;
-        const phase = progress * 2 * Math.PI;
+        const currentTime = Date.now();
+        const elapsed = currentTime - startTime;
+        const progress = (elapsed % rotationDuration) / rotationDuration;
+        const angle = progress * Math.PI * 2; // Full circle
         
-        // Fade between 2018 and 2023
-        const opacity2018 = (Math.sin(phase) + 1) / 2;
-        const opacity2023 = (Math.cos(phase) + 1) / 2;
+        // Calculate new camera position in circular motion
+        const x = centerPoint.x + Math.cos(angle) * initialDistance;
+        const z = centerPoint.z + Math.sin(angle) * initialDistance;
+        const y = initialPosition.y; // Keep same height
         
-        setPointCloudOpacity(2018, opacity2018);
-        setPointCloudOpacity(2023, opacity2023);
+        // Update camera position
+        initialCamera.position.set(x, y, z);
+        initialCamera.lookAt(centerPoint);
         
-        // Update sliders
-        document.getElementById('opacity-2018').value = Math.round(opacity2018 * 100);
-        document.getElementById('opacity-2023').value = Math.round(opacity2023 * 100);
-        
-        animationId = setTimeout(animate, 50);
+        animationId = requestAnimationFrame(animate);
       }
       
       animate();
@@ -560,15 +567,9 @@
     function stopAnimation() {
       isAnimating = false;
       if (animationId) {
-        clearTimeout(animationId);
+        cancelAnimationFrame(animationId);
         animationId = null;
       }
-      
-      // Reset to full opacity
-      setPointCloudOpacity(2018, 1.0);
-      setPointCloudOpacity(2023, 1.0);
-      document.getElementById('opacity-2018').value = 100;
-      document.getElementById('opacity-2023').value = 100;
     }
 
     // Reset view to initial position
