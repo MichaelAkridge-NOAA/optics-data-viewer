@@ -672,12 +672,41 @@
       }
     }
 
+    // Initialize controls first, then load point clouds
+    console.log('Initializing timeseries controls...');
+    initializeTimeseriesControls();
+    
+    console.log('Loading point clouds...');
+    loadPointClouds();
+
     // Initialize timeseries controls
     function initializeTimeseriesControls() {
       console.log('Initializing timeseries controls...');
       
       // Initialize map
       initializeLocationMap();
+      
+      // Initialize panel collapse functionality
+      const panelHeader = document.getElementById('timeseries-header');
+      const panelContent = document.getElementById('timeseries-content');
+      const panelIcon = panelHeader.querySelector('.panel-collapse-icon');
+      
+      // Set initial max-height for transition
+      panelContent.style.maxHeight = panelContent.scrollHeight + 'px';
+      
+      panelHeader.addEventListener('click', () => {
+        const isCollapsed = panelContent.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+          panelContent.classList.remove('collapsed');
+          panelContent.style.maxHeight = panelContent.scrollHeight + 'px';
+          panelIcon.classList.remove('collapsed');
+        } else {
+          panelContent.style.maxHeight = '0px';
+          panelContent.classList.add('collapsed');
+          panelIcon.classList.add('collapsed');
+        }
+      });
       
       // Time selector buttons
       document.querySelectorAll('.time-btn').forEach(btn => {
