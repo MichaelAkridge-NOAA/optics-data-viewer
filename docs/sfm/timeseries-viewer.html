@@ -393,17 +393,42 @@
                 if (config.year === 2023 && Object.keys(pointCloudData).length > 0) {
                   const firstCloud = Object.values(pointCloudData)[0].pointcloud;
                   if (firstCloud && firstCloud.boundingBox) {
-                    // Position the second cloud at the same location as the first
-                    const firstCenter = firstCloud.boundingBox.getCenter(new THREE.Vector3());
-                    pointcloud.position.copy(firstCenter);
+                    console.log('Aligning 2023 point cloud with 2018...');
                     
-                    // Scale to roughly match the first cloud's size
-                    const firstSize = firstCloud.boundingBox.getSize(new THREE.Vector3()).length();
-                    const secondSize = pointcloud.boundingBox.getSize(new THREE.Vector3()).length();
-                    if (secondSize > 0) {
-                      const scaleFactor = firstSize / secondSize * 0.8; // Make it slightly smaller for visibility
+                    // Get bounding box info for both clouds
+                    const firstBox = firstCloud.boundingBox;
+                    const secondBox = pointcloud.boundingBox;
+                    
+                    // Align the minimum Y (bottom) of both point clouds
+                    const firstMin = firstBox.min.clone();
+                    const secondMin = secondBox.min.clone();
+                    const firstMax = firstBox.max.clone();
+                    const secondMax = secondBox.max.clone();
+                    
+                    // Calculate the offset needed to align bottoms
+                    const offsetY = firstMin.y - secondMin.y;
+                    
+                    // Also align X and Z centers
+                    const firstCenterX = (firstMin.x + firstMax.x) / 2;
+                    const firstCenterZ = (firstMin.z + firstMax.z) / 2;
+                    const secondCenterX = (secondMin.x + secondMax.x) / 2;
+                    const secondCenterZ = (secondMin.z + secondMax.z) / 2;
+                    
+                    const offsetX = firstCenterX - secondCenterX;
+                    const offsetZ = firstCenterZ - secondCenterZ;
+                    
+                    // Apply the alignment
+                    pointcloud.position.set(offsetX, offsetY, offsetZ);
+                    
+                    console.log(`Aligned 2023 cloud: offset [${offsetX.toFixed(2)}, ${offsetY.toFixed(2)}, ${offsetZ.toFixed(2)}]`);
+                    
+                    // Optional: Scale to roughly match the first cloud's size
+                    const firstSize = firstBox.getSize(new THREE.Vector3()).length();
+                    const secondSize = secondBox.getSize(new THREE.Vector3()).length();
+                    if (secondSize > 0 && Math.abs(firstSize - secondSize) / firstSize > 0.2) {
+                      const scaleFactor = firstSize / secondSize;
                       pointcloud.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                      console.log(`Scaled ${config.name} by factor ${scaleFactor.toFixed(3)}`);
+                      console.log(`Scaled 2023 cloud by factor ${scaleFactor.toFixed(3)}`);
                     }
                   }
                 }
