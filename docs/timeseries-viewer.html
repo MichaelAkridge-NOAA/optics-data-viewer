@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Optics Data Viewer - Timeseries Point Cloud Viewer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Potree CSS -->
+  <link rel="stylesheet" href="build/potree/potree.css" />
+  <link rel="stylesheet" href="libs/jquery-ui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="libs/openlayers3/ol.css" />
+  <link rel="stylesheet" href="libs/spectrum/spectrum.css" />
+  <link rel="stylesheet" href="libs/jstree/themes/mixed/style.css" />
+
+  <style>
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+    
+    /* Loading + error */
+    #loading {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
+      z-index:9999; flex-direction:column; gap:10px
+    }
+    #loading .spinner { width:40px; height:40px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg) } }
+
+    #error {
+      position:absolute; top:12px; left:12px; right:12px;
+      background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
+    }
+
+    .chip{
+      position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
+      padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
+    }
+
+    /* Timeseries Controls */
+    #timeseries-controls {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(30,30,40,0.9);
+      color: #fff;
+      padding: 15px;
+      border-radius: 12px;
+      font: 14px system-ui;
+      z-index: 5000;
+      min-width: 280px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    #timeseries-controls h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #e8eefc;
+    }
+
+    .time-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    .time-btn {
+      background: rgba(60,120,180,0.8);
+      border: 1px solid rgba(60,120,180,1);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font: 13px system-ui;
+      transition: all 0.2s;
+      flex: 1;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .time-btn:hover {
+      background: rgba(80,140,200,0.9);
+      border-color: rgba(80,140,200,1);
+    }
+
+    .time-btn.active {
+      background: rgba(40,200,120,0.9);
+      border-color: rgba(40,200,120,1);
+      box-shadow: 0 0 8px rgba(40,200,120,0.3);
+    }
+
+    .visibility-controls {
+      margin-bottom: 15px;
+    }
+
+    .visibility-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      padding: 6px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 4px;
+    }
+
+    .visibility-checkbox {
+      margin-right: 10px;
+      transform: scale(1.2);
+    }
+
+    .year-label {
+      font-weight: 500;
+      flex: 1;
+    }
+
+    .opacity-slider {
+      width: 80px;
+      margin-left: 10px;
+    }
+
+    .animation-controls {
+      border-top: 1px solid rgba(255,255,255,0.15);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+
+    .animation-btn {
+      background: rgba(100,60,180,0.8);
+      border: 1px solid rgba(100,60,180,1);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font: 13px system-ui;
+      transition: all 0.2s;
+      margin-right: 8px;
+    }
+
+    .animation-btn:hover {
+      background: rgba(120,80,200,0.9);
+    }
+
+    .animation-btn.playing {
+      background: rgba(200,40,40,0.9);
+      border-color: rgba(200,40,40,1);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+    <div id="potree_render_area">
+    </div>
+    <div id="potree_sidebar_container"> </div>
+  </div>
+
+  <!-- Timeseries Controls -->
+  <div id="timeseries-controls">
+    <h3>OCC-TUT-017 Timeseries</h3>
+    
+    <div class="time-selector">
+      <button class="time-btn active" data-year="2018">2018</button>
+      <button class="time-btn" data-year="2023">2023</button>
+      <button class="time-btn" data-year="both">Both</button>
+    </div>
+
+    <div class="visibility-controls">
+      <div class="visibility-item">
+        <input type="checkbox" class="visibility-checkbox" id="vis-2018" checked>
+        <label class="year-label" for="vis-2018">2018 Point Cloud</label>
+        <input type="range" class="opacity-slider" id="opacity-2018" min="0" max="100" value="100">
+      </div>
+      <div class="visibility-item">
+        <input type="checkbox" class="visibility-checkbox" id="vis-2023" checked>
+        <label class="year-label" for="vis-2023">2023 Point Cloud</label>
+        <input type="range" class="opacity-slider" id="opacity-2023" min="0" max="100" value="100">
+      </div>
+    </div>
+
+    <div class="animation-controls">
+      <button class="animation-btn" id="toggle-animation">▶ Animate</button>
+      <button class="animation-btn" id="reset-view">Reset View</button>
+    </div>
+  </div>
+
+  <div id="error"></div>
+  <div id="loading"><div class="spinner"></div><div>Loading OCC-TUT-017 timeseries viewer…</div></div>
+  <div class="chip" id="chip">OCC-TUT-017 Timeseries Viewer</div>
+
+  <!-- Libraries -->
+  <script src="libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="libs/spectrum/spectrum.js"></script>
+  <script src="libs/jquery-ui/jquery-ui.min.js"></script>
+  <script src="libs/other/BinaryHeap.js"></script>
+  <script src="libs/tween/tween.min.js"></script>
+  <script src="libs/d3/d3.js"></script>
+  <script src="libs/proj4/proj4.js"></script>
+  <script src="libs/openlayers3/ol.js"></script>
+  <script src="libs/i18next/i18next.js"></script>
+  <script src="libs/jstree/jstree.js"></script>
+
+  <!-- Potree -->
+  <script src="build/potree/potree.js"></script>
+  <script src="libs/plasio/js/laslaz.js"></script>
+
+  <script type="module">
+    import * as THREE from "libs/three.js/build/three.module.js";
+
+    // Configuration for OCC-TUT-017 project
+    const PROJECT_CONFIG = {
+      name: "OCC-TUT-017",
+      description: "OCC-TUT-017 Timeseries Point Cloud Analysis",
+      pointClouds: [
+        {
+          year: 2018,
+          name: "OCC-TUT-017 (2018)",
+          url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js",
+          //url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-tut-017-2023/cloud.js",
+          color: new THREE.Color(0.3, 0.7, 1.0), // Blue tint for 2018
+          position: [0, 0, 0],
+          scale: [1, 1, 1],
+          rotation: [0, 0, 0]
+        },
+        {
+          year: 2023,
+          name: "OCC-TUT-017 (2023)",
+          url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js",
+          //url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-tut-017-2023/cloud.js",
+          color: new THREE.Color(1.0, 0.7, 0.3), // Orange tint for 2023
+          position: [0, 0, 0],
+          scale: [1, 1, 1],
+          rotation: [0, 0, 0]
+        }
+      ],
+      initialView: {
+        position: [0, 0, 100],
+        target: [0, 0, 0]
+      }
+    };
+
+    // Global variables
+    let pointCloudData = {};
+    let isAnimating = false;
+    let animationId = null;
+
+    const errorBox = document.getElementById('error');
+    const loading = document.getElementById('loading');
+
+    function showError(msg, details) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = `<strong>Couldn't load timeseries point clouds.</strong> ${msg}`
+        + (details ? `<div style="opacity:.9;margin-top:6px;font-size:13px">${details}</div>` : '');
+      console.error('Timeseries load error:', msg, details);
+      loading.style.display = 'none';
+    }
+
+    console.log('Initializing timeseries viewer...');
+    
+    // Initialize viewer
+    window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+    
+    viewer.setEDLEnabled(true);
+    viewer.setFOV(60);
+    viewer.setPointBudget(3_000_000);
+    viewer.setMinNodeSize(10);
+    viewer.loadSettingsFromURL();
+    viewer.setDescription(`
+    ${PROJECT_CONFIG.description}<br>
+    Use the timeseries controls to switch between time periods and compare changes over time.<br>
+    Create camera animation paths via "Tools -> Navigation -> Camera Animation"<br>
+    Save and load camera tracks via the Export buttons in the sidebar.
+    `);
+    
+    console.log('Loading GUI...');
+    
+    // Load GUI
+    viewer.loadGUI(() => {
+      console.log('GUI loaded, setting up sidebar...');
+      viewer.setLanguage('en');
+      $("#menu_scene").next().show();
+      $("#menu_tools").next().show();
+      viewer.toggleSidebar();
+      
+      // Initialize export functionality in sidebar
+      initializeSidebarExports();
+      
+      console.log('Loading point clouds...');
+      loadPointClouds();
+    });
+
+    // Load all point clouds
+    async function loadPointClouds() {
+      try {
+        console.log('Starting to load point clouds...');
+        
+        // Load all point clouds concurrently
+        const loadPromises = PROJECT_CONFIG.pointClouds.map(async (config) => {
+          try {
+            console.log(`Loading ${config.name}...`);
+            const result = await Potree.loadPointCloud(config.url);
+            const pointcloud = result.pointcloud;
+            
+            // Configure point cloud
+            pointcloud.name = config.name;
+            
+            let material = pointcloud.material;
+            material.size = 1;
+            material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+            material.shape = Potree.PointShape.SQUARE;
+            
+            // Apply color tint if specified
+            if (config.color) {
+              material.color = config.color;
+            }
+            
+            // Apply transformations
+            if (config.position) {
+              pointcloud.position.set(config.position[0], config.position[1], config.position[2]);
+            }
+            if (config.scale) {
+              pointcloud.scale.set(config.scale[0], config.scale[1], config.scale[2]);
+            }
+            if (config.rotation) {
+              pointcloud.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+            }
+            
+            // Store reference
+            pointCloudData[config.year] = {
+              pointcloud: pointcloud,
+              config: config,
+              visible: true,
+              opacity: 1.0
+            };
+            
+            // Add to scene
+            viewer.scene.addPointCloud(pointcloud);
+            
+            console.log(`${config.name} loaded successfully`);
+            return pointcloud;
+            
+          } catch (error) {
+            console.error(`Failed to load ${config.name}:`, error);
+            showError(`Failed to load ${config.name}`, error.message);
+            return null;
+          }
+        });
+        
+        // Wait for all to complete
+        const results = await Promise.all(loadPromises);
+        const successful = results.filter(r => r !== null);
+        
+        if (successful.length === 0) {
+          showError('No point clouds could be loaded');
+          return;
+        }
+        
+        console.log(`Successfully loaded ${successful.length} point clouds`);
+        
+        // Set initial view
+        if (PROJECT_CONFIG.initialView) {
+          viewer.scene.view.setView(
+            PROJECT_CONFIG.initialView.position,
+            PROJECT_CONFIG.initialView.target
+          );
+        } else {
+          viewer.fitToScreen();
+        }
+        
+        // Initialize controls
+        initializeTimeseriesControls();
+        
+        // Start monitoring for camera animations
+        setTimeout(() => {
+          monitorCameraAnimations();
+        }, 1000);
+        
+        loading.style.display = 'none';
+        
+      } catch (error) {
+        console.error('Error loading point clouds:', error);
+        showError('Failed to initialize timeseries viewer', error.message);
+      }
+    }
+
+    // Initialize timeseries controls
+    function initializeTimeseriesControls() {
+      console.log('Initializing timeseries controls...');
+      
+      // Time selector buttons
+      document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const year = e.target.dataset.year;
+          setTimeView(year);
+          
+          // Update active state
+          document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+          e.target.classList.add('active');
+        });
+      });
+      
+      // Visibility checkboxes
+      document.getElementById('vis-2018').addEventListener('change', (e) => {
+        togglePointCloudVisibility(2018, e.target.checked);
+      });
+      
+      document.getElementById('vis-2023').addEventListener('change', (e) => {
+        togglePointCloudVisibility(2023, e.target.checked);
+      });
+      
+      // Opacity sliders
+      document.getElementById('opacity-2018').addEventListener('input', (e) => {
+        setPointCloudOpacity(2018, e.target.value / 100);
+      });
+      
+      document.getElementById('opacity-2023').addEventListener('input', (e) => {
+        setPointCloudOpacity(2023, e.target.value / 100);
+      });
+      
+      // Animation controls
+      document.getElementById('toggle-animation').addEventListener('click', toggleAnimation);
+      document.getElementById('reset-view').addEventListener('click', resetView);
+      
+      console.log('Timeseries controls initialized');
+    }
+
+    // Set time view (2018, 2023, or both)
+    function setTimeView(view) {
+      console.log(`Setting time view to: ${view}`);
+      
+      switch(view) {
+        case '2018':
+          togglePointCloudVisibility(2018, true);
+          togglePointCloudVisibility(2023, false);
+          document.getElementById('vis-2018').checked = true;
+          document.getElementById('vis-2023').checked = false;
+          break;
+          
+        case '2023':
+          togglePointCloudVisibility(2018, false);
+          togglePointCloudVisibility(2023, true);
+          document.getElementById('vis-2018').checked = false;
+          document.getElementById('vis-2023').checked = true;
+          break;
+          
+        case 'both':
+          togglePointCloudVisibility(2018, true);
+          togglePointCloudVisibility(2023, true);
+          document.getElementById('vis-2018').checked = true;
+          document.getElementById('vis-2023').checked = true;
+          break;
+      }
+    }
+
+    // Toggle point cloud visibility
+    function togglePointCloudVisibility(year, visible) {
+      if (pointCloudData[year]) {
+        pointCloudData[year].pointcloud.visible = visible;
+        pointCloudData[year].visible = visible;
+        console.log(`${year} point cloud visibility set to: ${visible}`);
+      }
+    }
+
+    // Set point cloud opacity
+    function setPointCloudOpacity(year, opacity) {
+      if (pointCloudData[year]) {
+        const material = pointCloudData[year].pointcloud.material;
+        material.opacity = opacity;
+        pointCloudData[year].opacity = opacity;
+        console.log(`${year} point cloud opacity set to: ${opacity}`);
+      }
+    }
+
+    // Toggle animation between time periods
+    function toggleAnimation() {
+      const btn = document.getElementById('toggle-animation');
+      
+      if (isAnimating) {
+        stopAnimation();
+        btn.textContent = '▶ Animate';
+        btn.classList.remove('playing');
+      } else {
+        startAnimation();
+        btn.textContent = '⏸ Stop';
+        btn.classList.add('playing');
+      }
+    }
+
+    // Start time animation
+    function startAnimation() {
+      if (isAnimating) return;
+      
+      isAnimating = true;
+      let currentTime = 0;
+      const duration = 4000; // 4 seconds per cycle
+      
+      function animate() {
+        if (!isAnimating) return;
+        
+        currentTime += 50; // 50ms intervals
+        const progress = (currentTime % duration) / duration;
+        const phase = progress * 2 * Math.PI;
+        
+        // Fade between 2018 and 2023
+        const opacity2018 = (Math.sin(phase) + 1) / 2;
+        const opacity2023 = (Math.cos(phase) + 1) / 2;
+        
+        setPointCloudOpacity(2018, opacity2018);
+        setPointCloudOpacity(2023, opacity2023);
+        
+        // Update sliders
+        document.getElementById('opacity-2018').value = Math.round(opacity2018 * 100);
+        document.getElementById('opacity-2023').value = Math.round(opacity2023 * 100);
+        
+        animationId = setTimeout(animate, 50);
+      }
+      
+      animate();
+    }
+
+    // Stop animation
+    function stopAnimation() {
+      isAnimating = false;
+      if (animationId) {
+        clearTimeout(animationId);
+        animationId = null;
+      }
+      
+      // Reset to full opacity
+      setPointCloudOpacity(2018, 1.0);
+      setPointCloudOpacity(2023, 1.0);
+      document.getElementById('opacity-2018').value = 100;
+      document.getElementById('opacity-2023').value = 100;
+    }
+
+    // Reset view to initial position
+    function resetView() {
+      if (PROJECT_CONFIG.initialView) {
+        viewer.scene.view.setView(
+          PROJECT_CONFIG.initialView.position,
+          PROJECT_CONFIG.initialView.target
+        );
+      } else {
+        viewer.fitToScreen();
+      }
+    }
+
+    // Monitor for camera animations (same as SFM viewer)
+    function monitorCameraAnimations() {
+      if (!window.viewer || !window.viewer.scene) {
+        setTimeout(monitorCameraAnimations, 500);
+        return;
+      }
+      
+      console.log('Monitoring for user-created camera animations...');
+      
+      const checkAnimations = () => {
+        if (viewer.scene && viewer.scene.cameraAnimations && viewer.scene.cameraAnimations.length > 0) {
+          const animation = viewer.scene.cameraAnimations[0];
+          if (animation !== window.cameraAnimation) {
+            window.cameraAnimation = animation;
+            console.log('Camera animation detected and stored globally');
+            console.log('Animation has', animation.controlPoints ? animation.controlPoints.length : 0, 'control points');
+          }
+        }
+        setTimeout(checkAnimations, 2000);
+      };
+      
+      checkAnimations();
+    }
+
+    // Export functions (same as SFM viewer)
+    window.saveCameraTrack = function(animation) {
+      const title = PROJECT_CONFIG.name + ' Timeseries';
+      
+      try {
+        const trackData = {
+          version: "1.0",
+          created: new Date().toISOString(),
+          title: title,
+          project: PROJECT_CONFIG.name,
+          duration: animation.duration || 10,
+          controlPoints: []
+        };
+
+        for (let i = 0; i < animation.controlPoints.length; i++) {
+          const cp = animation.controlPoints[i];
+          trackData.controlPoints.push({
+            index: i,
+            position: cp.position.toArray(),
+            target: cp.target.toArray(),
+            time: cp.time || (i / (animation.controlPoints.length - 1))
+          });
+        }
+
+        const blob = new Blob([JSON.stringify(trackData, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${PROJECT_CONFIG.name.toLowerCase()}-timeseries-track-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        console.log('Camera track saved successfully');
+        alert(`Camera track saved with ${trackData.controlPoints.length} keyframes`);
+      } catch (error) {
+        console.error('Error saving camera track:', error);
+        alert('Error saving camera track: ' + error.message);
+      }
+    };
+
+    window.loadCameraTrack = function(animation, file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const trackData = JSON.parse(e.target.result);
+          
+          if (trackData.controlPoints && Array.isArray(trackData.controlPoints)) {
+            console.log('Loading camera track with', trackData.controlPoints.length, 'keyframes');
+            
+            window.clearCameraTrack(animation);
+
+            for (const cpData of trackData.controlPoints) {
+              if (cpData.position && cpData.target && cpData.position.length === 3 && cpData.target.length === 3) {
+                const cp = animation.createControlPoint();
+                cp.position.fromArray(cpData.position);
+                cp.target.fromArray(cpData.target);
+                if (cpData.time !== undefined) {
+                  cp.time = cpData.time;
+                }
+              }
+            }
+
+            if (trackData.duration) {
+              animation.duration = trackData.duration;
+            }
+
+            console.log('Camera track loaded successfully');
+            alert(`Camera track loaded with ${trackData.controlPoints.length} keyframes`);
+            animation.set(0);
+            
+          } else if (trackData.position && trackData.target) {
+            console.log('Converting single camera position to keyframe');
+            
+            if (confirm('This appears to be a single camera position. Create a single keyframe from this position?')) {
+              window.clearCameraTrack(animation);
+              
+              const cp = animation.createControlPoint();
+              if (Array.isArray(trackData.position) && trackData.position.length === 3) {
+                cp.position.fromArray(trackData.position);
+              }
+              if (Array.isArray(trackData.target) && trackData.target.length === 3) {
+                cp.target.fromArray(trackData.target);
+              }
+              
+              console.log('Single camera position converted to keyframe');
+              alert('Single camera position loaded as keyframe');
+              animation.set(0);
+            } else {
+              alert('Use the sidebar "Load Camera" button for single camera positions');
+            }
+            
+          } else {
+            throw new Error('Invalid file format - missing controlPoints array or camera position data');
+          }
+          
+        } catch (error) {
+          console.error('Error loading camera track:', error);
+          alert('Error loading camera track: ' + error.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    window.clearCameraTrack = function(animation) {
+      try {
+        const controlPoints = [...animation.controlPoints];
+        for (const cp of controlPoints) {
+          animation.removeControlPoint(cp);
+        }
+        animation.set(0);
+        animation.stop();
+        console.log('Camera track cleared');
+      } catch (error) {
+        console.error('Error clearing camera track:', error);
+        alert('Error clearing camera track: ' + error.message);
+      }
+    };
+
+    window.initializeSidebarExports = function() {
+      const title = PROJECT_CONFIG.name + ' Timeseries';
+      
+      const checkSidebar = () => {
+        const btnScreenshot = document.getElementById('btnExportScreenshot');
+        const btnCamera = document.getElementById('btnExportCamera');
+        const btnMeasurements = document.getElementById('btnExportMeasurements');
+        const btnShareLink = document.getElementById('btnShareLink');
+        const btnLoadCamera = document.getElementById('btnLoadCamera');
+        const btnSaveTrack = document.getElementById('btnSaveTrack');
+        const btnLoadTrack = document.getElementById('btnLoadTrack');
+        const cameraFileInput = document.getElementById('cameraFileInput');
+        const trackFileInput = document.getElementById('trackFileInput');
+
+        if (btnScreenshot && btnCamera && btnMeasurements && btnShareLink && btnLoadCamera && cameraFileInput) {
+          // Screenshot export
+          btnScreenshot.onclick = () => {
+            try {
+              const dataURL = viewer.renderer.domElement.toDataURL('image/png');
+              const a = document.createElement('a');
+              a.href = dataURL;
+              a.download = PROJECT_CONFIG.name.toLowerCase() + '-timeseries-screenshot.png';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch (err) {
+              alert('Screenshot failed. Some browsers require special flags for WebGL capture.');
+              console.error(err);
+            }
+          };
+
+          // Camera export
+          btnCamera.onclick = () => {
+            const cameraData = window.getCameraState();
+            const blob = new Blob([JSON.stringify(cameraData, null, 2)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = PROJECT_CONFIG.name.toLowerCase() + '-timeseries-camera.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          };
+
+          // Measurements export
+          btnMeasurements.onclick = () => {
+            try {
+              const out = [];
+              const ms = (viewer.measuringTool.measurements || viewer.measuringTool.measures || []);
+              for (const m of ms) {
+                const pts = (m.points || []).map(p => p.position.toArray());
+                out.push({ name: m.name || 'Measure', closed: !!m.closed, points: pts });
+              }
+              const blob = new Blob([JSON.stringify({ measurements: out }, null, 2)], {type: 'application/json'});
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = PROJECT_CONFIG.name.toLowerCase() + '-timeseries-measurements.json';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch (err) {
+              alert('No measurements found or export failed.');
+              console.error(err);
+            }
+          };
+
+          // Share link - would need to be customized based on your URL structure
+          btnShareLink.onclick = async () => {
+            const u = new URL('timeseries-viewer.html', location.href);
+            try {
+              await navigator.clipboard.writeText(u.toString());
+              alert('Timeseries viewer link copied to clipboard');
+            } catch {
+              prompt('Copy link:', u.toString());
+            }
+          };
+
+          // Load camera
+          btnLoadCamera.onclick = () => {
+            cameraFileInput.click();
+          };
+
+          cameraFileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                try {
+                  const cameraData = JSON.parse(e.target.result);
+                  window.setCameraState(cameraData);
+                  alert('Camera position loaded successfully');
+                } catch (err) {
+                  alert('Invalid camera file: ' + err.message);
+                }
+              };
+              reader.readAsText(file);
+            }
+          };
+
+          // Save/Load camera track
+          if (btnSaveTrack) {
+            btnSaveTrack.onclick = () => {
+              if (window.cameraAnimation) {
+                window.saveCameraTrack(window.cameraAnimation);
+              } else {
+                alert('No camera animation available. Create camera animation via Tools -> Navigation -> Camera Animation.');
+              }
+            };
+          }
+
+          if (btnLoadTrack && trackFileInput) {
+            btnLoadTrack.onclick = () => {
+              trackFileInput.click();
+            };
+            
+            trackFileInput.onchange = (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                if (window.cameraAnimation) {
+                  window.loadCameraTrack(window.cameraAnimation, file);
+                } else {
+                  alert('No camera animation available. Create camera animation via Tools -> Navigation -> Camera Animation.');
+                }
+              }
+            };
+          }
+
+        } else {
+          setTimeout(checkSidebar, 100);
+        }
+      };
+
+      checkSidebar();
+    };
+
+    window.getCameraState = function() {
+      try {
+        const v = viewer.scene.view;
+        const cam = viewer.scene.getActiveCamera();
+        
+        let target = [0, 0, 0];
+        if (v.getPivot) {
+          const pivot = v.getPivot();
+          target = pivot.toArray ? pivot.toArray() : [pivot.x, pivot.y, pivot.z];
+        } else if (v.pivot) {
+          target = v.pivot.toArray ? v.pivot.toArray() : [v.pivot.x, v.pivot.y, v.pivot.z];
+        }
+        
+        const cameraState = {
+          position: cam.position.toArray(),
+          target: target,
+          fov: cam.fov || v.fov || 60,
+          project: PROJECT_CONFIG.name
+        };
+        
+        if (v.yaw !== undefined) cameraState.yaw = v.yaw;
+        if (v.pitch !== undefined) cameraState.pitch = v.pitch;
+        if (v.radius !== undefined) cameraState.radius = v.radius;
+        
+        return cameraState;
+      } catch (error) {
+        console.error('Error getting camera state:', error);
+        const cam = viewer.scene.getActiveCamera();
+        return {
+          position: cam.position.toArray(),
+          target: [0, 0, 0],
+          fov: cam.fov || 60,
+          project: PROJECT_CONFIG.name
+        };
+      }
+    };
+
+    window.setCameraState = function(state) {
+      try {
+        console.log('Setting camera state:', state);
+        const v = viewer.scene.view;
+        const cam = viewer.scene.getActiveCamera();
+        
+        if (state.position && Array.isArray(state.position) && state.position.length === 3) {
+          cam.position.set(state.position[0], state.position[1], state.position[2]);
+          console.log('Camera position set to:', state.position);
+        }
+        
+        if (typeof state.fov === 'number') {
+          cam.fov = state.fov;
+          cam.updateProjectionMatrix();
+          console.log('Camera FOV set to:', state.fov);
+        }
+        
+        if (typeof state.yaw === 'number' && v.yaw !== undefined) {
+          v.yaw = state.yaw;
+          console.log('View yaw set to:', state.yaw);
+        }
+        if (typeof state.pitch === 'number' && v.pitch !== undefined) {
+          v.pitch = state.pitch;
+          console.log('View pitch set to:', state.pitch);
+        }
+        if (typeof state.radius === 'number' && v.radius !== undefined) {
+          v.radius = state.radius;
+          console.log('View radius set to:', state.radius);
+        }
+        
+        if (state.target && Array.isArray(state.target) && state.target.length === 3) {
+          const targetVector = new THREE.Vector3(state.target[0], state.target[1], state.target[2]);
+          
+          if (v.lookAt) {
+            v.lookAt(targetVector);
+            console.log('Used view.lookAt for target:', state.target);
+          } else if (v.setPivot) {
+            v.setPivot(targetVector);
+            console.log('Used view.setPivot for target:', state.target);
+          } else {
+            cam.lookAt(targetVector);
+            console.log('Used camera.lookAt for target:', state.target);
+          }
+        }
+        
+        if (v.update) {
+          v.update();
+        }
+        
+        if (viewer.setNeedsRedraw) {
+          viewer.setNeedsRedraw();
+        }
+        
+        if (viewer.render) {
+          viewer.render();
+        }
+        
+        console.log('Camera state applied successfully');
+        
+      } catch (error) {
+        console.error('Error in setCameraState:', error);
+        
+        try {
+          console.log('Attempting fallback camera positioning...');
+          const cam = viewer.scene.getActiveCamera();
+          
+          if (state.position && Array.isArray(state.position) && state.position.length === 3) {
+            cam.position.set(state.position[0], state.position[1], state.position[2]);
+          }
+          
+          if (state.target && Array.isArray(state.target) && state.target.length === 3) {
+            cam.lookAt(new THREE.Vector3(state.target[0], state.target[1], state.target[2]));
+          }
+          
+          if (typeof state.fov === 'number') {
+            cam.fov = state.fov;
+            cam.updateProjectionMatrix();
+          }
+          
+          if (viewer.setNeedsRedraw) {
+            viewer.setNeedsRedraw();
+          } else if (viewer.render) {
+            viewer.render();
+          }
+          
+          console.log('Fallback camera positioning successful');
+          
+        } catch (fallbackError) {
+          console.error('Fallback camera setting failed:', fallbackError);
+          throw new Error('Could not set camera position - both main and fallback methods failed');
+        }
+      }
+    };
+  </script>
+</body>
+</html>
