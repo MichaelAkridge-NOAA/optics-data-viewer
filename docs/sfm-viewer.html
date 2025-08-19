@@ -64,19 +64,18 @@
   <script src="build/potree/potree.js"></script>
   <script src="libs/plasio/js/laslaz.js"></script>
 
-  <script type="module">
-    import * as THREE from "libs/three.js/build/three.module.js";
-    
+  <script>
     // ---- Params
     const qs = new URLSearchParams(location.search);
-    const src       = qs.get('src');                    // REQUIRED: cloud.js
-    const title     = qs.get('title') || 'SFM Point Cloud';
-    const chip      = document.getElementById('chip'); chip.textContent = title;
+    const src = qs.get('src');
+    const title = qs.get('title') || 'SFM Point Cloud';
+    const chip = document.getElementById('chip'); 
+    chip.textContent = title;
 
-    const errorBox  = document.getElementById('error');
-    const loading   = document.getElementById('loading');
+    const errorBox = document.getElementById('error');
+    const loading = document.getElementById('loading');
 
-    function showError(msg, details){
+    function showError(msg, details) {
       errorBox.style.display = 'block';
       errorBox.innerHTML = `<strong>Couldn't load point cloud.</strong> ${msg}`
         + (details ? `<div style="opacity:.9;margin-top:6px;font-size:13px">${details}</div>` : '');
@@ -88,6 +87,8 @@
       showError('Missing <code>?src=</code> URL parameter.',
         'Pass a public HTTPS URL to <code>cloud.js</code> (Potree format).');
     } else {
+      console.log('Initializing viewer...');
+      
       // Initialize viewer
       window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
       
@@ -101,8 +102,11 @@
       Save and load camera tracks via the Export buttons in the sidebar.
       `);
       
-      // Load GUI immediately with sidebar visible
+      console.log('Loading GUI...');
+      
+      // Load GUI
       viewer.loadGUI(() => {
+        console.log('GUI loaded, setting up sidebar...');
         viewer.setLanguage('en');
         $("#menu_scene").next().show();
         $("#menu_tools").next().show();
@@ -110,35 +114,39 @@
         
         // Initialize export functionality in sidebar
         initializeSidebarExports();
-      });
-      
-      // Load point cloud
-      Potree.loadPointCloud(src, title, e => {
-        let scene = viewer.scene;
-        let pointcloud = e.pointcloud;
         
-        let material = pointcloud.material;
-        material.size = 1;
-        material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-        material.shape = Potree.PointShape.SQUARE;
+        console.log('Loading point cloud...');
         
-        scene.addPointCloud(pointcloud);
-        
-        viewer.fitToScreen();
-        loading.style.display = 'none';
-        
-        // Point cloud loaded - user can now create camera animations via Tools menu
+        // Load point cloud
+        Potree.loadPointCloud(src, title, e => {
+          console.log('Point cloud load callback triggered');
+          let scene = viewer.scene;
+          let pointcloud = e.pointcloud;
+          
+          let material = pointcloud.material;
+          material.size = 1;
+          material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+          material.shape = Potree.PointShape.SQUARE;
+          
+          scene.addPointCloud(pointcloud);
+          
+          viewer.fitToScreen();
+          loading.style.display = 'none';
+          
+          console.log('Point cloud loaded successfully');
+          
+          // Start monitoring for camera animations
+          setTimeout(() => {
+            monitorCameraAnimations();
+          }, 1000);
+        });
       });
     }
-  </script>
 
-  <script type="module">
-    import * as THREE from "libs/three.js/build/three.module.js";
-    
     // Monitor for camera animations created by the user
-    const monitorCameraAnimations = () => {
+    function monitorCameraAnimations() {
       if (!window.viewer || !window.viewer.scene) {
-        setTimeout(monitorCameraAnimations, 100);
+        setTimeout(monitorCameraAnimations, 500);
         return;
       }
       
@@ -147,24 +155,18 @@
       // Check periodically for camera animations
       const checkAnimations = () => {
         if (viewer.scene && viewer.scene.cameraAnimations && viewer.scene.cameraAnimations.length > 0) {
-          // User has created a camera animation - store the first one globally
           const animation = viewer.scene.cameraAnimations[0];
           if (animation !== window.cameraAnimation) {
             window.cameraAnimation = animation;
             console.log('Camera animation detected and stored globally');
-            console.log('Animation has', animation.controlPoints.length, 'control points');
+            console.log('Animation has', animation.controlPoints ? animation.controlPoints.length : 0, 'control points');
           }
         }
-        
-        // Check again in 1 second
-        setTimeout(checkAnimations, 1000);
+        setTimeout(checkAnimations, 2000);
       };
       
       checkAnimations();
-    };
-
-    // Start monitoring after viewer is ready
-    setTimeout(monitorCameraAnimations, 500);
+    }
 
     // Make functions available globally
     window.saveCameraTrack = function(animation) {
