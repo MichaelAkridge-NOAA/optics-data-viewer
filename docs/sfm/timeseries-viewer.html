@@ -524,16 +524,31 @@
     console.log('Initializing timeseries viewer...');
     
     // Initialize viewer with optimized settings (matching regular viewer performance)
-    window.viewer = new Potree.Viewer(document.getElementById("potree_container"));
+    window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
     
-    viewer.setEDLEnabled(true); // Enable EDL like working viewer
+    viewer.setEDLEnabled(false); // Start with EDL disabled like working viewer
     viewer.setFOV(60);
     viewer.setPointBudget(5_000_000); // Increased for large timeseries datasets  
-    viewer.loadSettingsFromURL = false; // Skip URL settings for faster init
+    viewer.loadSettingsFromURL(); // Load settings from URL like working viewer
     viewer.setBackground("gradient"); // Set simple background
     viewer.setDescription(PROJECT_CONFIG.description);
     
     console.log('Loading GUI...');
+    
+    // Load GUI first, like working viewer
+    viewer.loadGUI(() => {
+      console.log('GUI loaded, setting up sidebar...');
+      viewer.setLanguage('en');
+      $("#menu_scene").next().show();
+      $("#menu_tools").next().show();
+      viewer.toggleSidebar();
+      
+      // Initialize export functionality in sidebar
+      initializeSidebarExports();
+      
+      // Load point clouds after GUI is ready
+      loadPointClouds();
+    });
     
     // Load all point clouds (simple approach like working viewer)
     function loadPointClouds() {
@@ -651,9 +666,8 @@
               viewer.setMoveSpeed(pointcloud.boundingSphere.radius / 5);
               loading.style.display = 'none';
               
-              // Load GUI after a moment
+              // Monitor camera animations after first load
               setTimeout(() => {
-                ensureGUI();
                 monitorCameraAnimations();
               }, 250);
             }
@@ -684,9 +698,6 @@
     // Initialize controls first, then load point clouds
     console.log('Initializing timeseries controls...');
     initializeTimeseriesControls();
-    
-    console.log('Loading point clouds...');
-    loadPointClouds();
 
     // Initialize timeseries controls
     function initializeTimeseriesControls() {
