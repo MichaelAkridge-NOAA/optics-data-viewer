@@ -451,18 +451,15 @@
   <script src="../libs/proj4/proj4.js"></script>
   <script src="../libs/openlayers3/ol.js"></script>
   <script src="../libs/i18next/i18next.js"></script>
-  <script src="../libs/jstree/jstree.js"></script>
 
   <!-- Potree -->
   <script src="../build/potree/potree.js"></script>
-  <script src="../libs/plasio/js/laslaz.js"></script>
+  <script src="../build/potree/navigation.js"></script>
   
   <!-- Leaflet for OpenStreetMap -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <script type="module">
-    import * as THREE from "../libs/three.js/build/three.module.js";
-
+  <script>
     // Configuration for OCC-TUT-017 project
     const PROJECT_CONFIG = {
       name: "OCC-TUT-017",
@@ -522,15 +519,12 @@
     // Initialize viewer with optimized settings (matching regular viewer performance)
     window.viewer = new Potree.Viewer(document.getElementById("potree_container"));
     
-    viewer.setEDLEnabled(false); // Disable EDL initially for faster loading
+    viewer.setEDLEnabled(true); // Enable EDL like working viewer
     viewer.setFOV(60);
     viewer.setPointBudget(5_000_000); // Increased for large timeseries datasets  
-    viewer.setMinNodeSize(0); // Allow more detailed loading
     viewer.loadSettingsFromURL = false; // Skip URL settings for faster init
     viewer.setBackground("gradient"); // Set simple background
-    viewer.setDescription(`
-    ${PROJECT_CONFIG.description}<br>
-    `);
+    viewer.setDescription(PROJECT_CONFIG.description);
     
     console.log('Loading GUI...');
     
