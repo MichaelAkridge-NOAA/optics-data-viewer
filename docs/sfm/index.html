@@ -101,6 +101,7 @@
           <div class="row">
             <a class="btn primary" id="open-substrate">Open</a>
             <a class="btn" id="open-substrate-anim">Camera Animation</a>
+            <a class="btn" id="open-substrate-hq" style="background:#ff6b35;border-color:#ff6b35;">High Quality</a>
           </div>
         </div>
       </div>
@@ -166,9 +167,11 @@
     const substrateSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/substrate_stabilization_post_install/cloud.js";
     const substrateURL = vlink(substrateSrc, "Substrate Stabilization Post Install");
     const substrateAnimURL = sfmlink(substrateSrc, "Substrate Stabilization Post Install");
+    const substrateHQURL = new URL('substrate-viewer.html', location.href).toString();
     document.getElementById('open-substrate').href = substrateURL;
     document.getElementById('open-substrate-img').href = substrateURL;
     document.getElementById('open-substrate-anim').href = substrateAnimURL;
+    document.getElementById('open-substrate-hq').href = substrateHQURL;
   </script>
 </body>
 </html>
