@@ -168,191 +168,15 @@
 
           viewer.scene.addCameraAnimation(animation);
           
-          // Add camera animation controls to the GUI with debugging
-          console.log('Adding camera animation controls...');
-          addCameraAnimationControls(animation);
+          // Store the animation globally so sidebar can access it
+          window.cameraAnimation = animation;
+          console.log('Camera animation created and stored globally');
         } else {
           console.log('THREE.js not available for camera animation');
         }
       } catch (err) {
         console.log('Camera animation not available:', err);
       }
-    }
-
-    // Add camera animation controls to the Potree GUI
-    function addCameraAnimationControls(animation) {
-      const addControls = () => {
-        console.log('Adding camera animation controls to GUI...');
-        try {
-          // Try to find the sidebar accordion
-          const potreeMenu = document.getElementById('potree_menu');
-          const menuAbout = document.getElementById('menu_about');
-          
-          console.log('Potree menu found:', !!potreeMenu);
-          console.log('Menu about found:', !!menuAbout);
-          
-          if (!potreeMenu) {
-            console.error('Could not find potree_menu element');
-            return;
-          }
-
-          // Create the camera animation section HTML
-          const sectionHTML = `
-            <h3 id="menu_camera_anim" class="accordion-header ui-widget">
-              <span>Camera Animation</span>
-            </h3>
-            <div class="accordion-content ui-widget">
-              <ul class="pv-menu-list">
-                <li>
-                  <div id="animation_keyframes"></div>
-                </li>
-                <li>
-                  <span>Time: </span><span id="lblTime">0.00</span> 
-                  <div id="sldTime"></div>
-                </li>
-                <li style="margin-top: 8px;">
-                  <input name="play" type="button" value="Play Animation"/>
-                  <input name="stop" type="button" value="Stop"/>
-                </li>
-                <li style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #333;">
-                  <div style="margin-bottom: 6px; font-weight: bold; color: #cfe;">Camera Track Management</div>
-                </li>
-                <li style="margin-bottom: 4px;">
-                  <input name="saveTrack" type="button" value="Save Track" style="margin-right: 4px; background: #4a90e2; color: white; border: none; padding: 4px 8px; border-radius: 3px;"/>
-                  <input name="loadTrack" type="button" value="Load Track" style="background: #5cb85c; color: white; border: none; padding: 4px 8px; border-radius: 3px;"/>
-                </li>
-                <li style="margin-bottom: 4px;">
-                  <input name="clearTrack" type="button" value="Clear Track" style="margin-right: 4px; background: #d9534f; color: white; border: none; padding: 4px 8px; border-radius: 3px;"/>
-                  <input name="newTrack" type="button" value="New Track" style="background: #f0ad4e; color: white; border: none; padding: 4px 8px; border-radius: 3px;"/>
-                </li>
-                <li>
-                  <input type="file" id="trackFileInput" accept=".json" style="display: none;"/>
-                </li>
-              </ul>
-            </div>
-          `;
-
-          // Insert the section into the menu
-          if (menuAbout) {
-            menuAbout.insertAdjacentHTML('beforebegin', sectionHTML);
-          } else {
-            potreeMenu.insertAdjacentHTML('beforeend', sectionHTML);
-          }
-
-          console.log('Camera animation section HTML added');
-
-          // Now find the elements and attach event handlers
-          const content = potreeMenu.querySelector('#menu_camera_anim').nextElementSibling;
-          const elPlay = content.querySelector("input[name=play]");
-          const elStop = content.querySelector("input[name=stop]");
-          const elSaveTrack = content.querySelector("input[name=saveTrack]");
-          const elLoadTrack = content.querySelector("input[name=loadTrack]");
-          const elClearTrack = content.querySelector("input[name=clearTrack]");
-          const elNewTrack = content.querySelector("input[name=newTrack]");
-          const elFileInput = content.querySelector("#trackFileInput");
-
-          console.log('Save Track button found:', !!elSaveTrack);
-
-          if (elPlay) elPlay.onclick = () => animation.play();
-          if (elStop) elStop.onclick = () => animation.stop();
-
-          // Save camera track to JSON file
-          if (elSaveTrack) {
-            elSaveTrack.onclick = () => {
-              console.log('Save Track button clicked!');
-              saveCameraTrack(animation);
-            };
-          }
-
-          // Load camera track from JSON file
-          if (elLoadTrack) {
-            elLoadTrack.onclick = () => elFileInput.click();
-          }
-
-          // Clear all keyframes
-          if (elClearTrack) {
-            elClearTrack.onclick = () => {
-              if (confirm('Are you sure you want to clear all keyframes?')) {
-                clearCameraTrack(animation);
-              }
-            };
-          }
-
-          // Create new empty track
-          if (elNewTrack) {
-            elNewTrack.onclick = () => {
-              if (confirm('Create a new empty camera track? This will clear existing keyframes.')) {
-                clearCameraTrack(animation);
-              }
-            };
-          }
-
-          // Handle file input change
-          if (elFileInput) {
-            elFileInput.onchange = (e) => {
-              const file = e.target.files[0];
-              if (file) {
-                loadCameraTrack(animation, file);
-              }
-            };
-          }
-
-          // Set up time slider
-          const elSlider = content.querySelector('#sldTime');
-          const elTimeLabel = content.querySelector('#lblTime');
-          if (elSlider && window.$ && $.fn.slider) {
-            $(elSlider).slider({
-              value: 0,
-              min: 0,
-              max: 1,
-              step: 0.001,
-              slide: (event, ui) => { 
-                animation.set(ui.value);
-                elTimeLabel.textContent = ui.value.toFixed(2);
-              }
-            });
-          }
-
-          // Make the section collapsible
-          const header = document.getElementById('menu_camera_anim');
-          if (header) {
-            header.onclick = () => {
-              const content = header.nextElementSibling;
-              if (content.style.display === 'none') {
-                content.style.display = 'block';
-              } else {
-                content.style.display = 'none';
-              }
-            };
-            // Start expanded
-            content.style.display = 'block';
-          }
-
-          console.log('Camera animation controls added successfully');
-          
-        } catch (error) {
-          console.error('Error adding camera animation controls:', error);
-        }
-      };
-
-      // Wait a bit longer and try multiple times if needed
-      let attempts = 0;
-      const tryAddControls = () => {
-        attempts++;
-        console.log(`Attempt ${attempts} to add controls...`);
-        
-        const potreeMenu = document.getElementById('potree_menu');
-        if (potreeMenu && potreeMenu.children.length > 0) {
-          addControls();
-        } else if (attempts < 10) {
-          setTimeout(tryAddControls, 500);
-        } else {
-          console.error('Failed to add camera controls after 10 attempts');
-        }
-      };
-
-      // Start trying to add controls
-      setTimeout(tryAddControls, 1000);
     }
 
     // Camera track management functions
@@ -500,7 +324,9 @@
         const btnMeasurements = document.getElementById('btnExportMeasurements');
         const btnShareLink = document.getElementById('btnShareLink');
         const btnLoadCamera = document.getElementById('btnLoadCamera');
+        const btnSaveTrack = document.getElementById('btnSaveTrack');
         const cameraFileInput = document.getElementById('cameraFileInput');
+        const trackFileInput = document.getElementById('trackFileInput');
 
         if (btnScreenshot && btnCamera && btnMeasurements && btnShareLink && btnLoadCamera && cameraFileInput) {
           // Screenshot export
@@ -589,6 +415,24 @@
               reader.readAsText(file);
             }
           };
+
+          // Save camera track (only available if animation exists)
+          if (btnSaveTrack) {
+            btnSaveTrack.onclick = () => {
+              if (window.cameraAnimation) {
+                console.log('Save Track button clicked from sidebar');
+                saveCameraTrack(window.cameraAnimation);
+              } else {
+                alert('No camera animation available. Camera tracks are only available in SFM viewer mode.');
+              }
+            };
+          }
+
+          // Load camera track (can also load into camera animation if available)
+          if (trackFileInput) {
+            // Add click handler to load track button (reuse load camera button for now)
+            // You could add a separate "Load Track" button to the sidebar if needed
+          }
 
         } else {
           // Retry after a short delay
