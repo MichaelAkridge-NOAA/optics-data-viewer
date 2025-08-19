@@ -11,6 +11,9 @@
   <link rel="stylesheet" href="../libs/openlayers3/ol.css" />
   <link rel="stylesheet" href="../libs/spectrum/spectrum.css" />
   <link rel="stylesheet" href="../libs/jstree/themes/mixed/style.css" />
+  
+  <!-- Leaflet for OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
     html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
@@ -143,6 +146,34 @@
       background: rgba(200,40,40,0.9);
       border-color: rgba(200,40,40,1);
     }
+
+    /* Location Map */
+    .location-map {
+      border-top: 1px solid rgba(255,255,255,0.15);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+
+    .location-map h4 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: #e8eefc;
+      font-weight: 600;
+    }
+
+    #map {
+      width: 100%;
+      height: 150px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .map-info {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-top: 6px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -180,6 +211,12 @@
       <button class="animation-btn" id="toggle-animation">🔄 Rotate View</button>
       <button class="animation-btn" id="reset-view">Reset View</button>
     </div>
+
+    <div class="location-map">
+      <h4>📍 Study Site Location</h4>
+      <div id="map"></div>
+      <div class="map-info">American Samoa<br>14°21'48"S, 170°45'47"W</div>
+    </div>
   </div>
 
   <div id="error"></div>
@@ -205,6 +242,9 @@
   <!-- Potree -->
   <script src="../build/potree/potree.js"></script>
   <script src="../libs/plasio/js/laslaz.js"></script>
+  
+  <!-- Leaflet for OpenStreetMap -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script type="module">
     import * as THREE from "../libs/three.js/build/three.module.js";
@@ -213,6 +253,12 @@
     const PROJECT_CONFIG = {
       name: "OCC-TUT-017",
       description: "OCC-TUT-017 Timeseries Point Cloud Analysis",
+      location: {
+        lat: -14.36347,
+        lng: -170.76314,
+        name: "American Samoa",
+        description: "Coral reef monitoring site"
+      },
       pointClouds: [
         {
           year: 2018,
@@ -279,6 +325,9 @@
     
     // Initialize controls first, then load clouds, then GUI
     initializeTimeseriesControls();
+    
+    // Initialize location map
+    initializeLocationMap();
     
     console.log('Loading point clouds...');
     loadPointClouds();
@@ -444,6 +493,9 @@
     function initializeTimeseriesControls() {
       console.log('Initializing timeseries controls...');
       
+      // Initialize map
+      initializeLocationMap();
+      
       // Time selector buttons
       document.querySelectorAll('.time-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -479,6 +531,56 @@
       document.getElementById('reset-view').addEventListener('click', resetView);
       
       console.log('Timeseries controls initialized');
+    }
+
+    // Initialize location map
+    function initializeLocationMap() {
+      try {
+        const { lat, lng, name, description } = PROJECT_CONFIG.location;
+        
+        // Create map centered on the location
+        const map = L.map('map', {
+          zoomControl: false,
+          attributionControl: true,
+          scrollWheelZoom: false,
+          doubleClickZoom: false,
+          dragging: true
+        }).setView([lat, lng], 12);
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+          maxZoom: 18
+        }).addTo(map);
+        
+        // Add marker for the study site
+        const marker = L.marker([lat, lng]).addTo(map);
+        marker.bindPopup(`
+          <div style="text-align: center;">
+            <strong>${PROJECT_CONFIG.name}</strong><br>
+            ${name}<br>
+            <small>${description}</small><br>
+            <small>📍 ${Math.abs(lat).toFixed(5)}°${lat < 0 ? 'S' : 'N'}, ${Math.abs(lng).toFixed(5)}°${lng < 0 ? 'W' : 'E'}</small>
+          </div>
+        `);
+        
+        // Add a scale and zoom control
+        L.control.scale({ position: 'bottomleft' }).addTo(map);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+        
+        // Optional: Add a circle to show the study area
+        L.circle([lat, lng], {
+          color: '#3388ff',
+          fillColor: '#3388ff',
+          fillOpacity: 0.2,
+          radius: 500 // 500 meter radius
+        }).addTo(map);
+        
+        console.log('Location map initialized');
+        
+      } catch (error) {
+        console.error('Error initializing map:', error);
+      }
     }
 
     // Set time view (2018, 2023, or both)
