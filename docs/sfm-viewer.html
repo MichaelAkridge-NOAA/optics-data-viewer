@@ -64,7 +64,9 @@
   <script src="build/potree/potree.js"></script>
   <script src="libs/plasio/js/laslaz.js"></script>
 
-  <script>
+  <script type="module">
+    import * as THREE from "libs/three.js/build/three.module.js";
+    
     // ---- Params
     const qs = new URLSearchParams(location.search);
     const src       = qs.get('src');                    // REQUIRED: cloud.js
@@ -125,25 +127,31 @@
         viewer.fitToScreen();
         loading.style.display = 'none';
         
-        // Create default camera animation if this is an SFM dataset
-        // Add a small delay to ensure everything is fully loaded
-        setTimeout(() => {
-          createDefaultCameraAnimation(pointcloud);
-        }, 1000);
+        // Create camera animation will be done in next script block
       });
     }
+  </script>
 
-    // Create a default camera animation for SFM datasets
-    function createDefaultCameraAnimation(pointcloud) {
-      console.log('createDefaultCameraAnimation called');
+  <script type="module">
+    import * as THREE from "libs/three.js/build/three.module.js";
+    
+    // Wait for viewer to be ready, then create camera animation
+    const createCameraAnimation = () => {
+      if (!window.viewer || !window.viewer.scene) {
+        setTimeout(createCameraAnimation, 100);
+        return;
+      }
+      
+      console.log('Creating camera animation...');
+      
       try {
-        // Use the global THREE object (should be available from Potree)
-        if (typeof THREE !== 'undefined') {
-          console.log('THREE.js available, creating camera animation');
-          const animation = new Potree.CameraAnimation(viewer);
-          console.log('Camera animation object created');
+        const animation = new Potree.CameraAnimation(viewer);
+        console.log('Camera animation object created');
 
-          // Get the bounding box center and size for camera positions
+        // Get first point cloud for bounding box
+        const pointclouds = viewer.scene.pointclouds;
+        if (pointclouds.length > 0) {
+          const pointcloud = pointclouds[0];
           const box = pointcloud.boundingBox;
           const center = box.getCenter(new THREE.Vector3());
           const size = box.getSize(new THREE.Vector3());
@@ -175,16 +183,25 @@
           window.cameraAnimation = animation;
           console.log('Camera animation created and stored globally');
           console.log('Animation has', animation.controlPoints.length, 'control points');
+          
         } else {
-          console.log('THREE.js not available for camera animation');
+          console.log('No point clouds available yet, retrying...');
+          setTimeout(createCameraAnimation, 500);
         }
       } catch (err) {
         console.error('Camera animation creation failed:', err);
       }
-    }
+    };
 
-    // Camera track management functions
-    function saveCameraTrack(animation) {
+    // Start trying to create animation after a short delay
+    setTimeout(createCameraAnimation, 1000);
+
+    // Make functions available globally
+    window.saveCameraTrack = function(animation) {
+      const qs = new URLSearchParams(location.search);
+      const src = qs.get('src');
+      const title = qs.get('title') || 'SFM Point Cloud';
+      
       try {
         const trackData = {
           version: "1.0",
@@ -223,9 +240,9 @@
         console.error('Error saving camera track:', error);
         alert('Error saving camera track: ' + error.message);
       }
-    }
+    };
 
-    function loadCameraTrack(animation, file) {
+    window.loadCameraTrack = function(animation, file) {
       const reader = new FileReader();
       reader.onload = function(e) {
         try {
@@ -237,7 +254,7 @@
             console.log('Loading camera track with', trackData.controlPoints.length, 'keyframes');
             
             // Clear existing control points
-            clearCameraTrack(animation);
+            window.clearCameraTrack(animation);
 
             // Load control points
             for (const cpData of trackData.controlPoints) {
@@ -268,7 +285,7 @@
             
             if (confirm('This appears to be a single camera position. Create a single keyframe from this position?')) {
               // Clear existing control points
-              clearCameraTrack(animation);
+              window.clearCameraTrack(animation);
               
               // Create single keyframe from the camera position
               const cp = animation.createControlPoint();
@@ -298,9 +315,9 @@
         }
       };
       reader.readAsText(file);
-    }
+    };
 
-    function clearCameraTrack(animation) {
+    window.clearCameraTrack = function(animation) {
       try {
         // Remove all control points
         const controlPoints = [...animation.controlPoints]; // Create a copy to avoid modification during iteration
@@ -317,10 +334,13 @@
         console.error('Error clearing camera track:', error);
         alert('Error clearing camera track: ' + error.message);
       }
-    }
+    };
 
-    // Initialize sidebar export functionality
-    function initializeSidebarExports() {
+    window.initializeSidebarExports = function() {
+      const qs = new URLSearchParams(location.search);
+      const src = qs.get('src');
+      const title = qs.get('title') || 'SFM Point Cloud';
+      
       // Wait for sidebar to be fully loaded
       const checkSidebar = () => {
         const btnScreenshot = document.getElementById('btnExportScreenshot');
@@ -352,7 +372,7 @@
 
           // Camera export
           btnCamera.onclick = () => {
-            const cameraData = getCameraState();
+            const cameraData = window.getCameraState();
             const blob = new Blob([JSON.stringify(cameraData, null, 2)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -411,7 +431,7 @@
               reader.onload = (e) => {
                 try {
                   const cameraData = JSON.parse(e.target.result);
-                  setCameraState(cameraData);
+                  window.setCameraState(cameraData);
                   alert('Camera position loaded successfully');
                 } catch (err) {
                   alert('Invalid camera file: ' + err.message);
@@ -428,7 +448,7 @@
               console.log('window.cameraAnimation exists:', !!window.cameraAnimation);
               if (window.cameraAnimation) {
                 console.log('Control points:', window.cameraAnimation.controlPoints.length);
-                saveCameraTrack(window.cameraAnimation);
+                window.saveCameraTrack(window.cameraAnimation);
               } else {
                 alert('No camera animation available. Camera tracks are only available in SFM viewer mode.');
               }
@@ -446,7 +466,7 @@
               if (file) {
                 if (window.cameraAnimation) {
                   console.log('Loading track into camera animation');
-                  loadCameraTrack(window.cameraAnimation, file);
+                  window.loadCameraTrack(window.cameraAnimation, file);
                 } else {
                   alert('No camera animation available. Load this file using "Load Camera" for single camera position, or use the SFM viewer for camera tracks.');
                 }
@@ -461,10 +481,9 @@
       };
 
       checkSidebar();
-    }
+    };
 
-    // Camera state management functions
-    function getCameraState() {
+    window.getCameraState = function() {
       try {
         const v = viewer.scene.view;
         const cam = viewer.scene.getActiveCamera();
@@ -500,9 +519,9 @@
           fov: cam.fov || 60
         };
       }
-    }
+    };
 
-    function setCameraState(state) {
+    window.setCameraState = function(state) {
       try {
         console.log('Setting camera state:', state);
         const v = viewer.scene.view;
@@ -605,7 +624,9 @@
           throw new Error('Could not set camera position - both main and fallback methods failed');
         }
       }
-    }
+    };
   </script>
+</body>
+</html>
 </body>
 </html>
