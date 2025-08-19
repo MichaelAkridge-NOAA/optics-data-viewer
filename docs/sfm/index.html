@@ -24,6 +24,7 @@
     .row{display:flex;gap:8px;flex-wrap:wrap}
     a.btn{display:inline-block;padding:6px 10px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:13px}
     a.primary{background:#2b79ff;border-color:#2b79ff;color:white}
+    .badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,.08);margin-left:4px}
     footer{margin-top:20px;color:var(--muted);font-size:12px}
     code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   </style>
@@ -38,7 +39,7 @@
     
     // Build a link to ../sfm-viewer.html with ?src= and ?title=
     function sfmlink(src, title){
-      const u = new URL('../sfm-viewer.html', location.href);
+      const u = new URL('sfm-viewer.html', location.href);
       u.searchParams.set('src', src);
       if (title) u.searchParams.set('title', title);
       return u.toString();
@@ -104,24 +105,22 @@
           </div>
         </div>
       </div>
-    </div>    <footer>
-    
-    </footer>
-  </div>
-        <!-- SFM Timeseries (OCC-TUT-017) -->
+
+      <!-- SFM Timeseries (OCC-TUT-017) -->
       <div class="card">
-        <a href="timeseries-viewer.html" aria-label="Open OCC-TUT-017 Timeseries viewer">
-          <img class="thumb" src="img/sfm_example.gif" alt="Timeseries SfM Thumbnail">
+        <a class="thumb-link" href="timeseries-viewer.html" aria-label="Open OCC-TUT-017 Timeseries viewer">
+          <img class="thumb" src="../img/sfm_example.gif" alt="Timeseries SfM Thumbnail">
         </a>
         <div class="body">
-          <div class="title">OCC-TUT-017 Timeseries Viewer<span class="badge">Preview</span></div>
-          <p class="muted">Compare 3D point clouds across multiple time periods (2018 vs 2023) to analyze temporal changes.</p>
+          <div class="title">OCC-TUT-017 Timeseries<span class="badge">Preview</span></div>
+          <p class="muted">2018 vs 2023 temporal comparison</p>
           <div class="row">
             <a class="btn primary" href="timeseries-viewer.html">Open Viewer</a>
             <a class="btn" href="timeseries-viewer.html">View Demo</a>
           </div>
         </div>
       </div>
+    </div>
 
   <script>
     // OCC-BAK-008
