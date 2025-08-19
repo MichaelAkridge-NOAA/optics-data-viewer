@@ -45,7 +45,7 @@
   </div>
 
   <div id="error"></div>
-  <div id="loading"><div class="spinner"></div><div>Loading point cloud with camera animation…</div></div>
+  <div id="loading"><div class="spinner"></div><div>Loading SFM point cloud viewer…</div></div>
   <div class="chip" id="chip"></div>
 
   <!-- Libraries -->
@@ -96,9 +96,9 @@
       viewer.setPointBudget(3_000_000);
       viewer.loadSettingsFromURL();
       viewer.setDescription(`
-      SFM Point Cloud with Camera Animation<br>
-      Create new animation paths via "Tools -> Navigation -> Camera Animation"<br>
-      Modify and play animations via "Scene -> Objects -> Other -> [animation object]".
+      SFM Point Cloud Viewer<br>
+      Create camera animation paths via "Tools -> Navigation -> Camera Animation"<br>
+      Save and load camera tracks via the Export buttons in the sidebar.
       `);
       
       // Load GUI immediately with sidebar visible
@@ -127,7 +127,7 @@
         viewer.fitToScreen();
         loading.style.display = 'none';
         
-        // Create camera animation will be done in next script block
+        // Point cloud loaded - user can now create camera animations via Tools menu
       });
     }
   </script>
@@ -135,66 +135,36 @@
   <script type="module">
     import * as THREE from "libs/three.js/build/three.module.js";
     
-    // Wait for viewer to be ready, then create camera animation
-    const createCameraAnimation = () => {
+    // Monitor for camera animations created by the user
+    const monitorCameraAnimations = () => {
       if (!window.viewer || !window.viewer.scene) {
-        setTimeout(createCameraAnimation, 100);
+        setTimeout(monitorCameraAnimations, 100);
         return;
       }
       
-      console.log('Creating camera animation...');
+      console.log('Monitoring for user-created camera animations...');
       
-      try {
-        const animation = new Potree.CameraAnimation(viewer);
-        console.log('Camera animation object created');
-
-        // Get first point cloud for bounding box
-        const pointclouds = viewer.scene.pointclouds;
-        if (pointclouds.length > 0) {
-          const pointcloud = pointclouds[0];
-          const box = pointcloud.boundingBox;
-          const center = box.getCenter(new THREE.Vector3());
-          const size = box.getSize(new THREE.Vector3());
-          const maxDim = Math.max(size.x, size.y, size.z);
-
-          // Create a circular camera path around the point cloud
-          const radius = maxDim * 1.5;
-          const height = center.z + size.z * 0.3;
-          const numPoints = 6;
-
-          for(let i = 0; i < numPoints; i++){
-            const angle = (i / numPoints) * Math.PI * 2;
-            const cp = animation.createControlPoint();
-
-            // Position camera in a circle around the center
-            cp.position.set(
-              center.x + Math.cos(angle) * radius,
-              center.y + Math.sin(angle) * radius,
-              height
-            );
-            
-            // Always look at the center
-            cp.target.copy(center);
+      // Check periodically for camera animations
+      const checkAnimations = () => {
+        if (viewer.scene && viewer.scene.cameraAnimations && viewer.scene.cameraAnimations.length > 0) {
+          // User has created a camera animation - store the first one globally
+          const animation = viewer.scene.cameraAnimations[0];
+          if (animation !== window.cameraAnimation) {
+            window.cameraAnimation = animation;
+            console.log('Camera animation detected and stored globally');
+            console.log('Animation has', animation.controlPoints.length, 'control points');
           }
-
-          viewer.scene.addCameraAnimation(animation);
-          
-          // Store the animation globally so sidebar can access it
-          window.cameraAnimation = animation;
-          console.log('Camera animation created and stored globally');
-          console.log('Animation has', animation.controlPoints.length, 'control points');
-          
-        } else {
-          console.log('No point clouds available yet, retrying...');
-          setTimeout(createCameraAnimation, 500);
         }
-      } catch (err) {
-        console.error('Camera animation creation failed:', err);
-      }
+        
+        // Check again in 1 second
+        setTimeout(checkAnimations, 1000);
+      };
+      
+      checkAnimations();
     };
 
-    // Start trying to create animation after a short delay
-    setTimeout(createCameraAnimation, 1000);
+    // Start monitoring after viewer is ready
+    setTimeout(monitorCameraAnimations, 500);
 
     // Make functions available globally
     window.saveCameraTrack = function(animation) {
