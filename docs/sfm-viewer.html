@@ -184,202 +184,175 @@
       const addControls = () => {
         console.log('Adding camera animation controls to GUI...');
         try {
-        let section = $(`
-          <h3 id="menu_camera_anim" class="accordion-header ui-widget"><span>Camera Animation</span></h3>
-          <div class="accordion-content ui-widget pv-menu-list"></div>
-        `);
-        let content = section.last();
-        content.html(`
-        <div class="pv-menu-list">
-          <span id="animation_keyframes"></span>
-          <span>
-            <span>Time: </span><span id="lblTime">0.00</span> 
-            <div id="sldTime"></div>
-            <div style="margin-top: 8px;">
-              <input name="play" type="button" value="Play Animation"/>
-              <input name="stop" type="button" value="Stop"/>
+          // Try to find the sidebar accordion
+          const potreeMenu = document.getElementById('potree_menu');
+          const menuAbout = document.getElementById('menu_about');
+          
+          console.log('Potree menu found:', !!potreeMenu);
+          console.log('Menu about found:', !!menuAbout);
+          
+          if (!potreeMenu) {
+            console.error('Could not find potree_menu element');
+            return;
+          }
+
+          // Create the camera animation section HTML
+          const sectionHTML = `
+            <h3 id="menu_camera_anim" class="accordion-header ui-widget">
+              <span>Camera Animation</span>
+            </h3>
+            <div class="accordion-content ui-widget">
+              <ul class="pv-menu-list">
+                <li>
+                  <div id="animation_keyframes"></div>
+                </li>
+                <li>
+                  <span>Time: </span><span id="lblTime">0.00</span> 
+                  <div id="sldTime"></div>
+                </li>
+                <li style="margin-top: 8px;">
+                  <input name="play" type="button" value="Play Animation"/>
+                  <input name="stop" type="button" value="Stop"/>
+                </li>
+                <li style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #333;">
+                  <div style="margin-bottom: 6px; font-weight: bold; color: #cfe;">Camera Track Management</div>
+                </li>
+                <li style="margin-bottom: 4px;">
+                  <input name="saveTrack" type="button" value="Save Track" style="margin-right: 4px; background: #4a90e2; color: white; border: none; padding: 4px 8px; border-radius: 3px;"/>
+                  <input name="loadTrack" type="button" value="Load Track" style="background: #5cb85c; color: white; border: none; padding: 4px 8px; border-radius: 3px;"/>
+                </li>
+                <li style="margin-bottom: 4px;">
+                  <input name="clearTrack" type="button" value="Clear Track" style="margin-right: 4px; background: #d9534f; color: white; border: none; padding: 4px 8px; border-radius: 3px;"/>
+                  <input name="newTrack" type="button" value="New Track" style="background: #f0ad4e; color: white; border: none; padding: 4px 8px; border-radius: 3px;"/>
+                </li>
+                <li>
+                  <input type="file" id="trackFileInput" accept=".json" style="display: none;"/>
+                </li>
+              </ul>
             </div>
-            <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #333;">
-              <div style="margin-bottom: 6px; font-weight: bold; color: #cfe;">Camera Track Management</div>
-              <div style="margin-bottom: 4px;">
-                <input name="saveTrack" type="button" value="Save Track" style="margin-right: 4px;"/>
-                <input name="loadTrack" type="button" value="Load Track"/>
-              </div>
-              <div style="margin-bottom: 4px;">
-                <input name="clearTrack" type="button" value="Clear Track" style="margin-right: 4px;"/>
-                <input name="newTrack" type="button" value="New Track"/>
-              </div>
-              <input type="file" id="trackFileInput" accept=".json" style="display: none;"/>
-            </div>
-          </span>
-        </div>
-        `);
+          `;
 
-        const elPlay = content.find("input[name=play]");
-        const elStop = content.find("input[name=stop]");
-        const elSaveTrack = content.find("input[name=saveTrack]");
-        const elLoadTrack = content.find("input[name=loadTrack]");
-        const elClearTrack = content.find("input[name=clearTrack]");
-        const elNewTrack = content.find("input[name=newTrack]");
-        const elFileInput = content.find("#trackFileInput");
-
-        elPlay.click(() => {
-          animation.play();
-        });
-        elStop.click(() => {
-          animation.stop();
-        });
-
-        // Save camera track to JSON file
-        elSaveTrack.click(() => {
-          saveCameraTrack(animation);
-        });
-
-        // Load camera track from JSON file
-        elLoadTrack.click(() => {
-          elFileInput.click();
-        });
-
-        // Clear all keyframes
-        elClearTrack.click(() => {
-          if (confirm('Are you sure you want to clear all keyframes?')) {
-            clearCameraTrack(animation);
+          // Insert the section into the menu
+          if (menuAbout) {
+            menuAbout.insertAdjacentHTML('beforebegin', sectionHTML);
+          } else {
+            potreeMenu.insertAdjacentHTML('beforeend', sectionHTML);
           }
-        });
 
-        // Create new empty track
-        elNewTrack.click(() => {
-          if (confirm('Create a new empty camera track? This will clear existing keyframes.')) {
-            clearCameraTrack(animation);
+          console.log('Camera animation section HTML added');
+
+          // Now find the elements and attach event handlers
+          const content = potreeMenu.querySelector('#menu_camera_anim').nextElementSibling;
+          const elPlay = content.querySelector("input[name=play]");
+          const elStop = content.querySelector("input[name=stop]");
+          const elSaveTrack = content.querySelector("input[name=saveTrack]");
+          const elLoadTrack = content.querySelector("input[name=loadTrack]");
+          const elClearTrack = content.querySelector("input[name=clearTrack]");
+          const elNewTrack = content.querySelector("input[name=newTrack]");
+          const elFileInput = content.querySelector("#trackFileInput");
+
+          console.log('Save Track button found:', !!elSaveTrack);
+
+          if (elPlay) elPlay.onclick = () => animation.play();
+          if (elStop) elStop.onclick = () => animation.stop();
+
+          // Save camera track to JSON file
+          if (elSaveTrack) {
+            elSaveTrack.onclick = () => {
+              console.log('Save Track button clicked!');
+              saveCameraTrack(animation);
+            };
           }
-        });
 
-        // Handle file input change
-        elFileInput.on('change', function(e) {
-          const file = e.target.files[0];
-          if (file) {
-            loadCameraTrack(animation, file);
+          // Load camera track from JSON file
+          if (elLoadTrack) {
+            elLoadTrack.onclick = () => elFileInput.click();
           }
-        });
 
-        const elSlider = content.find('#sldTime');
-        const elTimeLabel = content.find('#lblTime');
-        elSlider.slider({
-          value: 0,
-          min: 0,
-          max: 1,
-          step: 0.001,
-          slide: (event, ui) => { 
-            animation.set(ui.value);
-            elTimeLabel.text(ui.value.toFixed(2));
+          // Clear all keyframes
+          if (elClearTrack) {
+            elClearTrack.onclick = () => {
+              if (confirm('Are you sure you want to clear all keyframes?')) {
+                clearCameraTrack(animation);
+              }
+            };
           }
-        });
 
-        const elKeyframes = content.find("#animation_keyframes");
+          // Create new empty track
+          if (elNewTrack) {
+            elNewTrack.onclick = () => {
+              if (confirm('Create a new empty camera track? This will clear existing keyframes.')) {
+                clearCameraTrack(animation);
+              }
+            };
+          }
 
-        const updateKeyframes = () => {
-          elKeyframes.empty();
-          let index = 0;
+          // Handle file input change
+          if (elFileInput) {
+            elFileInput.onchange = (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                loadCameraTrack(animation, file);
+              }
+            };
+          }
 
-          const addNewKeyframeItem = (index) => {
-            let elNewKeyframe = $(`
-              <div style="display: flex; margin: 0.2em 0em">
-                <span style="flex-grow: 0;">
-                  <img name="add" src="${Potree.resourcePath}/icons/add.svg" style="width: 1.5em; height: 1.5em"/>
-                </span>
-                <span style="flex-grow: 1"></span>
-              </div>
-            `);
-
-            const elAdd = elNewKeyframe.find("img[name=add]");
-            elAdd.click(() => {
-              animation.createControlPoint(index);
+          // Set up time slider
+          const elSlider = content.querySelector('#sldTime');
+          const elTimeLabel = content.querySelector('#lblTime');
+          if (elSlider && window.$ && $.fn.slider) {
+            $(elSlider).slider({
+              value: 0,
+              min: 0,
+              max: 1,
+              step: 0.001,
+              slide: (event, ui) => { 
+                animation.set(ui.value);
+                elTimeLabel.textContent = ui.value.toFixed(2);
+              }
             });
-
-            elKeyframes.append(elNewKeyframe);
-          };
-
-          const addKeyframeItem = (index) => {
-            let elKeyframe = $(`
-              <div style="display: flex; margin: 0.2em 0em">
-                <span style="flex-grow: 0;">
-                  <img name="assign" src="${Potree.resourcePath}/icons/assign.svg" style="width: 1.5em; height: 1.5em"/>
-                </span>
-                <span style="flex-grow: 0;">
-                  <img name="move" src="${Potree.resourcePath}/icons/circled_dot.svg" style="width: 1.5em; height: 1.5em"/>
-                </span>
-                <span style="flex-grow: 0; width: 1.5em; height: 1.5em"></span>
-                <span style="flex-grow: 0; font-size: 1.2em">Keyframe ${index + 1}</span>
-                <span style="flex-grow: 1"></span>
-                <span style="flex-grow: 0;">
-                  <img name="delete" src="${Potree.resourcePath}/icons/remove.svg" style="width: 1.5em; height: 1.5em"/>
-                </span>
-              </div>
-            `);
-
-            const elAssign = elKeyframe.find("img[name=assign]");
-            const elMove = elKeyframe.find("img[name=move]");
-            const elDelete = elKeyframe.find("img[name=delete]");
-
-            elAssign.click(() => {
-              const cp = animation.controlPoints[index];
-              cp.position.copy(viewer.scene.view.position);
-              cp.target.copy(viewer.scene.view.getPivot());
-            });
-
-            elMove.click(() => {
-              const cp = animation.controlPoints[index];
-              viewer.scene.view.position.copy(cp.position);
-              viewer.scene.view.lookAt(cp.target);
-            });
-
-            elDelete.click(() => {
-              const cp = animation.controlPoints[index];
-              animation.removeControlPoint(cp);
-            });
-
-            elKeyframes.append(elKeyframe);
-          };
-
-          addNewKeyframeItem(index);
-
-          for(const cp of animation.controlPoints){
-            addKeyframeItem(index);
-            index++;
-            addNewKeyframeItem(index);
           }
-        };
 
-        updateKeyframes();
-
-        animation.addEventListener("controlpoint_added", updateKeyframes);
-        animation.addEventListener("controlpoint_removed", updateKeyframes);
-
-        // Update time display during animation
-        const updateTime = () => {
-          if (animation.isPlaying) {
-            const t = animation.t || 0;
-            elTimeLabel.text(t.toFixed(2));
-            elSlider.slider('value', t);
+          // Make the section collapsible
+          const header = document.getElementById('menu_camera_anim');
+          if (header) {
+            header.onclick = () => {
+              const content = header.nextElementSibling;
+              if (content.style.display === 'none') {
+                content.style.display = 'block';
+              } else {
+                content.style.display = 'none';
+              }
+            };
+            // Start expanded
+            content.style.display = 'block';
           }
-          requestAnimationFrame(updateTime);
-        };
-        updateTime();
 
-        section.first().click(() => content.slideToggle());
-        section.insertBefore($('#menu_about'));
-        console.log('Camera animation controls added successfully');
+          console.log('Camera animation controls added successfully');
+          
         } catch (error) {
           console.error('Error adding camera animation controls:', error);
         }
       };
 
-      // Check if GUI is ready, or wait for it
-      if (viewer.sidebar && viewer.sidebar.root) {
-        addControls();
-      } else {
-        viewer.onGUILoaded(addControls);
-      }
+      // Wait a bit longer and try multiple times if needed
+      let attempts = 0;
+      const tryAddControls = () => {
+        attempts++;
+        console.log(`Attempt ${attempts} to add controls...`);
+        
+        const potreeMenu = document.getElementById('potree_menu');
+        if (potreeMenu && potreeMenu.children.length > 0) {
+          addControls();
+        } else if (attempts < 10) {
+          setTimeout(tryAddControls, 500);
+        } else {
+          console.error('Failed to add camera controls after 10 attempts');
+        }
+      };
+
+      // Start trying to add controls
+      setTimeout(tryAddControls, 1000);
     }
 
     // Camera track management functions
