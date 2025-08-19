@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Optics Data Viewer - SFM with Camera Animation</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Potree CSS -->
+  <link rel="stylesheet" href="build/potree/potree.css" />
+  <link rel="stylesheet" href="libs/jquery-ui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="libs/openlayers3/ol.css" />
+  <link rel="stylesheet" href="libs/spectrum/spectrum.css" />
+  <link rel="stylesheet" href="libs/jstree/themes/mixed/style.css" />
+
+  <style>
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+    
+    /* Loading + error */
+    #loading {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
+      z-index:9999; flex-direction:column; gap:10px
+    }
+    #loading .spinner { width:40px; height:40px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg) } }
+
+    #error {
+      position:absolute; top:12px; left:12px; right:12px;
+      background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
+    }
+
+    .chip{
+      position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
+      padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
+    }
+  </style>
+</head>
+<body>
+
+  <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+    <div id="potree_render_area">
+    </div>
+    <div id="potree_sidebar_container"> </div>
+  </div>
+
+  <div id="error"></div>
+  <div id="loading"><div class="spinner"></div><div>Loading SFM point cloud viewer…</div></div>
+  <div class="chip" id="chip"></div>
+
+  <!-- Libraries -->
+  <script src="libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="libs/spectrum/spectrum.js"></script>
+  <script src="libs/jquery-ui/jquery-ui.min.js"></script>
+  <script src="libs/other/BinaryHeap.js"></script>
+  <script src="libs/tween/tween.min.js"></script>
+  <script src="libs/d3/d3.js"></script>
+  <script src="libs/proj4/proj4.js"></script>
+  <script src="libs/openlayers3/ol.js"></script>
+  <script src="libs/i18next/i18next.js"></script>
+  <script src="libs/jstree/jstree.js"></script>
+
+  <!-- Potree -->
+  <script src="build/potree/potree.js"></script>
+  <script src="libs/plasio/js/laslaz.js"></script>
+
+  <script>
+    // ---- Params
+    const qs = new URLSearchParams(location.search);
+    const src = qs.get('src');
+    const title = qs.get('title') || 'SFM Point Cloud';
+    const chip = document.getElementById('chip'); 
+    chip.textContent = title;
+
+    const errorBox = document.getElementById('error');
+    const loading = document.getElementById('loading');
+
+    function showError(msg, details) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = `<strong>Couldn't load point cloud.</strong> ${msg}`
+        + (details ? `<div style="opacity:.9;margin-top:6px;font-size:13px">${details}</div>` : '');
+      console.error('Potree load error:', msg, details);
+      loading.style.display = 'none';
+    }
+
+    if (!src) {
+      showError('Missing <code>?src=</code> URL parameter.',
+        'Pass a public HTTPS URL to <code>cloud.js</code> (Potree format).');
+    } else {
+      console.log('Initializing viewer...');
+      
+      // Initialize viewer
+      window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+      
+      viewer.setEDLEnabled(false);
+      viewer.setFOV(60);
+      viewer.setPointBudget(3_000_000);
+      viewer.loadSettingsFromURL();
+      viewer.setDescription(`
+      SFM Point Cloud Viewer<br>
+      Create camera animation paths via "Tools -> Navigation -> Camera Animation"<br>
+      Save and load camera tracks via the Export buttons in the sidebar.
+      `);
+      
+      console.log('Loading GUI...');
+      
+      // Load GUI
+      viewer.loadGUI(() => {
+        console.log('GUI loaded, setting up sidebar...');
+        viewer.setLanguage('en');
+        $("#menu_scene").next().show();
+        $("#menu_tools").next().show();
+        viewer.toggleSidebar();
+        
+        // Initialize export functionality in sidebar
+        initializeSidebarExports();
+        
+        console.log('Loading point cloud...');
+        
+        // Load point cloud
+        Potree.loadPointCloud(src, title, e => {
+          console.log('Point cloud load callback triggered');
+          let scene = viewer.scene;
+          let pointcloud = e.pointcloud;
+          
+          let material = pointcloud.material;
+          material.size = 1;
+          material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+          material.shape = Potree.PointShape.SQUARE;
+          
+          scene.addPointCloud(pointcloud);
+          
+          viewer.fitToScreen();
+          loading.style.display = 'none';
+          
+          console.log('Point cloud loaded successfully');
+          
+          // Start monitoring for camera animations
+          setTimeout(() => {
+            monitorCameraAnimations();
+          }, 1000);
+        });
+      });
+    }
+
+    // Monitor for camera animations created by the user
+    function monitorCameraAnimations() {
+      if (!window.viewer || !window.viewer.scene) {
+        setTimeout(monitorCameraAnimations, 500);
+        return;
+      }
+      
+      console.log('Monitoring for user-created camera animations...');
+      
+      // Check periodically for camera animations
+      const checkAnimations = () => {
+        if (viewer.scene && viewer.scene.cameraAnimations && viewer.scene.cameraAnimations.length > 0) {
+          const animation = viewer.scene.cameraAnimations[0];
+          if (animation !== window.cameraAnimation) {
+            window.cameraAnimation = animation;
+            console.log('Camera animation detected and stored globally');
+            console.log('Animation has', animation.controlPoints ? animation.controlPoints.length : 0, 'control points');
+          }
+        }
+        setTimeout(checkAnimations, 2000);
+      };
+      
+      checkAnimations();
+    }
+
+    // Make functions available globally
+    window.saveCameraTrack = function(animation) {
+      const qs = new URLSearchParams(location.search);
+      const src = qs.get('src');
+      const title = qs.get('title') || 'SFM Point Cloud';
+      
+      try {
+        const trackData = {
+          version: "1.0",
+          created: new Date().toISOString(),
+          title: title || "Camera Track",
+          pointCloudSrc: src,
+          duration: animation.duration || 10,
+          controlPoints: []
+        };
+
+        // Export all control points
+        for (let i = 0; i < animation.controlPoints.length; i++) {
+          const cp = animation.controlPoints[i];
+          trackData.controlPoints.push({
+            index: i,
+            position: cp.position.toArray(),
+            target: cp.target.toArray(),
+            time: cp.time || (i / (animation.controlPoints.length - 1))
+          });
+        }
+
+        // Create and download the file
+        const blob = new Blob([JSON.stringify(trackData, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(title || 'camera-track').replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        console.log('Camera track saved successfully');
+        alert(`Camera track saved with ${trackData.controlPoints.length} keyframes`);
+      } catch (error) {
+        console.error('Error saving camera track:', error);
+        alert('Error saving camera track: ' + error.message);
+      }
+    };
+
+    window.loadCameraTrack = function(animation, file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const trackData = JSON.parse(e.target.result);
+          
+          // Check if this is a camera track file (with controlPoints) or single camera position
+          if (trackData.controlPoints && Array.isArray(trackData.controlPoints)) {
+            // This is a proper camera track file
+            console.log('Loading camera track with', trackData.controlPoints.length, 'keyframes');
+            
+            // Clear existing control points
+            window.clearCameraTrack(animation);
+
+            // Load control points
+            for (const cpData of trackData.controlPoints) {
+              if (cpData.position && cpData.target && cpData.position.length === 3 && cpData.target.length === 3) {
+                const cp = animation.createControlPoint();
+                cp.position.fromArray(cpData.position);
+                cp.target.fromArray(cpData.target);
+                if (cpData.time !== undefined) {
+                  cp.time = cpData.time;
+                }
+              }
+            }
+
+            // Set duration if available
+            if (trackData.duration) {
+              animation.duration = trackData.duration;
+            }
+
+            console.log('Camera track loaded successfully');
+            alert(`Camera track loaded with ${trackData.controlPoints.length} keyframes`);
+            
+            // Reset animation to beginning
+            animation.set(0);
+            
+          } else if (trackData.position && trackData.target) {
+            // This looks like a single camera position file - convert it to a single keyframe
+            console.log('Converting single camera position to keyframe');
+            
+            if (confirm('This appears to be a single camera position. Create a single keyframe from this position?')) {
+              // Clear existing control points
+              window.clearCameraTrack(animation);
+              
+              // Create single keyframe from the camera position
+              const cp = animation.createControlPoint();
+              if (Array.isArray(trackData.position) && trackData.position.length === 3) {
+                cp.position.fromArray(trackData.position);
+              }
+              if (Array.isArray(trackData.target) && trackData.target.length === 3) {
+                cp.target.fromArray(trackData.target);
+              }
+              
+              console.log('Single camera position converted to keyframe');
+              alert('Single camera position loaded as keyframe');
+              
+              // Reset animation to beginning
+              animation.set(0);
+            } else {
+              alert('Use the sidebar "Load Camera" button for single camera positions');
+            }
+            
+          } else {
+            throw new Error('Invalid file format - missing controlPoints array or camera position data');
+          }
+          
+        } catch (error) {
+          console.error('Error loading camera track:', error);
+          alert('Error loading camera track: ' + error.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    window.clearCameraTrack = function(animation) {
+      try {
+        // Remove all control points
+        const controlPoints = [...animation.controlPoints]; // Create a copy to avoid modification during iteration
+        for (const cp of controlPoints) {
+          animation.removeControlPoint(cp);
+        }
+        
+        // Reset animation
+        animation.set(0);
+        animation.stop();
+        
+        console.log('Camera track cleared');
+      } catch (error) {
+        console.error('Error clearing camera track:', error);
+        alert('Error clearing camera track: ' + error.message);
+      }
+    };
+
+    window.initializeSidebarExports = function() {
+      const qs = new URLSearchParams(location.search);
+      const src = qs.get('src');
+      const title = qs.get('title') || 'SFM Point Cloud';
+      
+      // Wait for sidebar to be fully loaded
+      const checkSidebar = () => {
+        const btnScreenshot = document.getElementById('btnExportScreenshot');
+        const btnCamera = document.getElementById('btnExportCamera');
+        const btnMeasurements = document.getElementById('btnExportMeasurements');
+        const btnShareLink = document.getElementById('btnShareLink');
+        const btnLoadCamera = document.getElementById('btnLoadCamera');
+        const btnSaveTrack = document.getElementById('btnSaveTrack');
+        const btnLoadTrack = document.getElementById('btnLoadTrack');
+        const cameraFileInput = document.getElementById('cameraFileInput');
+        const trackFileInput = document.getElementById('trackFileInput');
+
+        if (btnScreenshot && btnCamera && btnMeasurements && btnShareLink && btnLoadCamera && cameraFileInput) {
+          // Screenshot export
+          btnScreenshot.onclick = () => {
+            try {
+              const dataURL = viewer.renderer.domElement.toDataURL('image/png');
+              const a = document.createElement('a');
+              a.href = dataURL;
+              a.download = (title || 'sfm-screenshot') + '.png';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch (err) {
+              alert('Screenshot failed. Some browsers require special flags for WebGL capture.');
+              console.error(err);
+            }
+          };
+
+          // Camera export
+          btnCamera.onclick = () => {
+            const cameraData = window.getCameraState();
+            const blob = new Blob([JSON.stringify(cameraData, null, 2)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = (title || 'camera') + '.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          };
+
+          // Measurements export
+          btnMeasurements.onclick = () => {
+            try {
+              const out = [];
+              const ms = (viewer.measuringTool.measurements || viewer.measuringTool.measures || []);
+              for (const m of ms) {
+                const pts = (m.points || []).map(p => p.position.toArray());
+                out.push({ name: m.name || 'Measure', closed: !!m.closed, points: pts });
+              }
+              const blob = new Blob([JSON.stringify({ measurements: out }, null, 2)], {type: 'application/json'});
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = (title || 'measurements') + '.json';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch (err) {
+              alert('No measurements found or export failed.');
+              console.error(err);
+            }
+          };
+
+          // Share link
+          btnShareLink.onclick = async () => {
+            const u = new URL(location.href.split('?')[0], location.href);
+            const params = new URLSearchParams();
+            params.set('src', src || '');
+            params.set('title', title || 'SFM Point Cloud');
+            u.search = params.toString();
+            try {
+              await navigator.clipboard.writeText(u.toString());
+              alert('Viewer link copied to clipboard');
+            } catch {
+              prompt('Copy link:', u.toString());
+            }
+          };
+
+          // Load camera
+          btnLoadCamera.onclick = () => {
+            cameraFileInput.click();
+          };
+
+          cameraFileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                try {
+                  const cameraData = JSON.parse(e.target.result);
+                  window.setCameraState(cameraData);
+                  alert('Camera position loaded successfully');
+                } catch (err) {
+                  alert('Invalid camera file: ' + err.message);
+                }
+              };
+              reader.readAsText(file);
+            }
+          };
+
+          // Save camera track (only available if animation exists)
+          if (btnSaveTrack) {
+            btnSaveTrack.onclick = () => {
+              console.log('Save Track button clicked from sidebar');
+              console.log('window.cameraAnimation exists:', !!window.cameraAnimation);
+              if (window.cameraAnimation) {
+                console.log('Control points:', window.cameraAnimation.controlPoints.length);
+                window.saveCameraTrack(window.cameraAnimation);
+              } else {
+                alert('No camera animation available. Camera tracks are only available in SFM viewer mode.');
+              }
+            };
+          }
+
+          // Load camera track
+          if (btnLoadTrack && trackFileInput) {
+            btnLoadTrack.onclick = () => {
+              trackFileInput.click();
+            };
+            
+            trackFileInput.onchange = (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                if (window.cameraAnimation) {
+                  console.log('Loading track into camera animation');
+                  window.loadCameraTrack(window.cameraAnimation, file);
+                } else {
+                  alert('No camera animation available. Load this file using "Load Camera" for single camera position, or use the SFM viewer for camera tracks.');
+                }
+              }
+            };
+          }
+
+        } else {
+          // Retry after a short delay
+          setTimeout(checkSidebar, 100);
+        }
+      };
+
+      checkSidebar();
+    };
+
+    window.getCameraState = function() {
+      try {
+        const v = viewer.scene.view;
+        const cam = viewer.scene.getActiveCamera();
+        
+        // Get pivot/target - try multiple methods
+        let target = [0, 0, 0];
+        if (v.getPivot) {
+          const pivot = v.getPivot();
+          target = pivot.toArray ? pivot.toArray() : [pivot.x, pivot.y, pivot.z];
+        } else if (v.pivot) {
+          target = v.pivot.toArray ? v.pivot.toArray() : [v.pivot.x, v.pivot.y, v.pivot.z];
+        }
+        
+        const cameraState = {
+          position: cam.position.toArray(),
+          target: target,
+          fov: cam.fov || v.fov || 60
+        };
+        
+        // Add view-specific properties if available
+        if (v.yaw !== undefined) cameraState.yaw = v.yaw;
+        if (v.pitch !== undefined) cameraState.pitch = v.pitch;
+        if (v.radius !== undefined) cameraState.radius = v.radius;
+        
+        return cameraState;
+      } catch (error) {
+        console.error('Error getting camera state:', error);
+        // Fallback - just get basic camera info
+        const cam = viewer.scene.getActiveCamera();
+        return {
+          position: cam.position.toArray(),
+          target: [0, 0, 0],
+          fov: cam.fov || 60
+        };
+      }
+    };
+
+    window.setCameraState = function(state) {
+      try {
+        console.log('Setting camera state:', state);
+        const v = viewer.scene.view;
+        const cam = viewer.scene.getActiveCamera();
+        
+        // Set position first
+        if (state.position && Array.isArray(state.position) && state.position.length === 3) {
+          cam.position.set(state.position[0], state.position[1], state.position[2]);
+          console.log('Camera position set to:', state.position);
+        }
+        
+        // Set FOV
+        if (typeof state.fov === 'number') {
+          cam.fov = state.fov;
+          cam.updateProjectionMatrix();
+          console.log('Camera FOV set to:', state.fov);
+        }
+        
+        // Set view properties (yaw, pitch, radius) - these are Potree-specific
+        if (typeof state.yaw === 'number' && v.yaw !== undefined) {
+          v.yaw = state.yaw;
+          console.log('View yaw set to:', state.yaw);
+        }
+        if (typeof state.pitch === 'number' && v.pitch !== undefined) {
+          v.pitch = state.pitch;
+          console.log('View pitch set to:', state.pitch);
+        }
+        if (typeof state.radius === 'number' && v.radius !== undefined) {
+          v.radius = state.radius;
+          console.log('View radius set to:', state.radius);
+        }
+        
+        // Set target/pivot - try multiple approaches
+        if (state.target && Array.isArray(state.target) && state.target.length === 3) {
+          const targetVector = new THREE.Vector3(state.target[0], state.target[1], state.target[2]);
+          
+          // Try Potree's view methods first
+          if (v.lookAt) {
+            v.lookAt(targetVector);
+            console.log('Used view.lookAt for target:', state.target);
+          } else if (v.setPivot) {
+            v.setPivot(targetVector);
+            console.log('Used view.setPivot for target:', state.target);
+          } else {
+            // Fallback to camera lookAt
+            cam.lookAt(targetVector);
+            console.log('Used camera.lookAt for target:', state.target);
+          }
+        }
+        
+        // Force update and render
+        if (v.update) {
+          v.update();
+        }
+        
+        // Ensure the renderer updates
+        if (viewer.setNeedsRedraw) {
+          viewer.setNeedsRedraw();
+        }
+        
+        // Alternative: force immediate render
+        if (viewer.render) {
+          viewer.render();
+        }
+        
+        console.log('Camera state applied successfully');
+        
+      } catch (error) {
+        console.error('Error in main setCameraState:', error);
+        
+        // Comprehensive fallback approach
+        try {
+          console.log('Attempting fallback camera positioning...');
+          const cam = viewer.scene.getActiveCamera();
+          
+          if (state.position && Array.isArray(state.position) && state.position.length === 3) {
+            cam.position.set(state.position[0], state.position[1], state.position[2]);
+          }
+          
+          if (state.target && Array.isArray(state.target) && state.target.length === 3) {
+            cam.lookAt(new THREE.Vector3(state.target[0], state.target[1], state.target[2]));
+          }
+          
+          if (typeof state.fov === 'number') {
+            cam.fov = state.fov;
+            cam.updateProjectionMatrix();
+          }
+          
+          // Force render
+          if (viewer.setNeedsRedraw) {
+            viewer.setNeedsRedraw();
+          } else if (viewer.render) {
+            viewer.render();
+          }
+          
+          console.log('Fallback camera positioning successful');
+          
+        } catch (fallbackError) {
+          console.error('Fallback camera setting failed:', fallbackError);
+          throw new Error('Could not set camera position - both main and fallback methods failed');
+        }
+      }
+    };
+  </script>
+</body>
+</html>
+</body>
+</html>
