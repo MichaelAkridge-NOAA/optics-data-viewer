@@ -135,10 +135,13 @@
 
     // Create a default camera animation for SFM datasets
     function createDefaultCameraAnimation(pointcloud) {
+      console.log('createDefaultCameraAnimation called');
       try {
         // Use the global THREE object (should be available from Potree)
         if (typeof THREE !== 'undefined') {
+          console.log('THREE.js available, creating camera animation');
           const animation = new Potree.CameraAnimation(viewer);
+          console.log('Camera animation object created');
 
           // Get the bounding box center and size for camera positions
           const box = pointcloud.boundingBox;
@@ -171,11 +174,12 @@
           // Store the animation globally so sidebar can access it
           window.cameraAnimation = animation;
           console.log('Camera animation created and stored globally');
+          console.log('Animation has', animation.controlPoints.length, 'control points');
         } else {
           console.log('THREE.js not available for camera animation');
         }
       } catch (err) {
-        console.log('Camera animation not available:', err);
+        console.error('Camera animation creation failed:', err);
       }
     }
 
@@ -325,6 +329,7 @@
         const btnShareLink = document.getElementById('btnShareLink');
         const btnLoadCamera = document.getElementById('btnLoadCamera');
         const btnSaveTrack = document.getElementById('btnSaveTrack');
+        const btnLoadTrack = document.getElementById('btnLoadTrack');
         const cameraFileInput = document.getElementById('cameraFileInput');
         const trackFileInput = document.getElementById('trackFileInput');
 
@@ -419,8 +424,10 @@
           // Save camera track (only available if animation exists)
           if (btnSaveTrack) {
             btnSaveTrack.onclick = () => {
+              console.log('Save Track button clicked from sidebar');
+              console.log('window.cameraAnimation exists:', !!window.cameraAnimation);
               if (window.cameraAnimation) {
-                console.log('Save Track button clicked from sidebar');
+                console.log('Control points:', window.cameraAnimation.controlPoints.length);
                 saveCameraTrack(window.cameraAnimation);
               } else {
                 alert('No camera animation available. Camera tracks are only available in SFM viewer mode.');
@@ -428,10 +435,23 @@
             };
           }
 
-          // Load camera track (can also load into camera animation if available)
-          if (trackFileInput) {
-            // Add click handler to load track button (reuse load camera button for now)
-            // You could add a separate "Load Track" button to the sidebar if needed
+          // Load camera track
+          if (btnLoadTrack && trackFileInput) {
+            btnLoadTrack.onclick = () => {
+              trackFileInput.click();
+            };
+            
+            trackFileInput.onchange = (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                if (window.cameraAnimation) {
+                  console.log('Loading track into camera animation');
+                  loadCameraTrack(window.cameraAnimation, file);
+                } else {
+                  alert('No camera animation available. Load this file using "Load Camera" for single camera position, or use the SFM viewer for camera tracks.');
+                }
+              }
+            };
           }
 
         } else {
