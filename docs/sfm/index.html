@@ -88,6 +88,21 @@
           </div>
         </div>
       </div>
+
+      <!-- Substrate Stabilization Post Install -->
+      <div class="card">
+        <a class="thumb-link" id="open-substrate-img" aria-label="Open Substrate Stabilization Post Install">
+          <img class="thumb" alt="Substrate Stabilization Post Install thumbnail"
+               src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/substrate_stabilization_post_install/thumbnail.png">
+        </a>
+        <div class="body">
+          <div class="title">Substrate Stabilization</div>
+          <p class="muted">Post Installation Site</p>
+          <div class="row">
+            <a class="btn primary" id="open-substrate">Open</a>
+            <a class="btn" id="open-substrate-anim">Camera Animation</a>
+          </div>
+        </div>
       </div>
 
       <!-- OCC-ASC-003 -->
@@ -146,6 +161,14 @@
     document.getElementById('open-asc').href = ascURL;
     document.getElementById('open-asc-img').href = ascURL;
     document.getElementById('open-asc-anim').href = ascAnimURL;
+
+    // Substrate Stabilization Post Install
+    const substrateSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/substrate_stabilization_post_install/cloud.js";
+    const substrateURL = vlink(substrateSrc, "Substrate Stabilization Post Install");
+    const substrateAnimURL = sfmlink(substrateSrc, "Substrate Stabilization Post Install");
+    document.getElementById('open-substrate').href = substrateURL;
+    document.getElementById('open-substrate-img').href = substrateURL;
+    document.getElementById('open-substrate-anim').href = substrateAnimURL;
   </script>
 </body>
 </html>
