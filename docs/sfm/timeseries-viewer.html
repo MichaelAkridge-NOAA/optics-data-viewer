@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
 
   <!-- Potree CSS -->
-  <link rel="stylesheet" href="build/potree/potree.css" />
-  <link rel="stylesheet" href="libs/jquery-ui/jquery-ui.min.css" />
-  <link rel="stylesheet" href="libs/openlayers3/ol.css" />
-  <link rel="stylesheet" href="libs/spectrum/spectrum.css" />
-  <link rel="stylesheet" href="libs/jstree/themes/mixed/style.css" />
+  <link rel="stylesheet" href="../build/potree/potree.css" />
+  <link rel="stylesheet" href="../libs/jquery-ui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="../libs/openlayers3/ol.css" />
+  <link rel="stylesheet" href="../libs/spectrum/spectrum.css" />
+  <link rel="stylesheet" href="../libs/jstree/themes/mixed/style.css" />
 
   <style>
     html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
@@ -191,23 +191,23 @@
   <div class="chip" id="chip">OCC-TUT-017 Timeseries Viewer</div>
 
   <!-- Libraries -->
-  <script src="libs/jquery/jquery-3.1.1.min.js"></script>
-  <script src="libs/spectrum/spectrum.js"></script>
-  <script src="libs/jquery-ui/jquery-ui.min.js"></script>
-  <script src="libs/other/BinaryHeap.js"></script>
-  <script src="libs/tween/tween.min.js"></script>
-  <script src="libs/d3/d3.js"></script>
-  <script src="libs/proj4/proj4.js"></script>
-  <script src="libs/openlayers3/ol.js"></script>
-  <script src="libs/i18next/i18next.js"></script>
-  <script src="libs/jstree/jstree.js"></script>
+  <script src="../libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="../libs/spectrum/spectrum.js"></script>
+  <script src="../libs/jquery-ui/jquery-ui.min.js"></script>
+  <script src="../libs/other/BinaryHeap.js"></script>
+  <script src="../libs/tween/tween.min.js"></script>
+  <script src="../libs/d3/d3.js"></script>
+  <script src="../libs/proj4/proj4.js"></script>
+  <script src="../libs/openlayers3/ol.js"></script>
+  <script src="../libs/i18next/i18next.js"></script>
+  <script src="../libs/jstree/jstree.js"></script>
 
   <!-- Potree -->
-  <script src="build/potree/potree.js"></script>
-  <script src="libs/plasio/js/laslaz.js"></script>
+  <script src="../build/potree/potree.js"></script>
+  <script src="../libs/plasio/js/laslaz.js"></script>
 
   <script type="module">
-    import * as THREE from "libs/three.js/build/three.module.js";
+    import * as THREE from "../libs/three.js/build/three.module.js";
 
     // Configuration for OCC-TUT-017 project
     const PROJECT_CONFIG = {
@@ -259,14 +259,15 @@
 
     console.log('Initializing timeseries viewer...');
     
-    // Initialize viewer with optimized settings
+    // Initialize viewer with optimized settings (matching regular viewer performance)
     window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
     
     viewer.setEDLEnabled(false); // Disable EDL initially for faster loading
     viewer.setFOV(60);
-    viewer.setPointBudget(1_500_000); // Reduced for faster loading
+    viewer.setPointBudget(1_500_000); // Reduced for faster loading  
     viewer.setMinNodeSize(5); // Reduced for better performance
-    viewer.loadSettingsFromURL();
+    viewer.loadSettingsFromURL = false; // Skip URL settings for faster init
+    viewer.setBackground("gradient"); // Set simple background
     viewer.setDescription(`
     ${PROJECT_CONFIG.description}<br>
     Use the timeseries controls to switch between time periods and compare changes over time.<br>
@@ -276,20 +277,11 @@
     
     console.log('Loading GUI...');
     
-    // Load GUI
-    viewer.loadGUI(() => {
-      console.log('GUI loaded, setting up sidebar...');
-      viewer.setLanguage('en');
-      $("#menu_scene").next().show();
-      $("#menu_tools").next().show();
-      viewer.toggleSidebar();
-      
-      // Initialize export functionality in sidebar
-      initializeSidebarExports();
-      
-      console.log('Loading point clouds...');
-      loadPointClouds();
-    });
+    // Initialize controls first, then load clouds, then GUI
+    initializeTimeseriesControls();
+    
+    console.log('Loading point clouds...');
+    loadPointClouds();
 
     // Load all point clouds (optimized for speed like other viewers)
     async function loadPointClouds() {
@@ -313,13 +305,13 @@
         // Initialize controls early so UI is responsive
         initializeTimeseriesControls();
         
-        // Load point clouds sequentially for better error handling and progress
+        // Load point clouds with simple approach like regular viewer
         for (const config of PROJECT_CONFIG.pointClouds) {
           try {
             console.log(`Loading ${config.name}...`);
             updateProgress();
             
-            // Use callback-based loading like the SFM viewer
+            // Use callback-based loading like the regular viewer
             Potree.loadPointCloud(config.url, config.name, (e) => {
               try {
                 const pointcloud = e.pointcloud;
@@ -359,6 +351,11 @@
                 // Add to scene
                 viewer.scene.addPointCloud(pointcloud);
                 
+                // Set move speed based on bounding sphere (like regular viewer)
+                if (loadedCount === 1) {
+                  viewer.setMoveSpeed(pointcloud.boundingSphere.radius / 5);
+                }
+                
                 loadedCount++;
                 hasAnyLoaded = true;
                 updateProgress();
@@ -381,11 +378,12 @@
                   }, 100);
                 }
                 
-                // Start monitoring for camera animations after first load
+                // Load GUI after first point cloud loads (non-blocking)
                 if (loadedCount === 1) {
                   setTimeout(() => {
+                    ensureGUI();
                     monitorCameraAnimations();
-                  }, 1000);
+                  }, 250);
                 }
                 
                 // Enable EDL after all clouds are loaded for better visual quality
@@ -408,9 +406,6 @@
             loadedCount++;
             updateProgress();
           }
-          
-          // Small delay between initiating loads to prevent overwhelming
-          await new Promise(resolve => setTimeout(resolve, 100));
         }
         
         // Fallback timeout to hide loading screen if nothing loads
@@ -586,6 +581,28 @@
       } else {
         viewer.fitToScreen();
       }
+    }
+
+    // Load GUI after first render (like regular viewer)
+    function ensureGUI() {
+      if (document.getElementById("potree_sidebar")) return;
+      viewer.loadGUI(() => {
+        viewer.setLanguage('en');
+        $("#menu_scene").next().show();
+        $("#menu_tools").next().show();
+        viewer.toggleSidebar();
+        
+        // Initialize export functionality in sidebar
+        initializeSidebarExports();
+        
+        // Ensure the sidebar is actually visible
+        setTimeout(() => {
+          const sidebar = document.getElementById("potree_sidebar_container");
+          if (sidebar) {
+            sidebar.style.display = "block";
+          }
+        }, 100);
+      });
     }
 
     // Monitor for camera animations (same as SFM viewer)
