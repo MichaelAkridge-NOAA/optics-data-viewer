@@ -34,6 +34,95 @@
       position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
       padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
     }
+
+    /* Collapsible Menu Controls */
+    #menu-controls {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(30,30,40,0.9);
+      color: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      font: 13px system-ui;
+      z-index: 5000;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .menu-header {
+      margin: 0 0 10px 0;
+      color: #e8eefc;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s;
+    }
+
+    .menu-header:hover {
+      color: #4CAF50;
+    }
+
+    .menu-collapse-icon {
+      font-size: 12px;
+      transition: transform 0.2s;
+    }
+
+    .menu-collapse-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .menu-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .menu-content.collapsed {
+      max-height: 0;
+    }
+
+    .menu-btn {
+      background: rgba(60,120,180,0.8);
+      border: 1px solid rgba(60,120,180,1);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font: 12px system-ui;
+      transition: all 0.2s;
+      margin: 4px 0;
+      display: block;
+      width: 100%;
+      text-align: left;
+    }
+
+    .menu-btn:hover {
+      background: rgba(80,140,200,0.9);
+      border-color: rgba(80,140,200,1);
+    }
+
+    .menu-section {
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .menu-section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .menu-section-title {
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
   </style>
 </head>
 <body>
@@ -42,6 +131,37 @@
     <div id="potree_render_area">
     </div>
     <div id="potree_sidebar_container"> </div>
+  </div>
+
+  <!-- Collapsible Menu Controls -->
+  <div id="menu-controls">
+    <div class="menu-header" id="menu-header">
+      <span class="menu-collapse-icon">▼</span>
+      SFM Controls
+    </div>
+    
+    <div class="menu-content" id="menu-content">
+      <div class="menu-section">
+        <div class="menu-section-title">View</div>
+        <button class="menu-btn" id="toggle-sidebar">Toggle Sidebar</button>
+        <button class="menu-btn" id="fit-screen">Fit to Screen</button>
+        <button class="menu-btn" id="reset-view">Reset View</button>
+      </div>
+
+      <div class="menu-section">
+        <div class="menu-section-title">Quality</div>
+        <button class="menu-btn" id="toggle-edl">Toggle EDL</button>
+        <button class="menu-btn" id="increase-points">More Points (+2M)</button>
+        <button class="menu-btn" id="decrease-points">Fewer Points (-2M)</button>
+      </div>
+
+      <div class="menu-section">
+        <div class="menu-section-title">Animation</div>
+        <button class="menu-btn" id="create-animation">Create Animation</button>
+        <button class="menu-btn" id="play-animation">Play Animation</button>
+        <button class="menu-btn" id="stop-animation">Stop Animation</button>
+      </div>
+    </div>
   </div>
 
   <div id="error"></div>
@@ -94,7 +214,7 @@
       
       viewer.setEDLEnabled(false);
       viewer.setFOV(60);
-      viewer.setPointBudget(3_000_000);
+      viewer.setPointBudget(5_000_000); // Increased from 3M to 5M default
       viewer.loadSettingsFromURL();
       viewer.setDescription(`
       SFM Point Cloud Viewer<br>
@@ -114,6 +234,9 @@
         
         // Initialize export functionality in sidebar
         initializeSidebarExports();
+        
+        // Initialize collapsible menu controls
+        initializeMenuControls();
         
         console.log('Loading point cloud...');
         
@@ -166,6 +289,115 @@
       };
       
       checkAnimations();
+    }
+
+    // Initialize collapsible menu controls
+    function initializeMenuControls() {
+      console.log('Initializing menu controls...');
+      
+      // Initialize panel collapse functionality
+      const menuHeader = document.getElementById('menu-header');
+      const menuContent = document.getElementById('menu-content');
+      const menuIcon = menuHeader.querySelector('.menu-collapse-icon');
+      
+      // Set initial max-height for transition
+      menuContent.style.maxHeight = menuContent.scrollHeight + 'px';
+      
+      menuHeader.addEventListener('click', () => {
+        const isCollapsed = menuContent.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+          menuContent.classList.remove('collapsed');
+          menuContent.style.maxHeight = menuContent.scrollHeight + 'px';
+          menuIcon.classList.remove('collapsed');
+        } else {
+          menuContent.style.maxHeight = '0px';
+          menuContent.classList.add('collapsed');
+          menuIcon.classList.add('collapsed');
+        }
+      });
+
+      // View controls
+      document.getElementById('toggle-sidebar').addEventListener('click', () => {
+        viewer.toggleSidebar();
+      });
+
+      document.getElementById('fit-screen').addEventListener('click', () => {
+        viewer.fitToScreen();
+      });
+
+      document.getElementById('reset-view').addEventListener('click', () => {
+        viewer.fitToScreen();
+      });
+
+      // Quality controls with higher limits
+      document.getElementById('toggle-edl').addEventListener('click', () => {
+        const currentEDL = viewer.getEDLEnabled();
+        viewer.setEDLEnabled(!currentEDL);
+        console.log('EDL toggled to:', !currentEDL);
+      });
+
+      document.getElementById('increase-points').addEventListener('click', () => {
+        const current = viewer.getPointBudget();
+        const newBudget = Math.min(current + 2_000_000, 50_000_000); // Allow up to 50M points
+        viewer.setPointBudget(newBudget);
+        console.log(`Point budget increased to: ${newBudget.toLocaleString()}`);
+        
+        // Show feedback
+        const btn = document.getElementById('increase-points');
+        const originalText = btn.textContent;
+        btn.textContent = `${(newBudget / 1_000_000).toFixed(0)}M Points`;
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 1500);
+      });
+
+      document.getElementById('decrease-points').addEventListener('click', () => {
+        const current = viewer.getPointBudget();
+        const newBudget = Math.max(current - 2_000_000, 1_000_000); // Minimum 1M points
+        viewer.setPointBudget(newBudget);
+        console.log(`Point budget decreased to: ${newBudget.toLocaleString()}`);
+        
+        // Show feedback
+        const btn = document.getElementById('decrease-points');
+        const originalText = btn.textContent;
+        btn.textContent = `${(newBudget / 1_000_000).toFixed(0)}M Points`;
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 1500);
+      });
+
+      // Animation controls
+      document.getElementById('create-animation').addEventListener('click', () => {
+        // Try to open the camera animation tool programmatically
+        try {
+          const toolsMenu = document.querySelector('#menu_tools');
+          if (toolsMenu) {
+            toolsMenu.click();
+          }
+          alert('Navigate to "Tools → Navigation → Camera Animation" to create camera paths');
+        } catch (err) {
+          alert('To create camera animations:\n1. Open the sidebar (if closed)\n2. Go to Tools → Navigation → Camera Animation\n3. Add keyframes by clicking "Add" at different viewpoints');
+        }
+      });
+
+      document.getElementById('play-animation').addEventListener('click', () => {
+        if (window.cameraAnimation && window.cameraAnimation.controlPoints.length > 0) {
+          window.cameraAnimation.play();
+          console.log('Animation started');
+        } else {
+          alert('No camera animation available. Create one first using "Tools → Navigation → Camera Animation"');
+        }
+      });
+
+      document.getElementById('stop-animation').addEventListener('click', () => {
+        if (window.cameraAnimation) {
+          window.cameraAnimation.stop();
+          console.log('Animation stopped');
+        }
+      });
+
+      console.log('Menu controls initialized');
     }
 
     // Make functions available globally
