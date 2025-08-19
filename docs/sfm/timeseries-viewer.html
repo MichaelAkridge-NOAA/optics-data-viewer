@@ -154,6 +154,41 @@
       margin-top: 12px;
     }
 
+    .collapsible-header {
+      margin: 0 0 10px 0;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s;
+    }
+
+    .collapsible-header:hover {
+      color: #4CAF50;
+    }
+
+    .collapse-icon {
+      font-size: 12px;
+      transition: transform 0.2s;
+    }
+
+    .collapse-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .alignment-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .alignment-content.collapsed {
+      max-height: 0;
+    }
+
     .alignment-controls h4 {
       margin: 0 0 10px 0;
       color: #fff;
@@ -165,13 +200,40 @@
       margin-bottom: 8px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .alignment-group label {
       color: rgba(255,255,255,0.9);
       font-size: 12px;
       min-width: 120px;
+    }
+
+    .arrow-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      user-select: none;
+    }
+
+    .arrow-btn:hover {
+      background: rgba(76,175,80,0.3);
+      border-color: rgba(76,175,80,0.6);
+      transform: scale(1.1);
+    }
+
+    .arrow-btn:active {
+      background: rgba(76,175,80,0.5);
+      transform: scale(0.95);
     }
 
     .alignment-group input[type="range"] {
@@ -182,6 +244,7 @@
       background: rgba(255,255,255,0.2);
       outline: none;
       border-radius: 2px;
+      margin: 0 6px;
     }
 
     .alignment-group input[type="range"]::-webkit-slider-thumb {
@@ -197,7 +260,7 @@
     .alignment-group span {
       color: #fff;
       font-size: 12px;
-      min-width: 30px;
+      min-width: 35px;
       text-align: right;
       font-family: monospace;
     }
@@ -290,25 +353,36 @@
     </div>
 
     <div class="alignment-controls">
-      <h4>🎯 Manual Alignment (2023 vs 2018)</h4>
-      <div class="alignment-group">
-        <label>X Offset (Left/Right):</label>
-        <input type="range" id="align-x" min="-100" max="100" value="0" step="0.5">
-        <span id="align-x-value">0.0</span>
-      </div>
-      <div class="alignment-group">
-        <label>Y Offset (Up/Down):</label>
-        <input type="range" id="align-y" min="-50" max="50" value="0" step="0.5">
-        <span id="align-y-value">0.0</span>
-      </div>
-      <div class="alignment-group">
-        <label>Z Offset (Forward/Back):</label>
-        <input type="range" id="align-z" min="-100" max="100" value="0" step="0.5">
-        <span id="align-z-value">0.0</span>
-      </div>
-      <div class="alignment-buttons">
-        <button class="alignment-btn" id="reset-alignment">Reset</button>
-        <button class="alignment-btn" id="print-alignment">📋 Print Values</button>
+      <h4 class="collapsible-header" id="alignment-header">
+        <span class="collapse-icon">▼</span>
+        🎯 Manual Alignment (2023 vs 2018)
+      </h4>
+      <div class="alignment-content" id="alignment-content">
+        <div class="alignment-group">
+          <label>X Offset (Left/Right):</label>
+          <button class="arrow-btn" data-target="align-x" data-direction="-1">◀</button>
+          <input type="range" id="align-x" min="-100" max="100" value="4.8" step="0.1">
+          <button class="arrow-btn" data-target="align-x" data-direction="1">▶</button>
+          <span id="align-x-value">4.8</span>
+        </div>
+        <div class="alignment-group">
+          <label>Y Offset (Up/Down):</label>
+          <button class="arrow-btn" data-target="align-y" data-direction="-1">◀</button>
+          <input type="range" id="align-y" min="-50" max="50" value="3.5" step="0.1">
+          <button class="arrow-btn" data-target="align-y" data-direction="1">▶</button>
+          <span id="align-y-value">3.5</span>
+        </div>
+        <div class="alignment-group">
+          <label>Z Offset (Forward/Back):</label>
+          <button class="arrow-btn" data-target="align-z" data-direction="-1">◀</button>
+          <input type="range" id="align-z" min="-100" max="100" value="-0.7" step="0.1">
+          <button class="arrow-btn" data-target="align-z" data-direction="1">▶</button>
+          <span id="align-z-value">-0.7</span>
+        </div>
+        <div class="alignment-buttons">
+          <button class="alignment-btn" id="reset-alignment">Reset</button>
+          <button class="alignment-btn" id="print-alignment">📋 Print Values</button>
+        </div>
       </div>
     </div>
 
@@ -376,7 +450,7 @@
           //url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js",
           url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230701_OCC-TUT-017/cloud.js",
           color: new THREE.Color(1.0, 0.7, 0.3), // Orange tint for 2023
-          position: [0, 0, 0], // Will be adjusted by smart alignment
+          position: [4.79, 3.50, -0.71], // Manually aligned position
           scale: [1, 1, 1], // Will be adjusted by smart alignment
           rotation: [0, 0, 0]
         }
@@ -486,49 +560,8 @@
                   pointcloud.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
                 }
                 
-                // Smart alignment for second point cloud
-                if (config.year === 2023 && Object.keys(pointCloudData).length > 0) {
-                  const firstCloud = Object.values(pointCloudData)[0].pointcloud;
-                  if (firstCloud && firstCloud.boundingBox) {
-                    console.log('Aligning 2023 point cloud with 2018...');
-                    
-                    // Get bounding box info for both clouds
-                    const firstBox = firstCloud.boundingBox;
-                    const secondBox = pointcloud.boundingBox;
-                    
-                    // Align the minimum Y (bottom) of both point clouds
-                    const firstMin = firstBox.min.clone();
-                    const secondMin = secondBox.min.clone();
-                    const firstMax = firstBox.max.clone();
-                    const secondMax = secondBox.max.clone();
-                    
-                    // Calculate the offset needed to align bottoms
-                    const offsetY = firstMin.y - secondMin.y;
-                    
-                    // Also align X and Z centers
-                    const firstCenterX = (firstMin.x + firstMax.x) / 2;
-                    const firstCenterZ = (firstMin.z + firstMax.z) / 2;
-                    const secondCenterX = (secondMin.x + secondMax.x) / 2;
-                    const secondCenterZ = (secondMin.z + secondMax.z) / 2;
-                    
-                    const offsetX = firstCenterX - secondCenterX;
-                    const offsetZ = firstCenterZ - secondCenterZ;
-                    
-                    // Apply the alignment
-                    pointcloud.position.set(offsetX, offsetY, offsetZ);
-                    
-                    console.log(`Aligned 2023 cloud: offset [${offsetX.toFixed(2)}, ${offsetY.toFixed(2)}, ${offsetZ.toFixed(2)}]`);
-                    
-                    // Optional: Scale to roughly match the first cloud's size
-                    const firstSize = firstBox.getSize(new THREE.Vector3()).length();
-                    const secondSize = secondBox.getSize(new THREE.Vector3()).length();
-                    if (secondSize > 0 && Math.abs(firstSize - secondSize) / firstSize > 0.2) {
-                      const scaleFactor = firstSize / secondSize;
-                      pointcloud.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                      console.log(`Scaled 2023 cloud by factor ${scaleFactor.toFixed(3)}`);
-                    }
-                  }
-                }
+                // Note: Smart alignment disabled - now using configured position values
+                // Position is set from PROJECT_CONFIG above, manual alignment available in controls
                 
                 // Store reference
                 pointCloudData[config.year] = {
@@ -709,7 +742,7 @@
     }
 
     // Manual alignment controls
-    let currentAlignment = { x: 0, y: 0, z: 0 };
+    let currentAlignment = { x: 4.79, y: 3.50, z: -0.71 }; // Start with configured values
     let basePosition = null;
 
     function initializeAlignmentControls() {
@@ -720,6 +753,28 @@
       const xValue = document.getElementById('align-x-value');
       const yValue = document.getElementById('align-y-value');
       const zValue = document.getElementById('align-z-value');
+      
+      // Initialize collapsible header
+      const header = document.getElementById('alignment-header');
+      const content = document.getElementById('alignment-content');
+      const icon = header.querySelector('.collapse-icon');
+      
+      // Set initial max-height for transition
+      content.style.maxHeight = content.scrollHeight + 'px';
+      
+      header.addEventListener('click', () => {
+        const isCollapsed = content.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+          content.classList.remove('collapsed');
+          content.style.maxHeight = content.scrollHeight + 'px';
+          icon.classList.remove('collapsed');
+        } else {
+          content.style.maxHeight = '0px';
+          content.classList.add('collapsed');
+          icon.classList.add('collapsed');
+        }
+      });
       
       // Update value displays and apply alignment
       function updateAlignment() {
@@ -739,16 +794,40 @@
       ySlider.addEventListener('input', updateAlignment);
       zSlider.addEventListener('input', updateAlignment);
       
-      // Reset button
+      // Arrow button event listeners
+      document.querySelectorAll('.arrow-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetId = btn.dataset.target;
+          const direction = parseFloat(btn.dataset.direction);
+          const slider = document.getElementById(targetId);
+          
+          const step = 0.1;
+          const currentValue = parseFloat(slider.value);
+          const newValue = currentValue + (direction * step);
+          
+          // Clamp to slider bounds
+          const min = parseFloat(slider.min);
+          const max = parseFloat(slider.max);
+          slider.value = Math.max(min, Math.min(max, newValue));
+          
+          updateAlignment();
+        });
+      });
+      
+      // Reset button - reset to configured values
       document.getElementById('reset-alignment').addEventListener('click', () => {
-        xSlider.value = 0;
-        ySlider.value = 0;
-        zSlider.value = 0;
+        xSlider.value = 4.79;
+        ySlider.value = 3.50;
+        zSlider.value = -0.71;
         updateAlignment();
       });
       
       // Print values button
       document.getElementById('print-alignment').addEventListener('click', printAlignmentValues);
+      
+      // Initialize display
+      updateAlignment();
       
       console.log('Alignment controls initialized');
     }
@@ -757,20 +836,14 @@
       if (pointCloudData[2023] && pointCloudData[2023].pointcloud) {
         const cloud2023 = pointCloudData[2023].pointcloud;
         
-        // Store base position on first adjustment
-        if (basePosition === null) {
-          basePosition = {
-            x: cloud2023.position.x,
-            y: cloud2023.position.y,
-            z: cloud2023.position.z
-          };
-        }
+        // Use configured position as base (no more smart alignment overrides)
+        const configuredPosition = pointCloudData[2023].config.position;
         
-        // Apply manual offset to base position
+        // Apply the current alignment values directly
         cloud2023.position.set(
-          basePosition.x + currentAlignment.x,
-          basePosition.y + currentAlignment.y,
-          basePosition.z + currentAlignment.z
+          currentAlignment.x,
+          currentAlignment.y,
+          currentAlignment.z
         );
         
         console.log(`Manual alignment applied: [${currentAlignment.x.toFixed(1)}, ${currentAlignment.y.toFixed(1)}, ${currentAlignment.z.toFixed(1)}]`);
