@@ -562,6 +562,22 @@
             // Use callback-based loading like the regular viewer
             Potree.loadPointCloud(config.url, config.name, (e) => {
               try {
+                console.log(`Potree callback triggered for ${config.name}:`, e);
+                
+                if (e.type === 'loading_failed') {
+                  console.error(`Failed to load ${config.name}:`, e);
+                  loadedCount++;
+                  updateProgress();
+                  return;
+                }
+                
+                if (!e.pointcloud) {
+                  console.error(`No pointcloud in response for ${config.name}:`, e);
+                  loadedCount++;
+                  updateProgress();
+                  return;
+                }
+                
                 const pointcloud = e.pointcloud;
                 
                 // Configure point cloud
@@ -614,7 +630,9 @@
                 
                 // Hide loading screen when first point cloud loads
                 if (loadedCount === 1) {
-                  loading.style.display = 'none';
+                  if (loading) {
+                    loading.style.display = 'none';
+                  }
                   
                   // Set initial view immediately when first cloud loads
                   setTimeout(() => {
@@ -662,9 +680,20 @@
         // Fallback timeout to hide loading screen if nothing loads
         setTimeout(() => {
           if (!hasAnyLoaded) {
+            if (loading) {
+              loading.style.display = 'none';
+            }
             showError('No point clouds could be loaded. Check console for details and verify the URLs are accessible.');
           }
         }, 15000); // Reduced to 15 second timeout
+        
+        // Additional fallback - hide loading screen after 5 seconds regardless
+        setTimeout(() => {
+          if (loading && loading.style.display !== 'none') {
+            loading.style.display = 'none';
+            console.warn('Loading screen hidden after 5 second timeout');
+          }
+        }, 5000);
         
       } catch (error) {
         console.error('Error initializing point cloud loading:', error);
