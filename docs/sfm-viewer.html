@@ -581,28 +581,100 @@
 
     // Camera state management functions
     function getCameraState() {
-      const v = viewer.scene.view;
-      const cam = viewer.scene.getActiveCamera();
-      const pivot = v.getPivot ? v.getPivot() : new THREE.Vector3(0,0,0);
-      return {
-        position: cam.position.toArray(),
-        target: pivot.toArray ? pivot.toArray() : [0,0,0],
-        yaw: v.yaw,
-        pitch: v.pitch,
-        radius: v.radius,
-        fov: v.fov
-      };
+      try {
+        const v = viewer.scene.view;
+        const cam = viewer.scene.getActiveCamera();
+        
+        // Get pivot/target - try multiple methods
+        let target = [0, 0, 0];
+        if (v.getPivot) {
+          const pivot = v.getPivot();
+          target = pivot.toArray ? pivot.toArray() : [pivot.x, pivot.y, pivot.z];
+        } else if (v.pivot) {
+          target = v.pivot.toArray ? v.pivot.toArray() : [v.pivot.x, v.pivot.y, v.pivot.z];
+        }
+        
+        const cameraState = {
+          position: cam.position.toArray(),
+          target: target,
+          fov: cam.fov || v.fov || 60
+        };
+        
+        // Add view-specific properties if available
+        if (v.yaw !== undefined) cameraState.yaw = v.yaw;
+        if (v.pitch !== undefined) cameraState.pitch = v.pitch;
+        if (v.radius !== undefined) cameraState.radius = v.radius;
+        
+        return cameraState;
+      } catch (error) {
+        console.error('Error getting camera state:', error);
+        // Fallback - just get basic camera info
+        const cam = viewer.scene.getActiveCamera();
+        return {
+          position: cam.position.toArray(),
+          target: [0, 0, 0],
+          fov: cam.fov || 60
+        };
+      }
     }
 
     function setCameraState(state) {
-      const v = viewer.scene.view;
-      if (state.position) viewer.scene.getActiveCamera().position.fromArray(state.position);
-      if (state.target && v.lookAt) v.lookAt(new THREE.Vector3().fromArray(state.target));
-      if (typeof state.yaw === 'number') v.yaw = state.yaw;
-      if (typeof state.pitch === 'number') v.pitch = state.pitch;
-      if (typeof state.radius === 'number') v.radius = state.radius;
-      if (typeof state.fov === 'number') v.fov = state.fov;
-      viewer.scene.view.updateCamera(viewer.scene.getActiveCamera(), viewer.renderer);
+      try {
+        const v = viewer.scene.view;
+        const cam = viewer.scene.getActiveCamera();
+        
+        if (state.position) {
+          cam.position.fromArray(state.position);
+        }
+        
+        if (state.target) {
+          const targetVector = new THREE.Vector3().fromArray(state.target);
+          if (v.lookAt) {
+            v.lookAt(targetVector);
+          } else {
+            // Alternative method for setting target
+            cam.lookAt(targetVector);
+          }
+        }
+        
+        // Set view properties if available
+        if (typeof state.yaw === 'number' && v.yaw !== undefined) v.yaw = state.yaw;
+        if (typeof state.pitch === 'number' && v.pitch !== undefined) v.pitch = state.pitch;
+        if (typeof state.radius === 'number' && v.radius !== undefined) v.radius = state.radius;
+        if (typeof state.fov === 'number') {
+          if (v.fov !== undefined) {
+            v.fov = state.fov;
+          } else {
+            cam.fov = state.fov;
+            cam.updateProjectionMatrix();
+          }
+        }
+        
+        // Update the camera and trigger a render
+        if (v.update) {
+          v.update();
+        } else {
+          // Force a render update
+          viewer.setNeedsRedraw();
+        }
+        
+      } catch (error) {
+        console.error('Error setting camera state:', error);
+        // Fallback: just set position and look at target
+        try {
+          const cam = viewer.scene.getActiveCamera();
+          if (state.position) {
+            cam.position.fromArray(state.position);
+          }
+          if (state.target) {
+            cam.lookAt(new THREE.Vector3().fromArray(state.target));
+          }
+          viewer.setNeedsRedraw();
+        } catch (fallbackError) {
+          console.error('Fallback camera setting also failed:', fallbackError);
+          throw new Error('Could not set camera position');
+        }
+      }
     }
   </script>
 </body>
