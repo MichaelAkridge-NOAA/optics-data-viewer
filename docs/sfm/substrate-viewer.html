@@ -290,9 +290,29 @@
           <button class="budget-btn" id="budget-medium">High (25M)</button>
           <button class="budget-btn" id="budget-high">Ultra (50M)</button>
           <button class="budget-btn" id="budget-max">Maximum (100M)</button>
+          <button class="budget-btn" id="test-budget" style="background:#e91e63;border-color:#e91e63;">Test Budget</button>
         </div>
         <div class="performance-warning" id="performance-warning">
           ⚠️ High point counts may impact performance on some devices
+        </div>
+        
+        <!-- Debug status -->
+        <div style="font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 4px;" id="debug-status">
+          Ready to load point cloud...
+        </div>
+
+        <!-- Point Size Controls -->
+        <div class="quality-item" style="margin-top: 15px;">
+          <div class="quality-label">Point Size:</div>
+          <div class="quality-value" id="point-size-display">1.0</div>
+        </div>
+        <input type="range" class="point-budget-slider" id="point-size-slider" 
+               min="0.1" max="5.0" value="1.0" step="0.1">
+        <div class="point-budget-controls">
+          <button class="budget-btn" id="size-tiny">Tiny (0.3)</button>
+          <button class="budget-btn" id="size-small">Small (0.7)</button>
+          <button class="budget-btn" id="size-normal">Normal (1.0)</button>
+          <button class="budget-btn" id="size-large">Large (2.0)</button>
         </div>
       </div>
 
@@ -354,9 +374,9 @@
       name: "Substrate Stabilization Post Install",
       description: "High-resolution point cloud analysis of substrate stabilization effectiveness",
       location: {
-        lat: 21.3099, // Example coordinates - update with actual site location
-        lng: -157.8581,
-        name: "Pacific Ocean Site",
+        lat: 21.3159693,
+        lng: -158.1275808,
+        name: "Hawaiian Waters",
         description: "Marine substrate stabilization monitoring"
       },
       pointCloud: {
@@ -452,11 +472,23 @@
       const budgetSlider = document.getElementById('point-budget-slider');
       const budgetDisplay = document.getElementById('point-budget-display');
       const performanceWarning = document.getElementById('performance-warning');
+      const debugStatus = document.getElementById('debug-status');
 
       budgetSlider.addEventListener('input', (e) => {
         const value = parseInt(e.target.value);
         const pointBudget = value * 1_000_000; // Convert to millions
+        
+        console.log(`Setting point budget to: ${pointBudget.toLocaleString()} (${value}M)`);
+        debugStatus.textContent = `Setting budget to ${value}M points...`;
+        
         viewer.setPointBudget(pointBudget);
+        
+        // Verify the setting took effect
+        setTimeout(() => {
+          const actualBudget = viewer.getPointBudget();
+          console.log(`Point budget confirmed: ${actualBudget.toLocaleString()}`);
+          debugStatus.textContent = `Active: ${(actualBudget / 1_000_000).toFixed(1)}M points`;
+        }, 100);
         
         budgetDisplay.textContent = `${value.toFixed(1)}M`;
         
@@ -467,7 +499,10 @@
           performanceWarning.style.display = 'none';
         }
         
-        console.log(`Point budget set to: ${pointBudget.toLocaleString()}`);
+        // Force viewer update
+        if (viewer.setNeedsRedraw) {
+          viewer.setNeedsRedraw();
+        }
       });
 
       // Preset budget buttons
@@ -489,6 +524,68 @@
       document.getElementById('budget-max').addEventListener('click', () => {
         budgetSlider.value = 100;
         budgetSlider.dispatchEvent(new Event('input'));
+      });
+
+      // Test budget button
+      document.getElementById('test-budget').addEventListener('click', () => {
+        console.log('=== BUDGET TEST ===');
+        console.log('Current slider value:', budgetSlider.value);
+        console.log('Viewer point budget:', viewer.getPointBudget().toLocaleString());
+        console.log('Point cloud exists:', !!currentPointCloud);
+        if (currentPointCloud) {
+          console.log('Point cloud total points:', (currentPointCloud.numPoints || 0).toLocaleString());
+          console.log('Point cloud material size:', currentPointCloud.material?.size || 'undefined');
+        }
+        console.log('==================');
+        
+        // Update debug display
+        if (debugStatus) {
+          debugStatus.textContent = `Test: Budget=${(viewer.getPointBudget()/1_000_000).toFixed(1)}M, Cloud=${!!currentPointCloud}`;
+        }
+      });
+
+      // Point size slider
+      const sizeSlider = document.getElementById('point-size-slider');
+      const sizeDisplay = document.getElementById('point-size-display');
+
+      sizeSlider.addEventListener('input', (e) => {
+        const sizeValue = parseFloat(e.target.value);
+        
+        console.log(`Setting point size to: ${sizeValue}`);
+        
+        // Apply to current point cloud if it exists
+        if (currentPointCloud && currentPointCloud.material) {
+          currentPointCloud.material.size = sizeValue;
+          console.log(`Point size applied to material: ${sizeValue}`);
+        }
+        
+        sizeDisplay.textContent = sizeValue.toFixed(1);
+        
+        // Force viewer update
+        if (viewer.setNeedsRedraw) {
+          viewer.setNeedsRedraw();
+        }
+      });
+
+      // Point size preset buttons
+      document.getElementById('size-tiny').addEventListener('click', () => {
+        sizeSlider.value = 0.3;
+        sizeSlider.dispatchEvent(new Event('input'));
+      });
+
+      document.getElementById('size-small').addEventListener('click', () => {
+        sizeSlider.value = 0.7;
+        sizeSlider.dispatchEvent(new Event('input'));
+      });
+
+      document.getElementById('size-normal').addEventListener('click', () => {
+        sizeSlider.value = 1.0;
+        sizeSlider.dispatchEvent(new Event('input'));
+      });
+
+      document.getElementById('size-large').addEventListener('click', () => {
+        sizeSlider.value = 2.0;
+        sizeSlider.dispatchEvent(new Event('input'));
       });
 
       // Toggle controls
@@ -571,6 +668,12 @@
           // Hide loading
           loading.style.display = 'none';
           
+          // Update debug status
+          const debugStatus = document.getElementById('debug-status');
+          if (debugStatus) {
+            debugStatus.textContent = `Loaded: ${(pointcloud.numPoints || 0).toLocaleString()} points available`;
+          }
+          
           // Enable EDL after loading for better quality
           setTimeout(() => {
             viewer.setEDLEnabled(true);
@@ -578,6 +681,12 @@
             edlBtn.classList.add('active');
             edlBtn.textContent = 'Disable EDL';
             console.log('EDL enabled for substrate analysis');
+            
+            // Update status with initial budget
+            if (debugStatus) {
+              const currentBudget = viewer.getPointBudget();
+              debugStatus.textContent = `Active: ${(currentBudget / 1_000_000).toFixed(1)}M points of ${(pointcloud.numPoints || 0).toLocaleString()} available`;
+            }
           }, 1000);
           
           console.log('Substrate point cloud setup complete');
