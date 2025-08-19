@@ -183,7 +183,11 @@
   </div>
 
   <div id="error"></div>
-  <div id="loading"><div class="spinner"></div><div>Loading OCC-TUT-017 timeseries viewer…</div></div>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-text">Loading OCC-TUT-017 timeseries viewer…</div>
+    <div id="loading-progress" style="font-size:12px;opacity:0.8;margin-top:5px;"></div>
+  </div>
   <div class="chip" id="chip">OCC-TUT-017 Timeseries Viewer</div>
 
   <!-- Libraries -->
@@ -255,13 +259,13 @@
 
     console.log('Initializing timeseries viewer...');
     
-    // Initialize viewer
+    // Initialize viewer with optimized settings
     window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
     
-    viewer.setEDLEnabled(true);
+    viewer.setEDLEnabled(false); // Disable EDL initially for faster loading
     viewer.setFOV(60);
-    viewer.setPointBudget(3_000_000);
-    viewer.setMinNodeSize(10);
+    viewer.setPointBudget(1_500_000); // Reduced for faster loading
+    viewer.setMinNodeSize(5); // Reduced for better performance
     viewer.loadSettingsFromURL();
     viewer.setDescription(`
     ${PROJECT_CONFIG.description}<br>
@@ -287,96 +291,137 @@
       loadPointClouds();
     });
 
-    // Load all point clouds
+    // Load all point clouds (optimized for speed like other viewers)
     async function loadPointClouds() {
       try {
         console.log('Starting to load point clouds...');
         
-        // Load all point clouds concurrently
-        const loadPromises = PROJECT_CONFIG.pointClouds.map(async (config) => {
-          try {
-            console.log(`Loading ${config.name}...`);
-            const result = await Potree.loadPointCloud(config.url);
-            const pointcloud = result.pointcloud;
-            
-            // Configure point cloud
-            pointcloud.name = config.name;
-            
-            let material = pointcloud.material;
-            material.size = 1;
-            material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-            material.shape = Potree.PointShape.SQUARE;
-            
-            // Apply color tint if specified
-            if (config.color) {
-              material.color = config.color;
-            }
-            
-            // Apply transformations
-            if (config.position) {
-              pointcloud.position.set(config.position[0], config.position[1], config.position[2]);
-            }
-            if (config.scale) {
-              pointcloud.scale.set(config.scale[0], config.scale[1], config.scale[2]);
-            }
-            if (config.rotation) {
-              pointcloud.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-            }
-            
-            // Store reference
-            pointCloudData[config.year] = {
-              pointcloud: pointcloud,
-              config: config,
-              visible: true,
-              opacity: 1.0
-            };
-            
-            // Add to scene
-            viewer.scene.addPointCloud(pointcloud);
-            
-            console.log(`${config.name} loaded successfully`);
-            return pointcloud;
-            
-          } catch (error) {
-            console.error(`Failed to load ${config.name}:`, error);
-            showError(`Failed to load ${config.name}`, error.message);
-            return null;
+        let loadedCount = 0;
+        let hasAnyLoaded = false;
+        const totalClouds = PROJECT_CONFIG.pointClouds.length;
+        const loadingProgress = document.getElementById('loading-progress');
+        
+        // Update progress
+        function updateProgress() {
+          if (loadingProgress) {
+            loadingProgress.textContent = `Loading point clouds... ${loadedCount}/${totalClouds}`;
           }
-        });
-        
-        // Wait for all to complete
-        const results = await Promise.all(loadPromises);
-        const successful = results.filter(r => r !== null);
-        
-        if (successful.length === 0) {
-          showError('No point clouds could be loaded');
-          return;
         }
         
-        console.log(`Successfully loaded ${successful.length} point clouds`);
+        updateProgress();
         
-        // Set initial view
-        if (PROJECT_CONFIG.initialView) {
-          viewer.scene.view.setView(
-            PROJECT_CONFIG.initialView.position,
-            PROJECT_CONFIG.initialView.target
-          );
-        } else {
-          viewer.fitToScreen();
-        }
-        
-        // Initialize controls
+        // Initialize controls early so UI is responsive
         initializeTimeseriesControls();
         
-        // Start monitoring for camera animations
-        setTimeout(() => {
-          monitorCameraAnimations();
-        }, 1000);
+        // Load point clouds sequentially for better error handling and progress
+        for (const config of PROJECT_CONFIG.pointClouds) {
+          try {
+            console.log(`Loading ${config.name}...`);
+            updateProgress();
+            
+            // Use callback-based loading like the SFM viewer
+            Potree.loadPointCloud(config.url, config.name, (e) => {
+              try {
+                const pointcloud = e.pointcloud;
+                
+                // Configure point cloud
+                pointcloud.name = config.name;
+                
+                let material = pointcloud.material;
+                material.size = 1;
+                material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+                material.shape = Potree.PointShape.SQUARE;
+                
+                // Apply color tint if specified
+                if (config.color) {
+                  material.color = config.color;
+                }
+                
+                // Apply transformations
+                if (config.position && config.position.length === 3) {
+                  pointcloud.position.set(config.position[0], config.position[1], config.position[2]);
+                }
+                if (config.scale && config.scale.length === 3) {
+                  pointcloud.scale.set(config.scale[0], config.scale[1], config.scale[2]);
+                }
+                if (config.rotation && config.rotation.length === 3) {
+                  pointcloud.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+                }
+                
+                // Store reference
+                pointCloudData[config.year] = {
+                  pointcloud: pointcloud,
+                  config: config,
+                  visible: true,
+                  opacity: 1.0
+                };
+                
+                // Add to scene
+                viewer.scene.addPointCloud(pointcloud);
+                
+                loadedCount++;
+                hasAnyLoaded = true;
+                updateProgress();
+                console.log(`${config.name} loaded successfully (${loadedCount}/${totalClouds})`);
+                
+                // Hide loading screen when first point cloud loads
+                if (loadedCount === 1) {
+                  loading.style.display = 'none';
+                  
+                  // Set initial view immediately when first cloud loads
+                  setTimeout(() => {
+                    if (PROJECT_CONFIG.initialView) {
+                      viewer.scene.view.setView(
+                        PROJECT_CONFIG.initialView.position,
+                        PROJECT_CONFIG.initialView.target
+                      );
+                    } else {
+                      viewer.fitToScreen();
+                    }
+                  }, 100);
+                }
+                
+                // Start monitoring for camera animations after first load
+                if (loadedCount === 1) {
+                  setTimeout(() => {
+                    monitorCameraAnimations();
+                  }, 1000);
+                }
+                
+                // Enable EDL after all clouds are loaded for better visual quality
+                if (loadedCount === totalClouds) {
+                  setTimeout(() => {
+                    viewer.setEDLEnabled(true);
+                    console.log('All point clouds loaded, EDL enabled for better quality');
+                  }, 500);
+                }
+                
+              } catch (configError) {
+                console.error(`Error configuring ${config.name}:`, configError);
+                loadedCount++;
+                updateProgress();
+              }
+            });
+            
+          } catch (error) {
+            console.error(`Failed to initiate load for ${config.name}:`, error);
+            loadedCount++;
+            updateProgress();
+          }
+          
+          // Small delay between initiating loads to prevent overwhelming
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
         
-        loading.style.display = 'none';
+        // Fallback timeout to hide loading screen if nothing loads
+        setTimeout(() => {
+          if (!hasAnyLoaded) {
+            showError('No point clouds could be loaded. Check console for details and verify the URLs are accessible.');
+          }
+        }, 15000); // Reduced to 15 second timeout
         
       } catch (error) {
-        console.error('Error loading point clouds:', error);
+        console.error('Error initializing point cloud loading:', error);
         showError('Failed to initialize timeseries viewer', error.message);
       }
     }
