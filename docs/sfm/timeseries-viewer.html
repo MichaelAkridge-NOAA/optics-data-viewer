@@ -147,6 +147,83 @@
       border-color: rgba(200,40,40,1);
     }
 
+    /* Alignment Controls */
+    .alignment-controls {
+      border-top: 1px solid rgba(255,255,255,0.15);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+
+    .alignment-controls h4 {
+      margin: 0 0 10px 0;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .alignment-group {
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .alignment-group label {
+      color: rgba(255,255,255,0.9);
+      font-size: 12px;
+      min-width: 120px;
+    }
+
+    .alignment-group input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      outline: none;
+      border-radius: 2px;
+    }
+
+    .alignment-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #4CAF50;
+      cursor: pointer;
+    }
+
+    .alignment-group span {
+      color: #fff;
+      font-size: 12px;
+      min-width: 30px;
+      text-align: right;
+      font-family: monospace;
+    }
+
+    .alignment-buttons {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .alignment-btn {
+      background: rgba(76,175,80,0.8);
+      border: 1px solid rgba(76,175,80,1);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font: 12px system-ui;
+      transition: all 0.2s;
+    }
+
+    .alignment-btn:hover {
+      background: rgba(96,195,100,0.9);
+      transform: translateY(-1px);
+    }
+
     /* Location Map */
     .location-map {
       border-top: 1px solid rgba(255,255,255,0.15);
@@ -210,6 +287,29 @@
     <div class="animation-controls">
       <button class="animation-btn" id="toggle-animation">🔄 Rotate View</button>
       <button class="animation-btn" id="reset-view">Reset View</button>
+    </div>
+
+    <div class="alignment-controls">
+      <h4>🎯 Manual Alignment (2023 vs 2018)</h4>
+      <div class="alignment-group">
+        <label>X Offset (Left/Right):</label>
+        <input type="range" id="align-x" min="-100" max="100" value="0" step="0.5">
+        <span id="align-x-value">0.0</span>
+      </div>
+      <div class="alignment-group">
+        <label>Y Offset (Up/Down):</label>
+        <input type="range" id="align-y" min="-50" max="50" value="0" step="0.5">
+        <span id="align-y-value">0.0</span>
+      </div>
+      <div class="alignment-group">
+        <label>Z Offset (Forward/Back):</label>
+        <input type="range" id="align-z" min="-100" max="100" value="0" step="0.5">
+        <span id="align-z-value">0.0</span>
+      </div>
+      <div class="alignment-buttons">
+        <button class="alignment-btn" id="reset-alignment">Reset</button>
+        <button class="alignment-btn" id="print-alignment">📋 Print Values</button>
+      </div>
     </div>
 
     <div class="location-map">
@@ -316,9 +416,6 @@
     viewer.setBackground("gradient"); // Set simple background
     viewer.setDescription(`
     ${PROJECT_CONFIG.description}<br>
-    Use the timeseries controls to switch between time periods and compare changes over time.<br>
-    Create camera animation paths via "Tools -> Navigation -> Camera Animation"<br>
-    Save and load camera tracks via the Export buttons in the sidebar.
     `);
     
     console.log('Loading GUI...');
@@ -555,6 +652,9 @@
       document.getElementById('toggle-animation').addEventListener('click', toggleAnimation);
       document.getElementById('reset-view').addEventListener('click', resetView);
       
+      // Manual alignment controls
+      initializeAlignmentControls();
+      
       console.log('Timeseries controls initialized');
     }
 
@@ -605,6 +705,99 @@
         
       } catch (error) {
         console.error('Error initializing map:', error);
+      }
+    }
+
+    // Manual alignment controls
+    let currentAlignment = { x: 0, y: 0, z: 0 };
+    let basePosition = null;
+
+    function initializeAlignmentControls() {
+      // Get slider elements
+      const xSlider = document.getElementById('align-x');
+      const ySlider = document.getElementById('align-y');
+      const zSlider = document.getElementById('align-z');
+      const xValue = document.getElementById('align-x-value');
+      const yValue = document.getElementById('align-y-value');
+      const zValue = document.getElementById('align-z-value');
+      
+      // Update value displays and apply alignment
+      function updateAlignment() {
+        currentAlignment.x = parseFloat(xSlider.value);
+        currentAlignment.y = parseFloat(ySlider.value);
+        currentAlignment.z = parseFloat(zSlider.value);
+        
+        xValue.textContent = currentAlignment.x.toFixed(1);
+        yValue.textContent = currentAlignment.y.toFixed(1);
+        zValue.textContent = currentAlignment.z.toFixed(1);
+        
+        applyManualAlignment();
+      }
+      
+      // Slider event listeners
+      xSlider.addEventListener('input', updateAlignment);
+      ySlider.addEventListener('input', updateAlignment);
+      zSlider.addEventListener('input', updateAlignment);
+      
+      // Reset button
+      document.getElementById('reset-alignment').addEventListener('click', () => {
+        xSlider.value = 0;
+        ySlider.value = 0;
+        zSlider.value = 0;
+        updateAlignment();
+      });
+      
+      // Print values button
+      document.getElementById('print-alignment').addEventListener('click', printAlignmentValues);
+      
+      console.log('Alignment controls initialized');
+    }
+
+    function applyManualAlignment() {
+      if (pointCloudData[2023] && pointCloudData[2023].pointcloud) {
+        const cloud2023 = pointCloudData[2023].pointcloud;
+        
+        // Store base position on first adjustment
+        if (basePosition === null) {
+          basePosition = {
+            x: cloud2023.position.x,
+            y: cloud2023.position.y,
+            z: cloud2023.position.z
+          };
+        }
+        
+        // Apply manual offset to base position
+        cloud2023.position.set(
+          basePosition.x + currentAlignment.x,
+          basePosition.y + currentAlignment.y,
+          basePosition.z + currentAlignment.z
+        );
+        
+        console.log(`Manual alignment applied: [${currentAlignment.x.toFixed(1)}, ${currentAlignment.y.toFixed(1)}, ${currentAlignment.z.toFixed(1)}]`);
+      }
+    }
+
+    function printAlignmentValues() {
+      const cloud2023 = pointCloudData[2023]?.pointcloud;
+      if (cloud2023) {
+        const finalPosition = {
+          x: cloud2023.position.x,
+          y: cloud2023.position.y,
+          z: cloud2023.position.z
+        };
+        
+        console.log('\n=== ALIGNMENT VALUES FOR CONFIGURATION ===');
+        console.log('Copy these values to update the 2023 point cloud position in PROJECT_CONFIG:');
+        console.log(`position: [${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}, ${finalPosition.z.toFixed(2)}],`);
+        console.log('\nCurrent manual adjustments:');
+        console.log(`Manual offset: [${currentAlignment.x.toFixed(1)}, ${currentAlignment.y.toFixed(1)}, ${currentAlignment.z.toFixed(1)}]`);
+        console.log('==========================================\n');
+        
+        // Also show in alert for easy copying
+        const configText = `position: [${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}, ${finalPosition.z.toFixed(2)}],`;
+        alert(`📋 Copy this line to update PROJECT_CONFIG:\n\n${configText}\n\n(Also check the console for more details)`);
+      } else {
+        alert('No 2023 point cloud found. Make sure it\'s loaded first.');
       }
     }
 
