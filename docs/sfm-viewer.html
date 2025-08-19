@@ -126,7 +126,10 @@
         loading.style.display = 'none';
         
         // Create default camera animation if this is an SFM dataset
-        createDefaultCameraAnimation(pointcloud);
+        // Add a small delay to ensure everything is fully loaded
+        setTimeout(() => {
+          createDefaultCameraAnimation(pointcloud);
+        }, 1000);
       });
     }
 
@@ -165,7 +168,8 @@
 
           viewer.scene.addCameraAnimation(animation);
           
-          // Add camera animation controls to the GUI
+          // Add camera animation controls to the GUI with debugging
+          console.log('Adding camera animation controls...');
           addCameraAnimationControls(animation);
         } else {
           console.log('THREE.js not available for camera animation');
@@ -177,7 +181,9 @@
 
     // Add camera animation controls to the Potree GUI
     function addCameraAnimationControls(animation) {
-      viewer.onGUILoaded(() => {
+      const addControls = () => {
+        console.log('Adding camera animation controls to GUI...');
+        try {
         let section = $(`
           <h3 id="menu_camera_anim" class="accordion-header ui-widget"><span>Camera Animation</span></h3>
           <div class="accordion-content ui-widget pv-menu-list"></div>
@@ -362,7 +368,18 @@
 
         section.first().click(() => content.slideToggle());
         section.insertBefore($('#menu_about'));
-      });
+        console.log('Camera animation controls added successfully');
+        } catch (error) {
+          console.error('Error adding camera animation controls:', error);
+        }
+      };
+
+      // Check if GUI is ready, or wait for it
+      if (viewer.sidebar && viewer.sidebar.root) {
+        addControls();
+      } else {
+        viewer.onGUILoaded(addControls);
+      }
     }
 
     // Camera track management functions
