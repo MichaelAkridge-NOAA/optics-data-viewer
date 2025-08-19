@@ -524,8 +524,8 @@
     
     viewer.setEDLEnabled(false); // Disable EDL initially for faster loading
     viewer.setFOV(60);
-    viewer.setPointBudget(1_500_000); // Reduced for faster loading  
-    viewer.setMinNodeSize(5); // Reduced for better performance
+    viewer.setPointBudget(5_000_000); // Increased for large timeseries datasets  
+    viewer.setMinNodeSize(0); // Allow more detailed loading
     viewer.loadSettingsFromURL = false; // Skip URL settings for faster init
     viewer.setBackground("gradient"); // Set simple background
     viewer.setDescription(`
@@ -537,23 +537,74 @@
     // Load all point clouds (simple approach like working viewer)
     function loadPointClouds() {
       console.log('Starting to load point clouds...');
+      console.log('Potree version:', Potree.version);
+      console.log('Viewer initialized:', viewer ? 'YES' : 'NO');
       
+      let loadedCount = 0;
+      const totalClouds = PROJECT_CONFIG.pointClouds.length;
+      
+      // Test with just first cloud initially
+      const testConfig = PROJECT_CONFIG.pointClouds[0];
+      console.log(`Testing load with first cloud: ${testConfig.name}`);
+      
+      try {
+        Potree.loadPointCloud(testConfig.url, testConfig.name, (e) => {
+          console.log('Test load callback received:', e);
+          
+          if (e.type === 'loading_failed' || !e.pointcloud) {
+            console.error('Test load failed:', e);
+            loading.style.display = 'none';
+            showError(`Failed to load test point cloud: ${testConfig.name}`);
+            return;
+          }
+          
+          console.log('Test load successful! Now loading all clouds...');
+          loadedCount = 0; // Reset for full load
+          
+          // Now load all clouds
+          loadAllClouds();
+        });
+      } catch (error) {
+        console.error('Error starting test load:', error);
+        loading.style.display = 'none';
+        showError('Failed to initialize point cloud loading');
+      }
+    }
+    
+    function loadAllClouds() {
       let loadedCount = 0;
       const totalClouds = PROJECT_CONFIG.pointClouds.length;
       
       // Load each point cloud
       for (const config of PROJECT_CONFIG.pointClouds) {
-        console.log(`Loading ${config.name}...`);
+        console.log(`Starting load for ${config.name} from ${config.url}`);
+        
+        // Test URL accessibility first
+        fetch(config.url.replace('cloud.js', 'metadata.json'), { method: 'HEAD' })
+          .then(() => console.log(`URL appears accessible: ${config.url}`))
+          .catch(err => console.warn(`URL may not be accessible: ${config.url}`, err));
         
         try {
           Potree.loadPointCloud(config.url, config.name, (e) => {
             console.log(`Potree callback for ${config.name}:`, e);
             
-            const pointcloud = e.pointcloud;
-            if (!pointcloud) {
-              console.error(`No pointcloud received for ${config.name}`);
+            // Check for loading failures
+            if (e.type === 'loading_failed' || !e.pointcloud) {
+              console.error(`Failed to load ${config.name}:`, e);
+              loadedCount++;
+              if (loadedCount === totalClouds) {
+                loading.style.display = 'none';
+                showError('Failed to load all point clouds. Check console for details.');
+              }
               return;
             }
+            
+            const pointcloud = e.pointcloud;
+            console.log(`Point cloud stats for ${config.name}:`, {
+              numPoints: pointcloud.numPoints,
+              boundingSphere: pointcloud.boundingSphere?.radius,
+              url: config.url
+            });
             
             // Configure point cloud (simple like working viewer)
             pointcloud.name = config.name;
