@@ -54,6 +54,41 @@
       border: 1px solid rgba(255,255,255,0.1);
     }
 
+    .panel-header {
+      margin: 0 0 15px 0;
+      color: #e8eefc;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s;
+    }
+
+    .panel-header:hover {
+      color: #4CAF50;
+    }
+
+    .panel-collapse-icon {
+      font-size: 14px;
+      transition: transform 0.2s;
+    }
+
+    .panel-collapse-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .panel-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .panel-content.collapsed {
+      max-height: 0;
+    }
+
     #timeseries-controls h3 {
       margin: 0 0 12px 0;
       font-size: 16px;
@@ -326,13 +361,17 @@
 
   <!-- Timeseries Controls -->
   <div id="timeseries-controls">
-    <h3>OCC-TUT-017 Timeseries</h3>
+    <h3 class="panel-header" id="timeseries-header">
+      <span class="panel-collapse-icon">▼</span>
+      OCC-TUT-017 Timeseries
+    </h3>
     
-    <div class="time-selector">
-      <button class="time-btn active" data-year="2018">2018</button>
-      <button class="time-btn" data-year="2023">2023</button>
-      <button class="time-btn" data-year="both">Both</button>
-    </div>
+    <div class="panel-content" id="timeseries-content">
+      <div class="time-selector">
+        <button class="time-btn active" data-year="2018">2018</button>
+        <button class="time-btn" data-year="2023">2023</button>
+        <button class="time-btn" data-year="both">Both</button>
+      </div>
 
     <div class="visibility-controls">
       <div class="visibility-item">
@@ -391,6 +430,7 @@
       <div id="map"></div>
       <div class="map-info">American Samoa<br>14°21'48"S, 170°45'47"W</div>
     </div>
+    </div> <!-- End panel-content -->
   </div>
 
   <div id="error"></div>
@@ -494,15 +534,6 @@
     
     console.log('Loading GUI...');
     
-    // Initialize controls first, then load clouds, then GUI
-    initializeTimeseriesControls();
-    
-    // Initialize location map
-    initializeLocationMap();
-    
-    console.log('Loading point clouds...');
-    loadPointClouds();
-
     // Load all point clouds (optimized for speed like other viewers)
     async function loadPointClouds() {
       try {
@@ -521,9 +552,6 @@
         }
         
         updateProgress();
-        
-        // Initialize controls early so UI is responsive
-        initializeTimeseriesControls();
         
         // Load point clouds with simple approach like regular viewer
         for (const config of PROJECT_CONFIG.pointClouds) {
