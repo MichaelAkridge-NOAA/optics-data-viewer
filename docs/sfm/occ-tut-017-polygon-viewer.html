@@ -442,8 +442,8 @@
         strokeWidth: 2
       },
       initialView: {
-        position: [0, 0, 50],
-        target: [0, 0, 0]
+        position: [4.923, 0.245, -6.813],
+        target: [4.923, 0.245, -15.794]
       }
     };
 
@@ -494,13 +494,6 @@
     
     // Set default camera to orthographic (better for shapefile overlays)
     viewer.scene.cameraO.up.set(0, 0, 1);
-    setTimeout(() => {
-      // Switch to orthographic camera after scene is ready
-      if (viewer.scene && viewer.scene.cameraO) {
-        viewer.setUseOrthographicCamera(true);
-        console.log('Set default camera to orthographic for shapefile viewing');
-      }
-    }, 500);
     
     console.log('Loading GUI...');
     
@@ -511,6 +504,14 @@
       $("#menu_scene").next().show();
       $("#menu_tools").next().show();
       viewer.toggleSidebar();
+      
+      // Set orthographic camera as default after GUI is ready
+      setTimeout(() => {
+        if (viewer.scene && viewer.setUseOrthographicCamera) {
+          viewer.setUseOrthographicCamera(true);
+          console.log('Set default camera to orthographic for shapefile viewing');
+        }
+      }, 1000);
       
       // Load point cloud after GUI is ready
       loadPointCloud();
@@ -562,8 +563,28 @@
           // Add to scene
           viewer.scene.addPointCloud(pointcloud);
           
-          // Setup viewer
+          // Setup viewer with custom camera position
           viewer.fitToScreen();
+          
+          // Set custom starting camera position after a brief delay to ensure scene is ready
+          setTimeout(() => {
+            const { position, target } = PROJECT_CONFIG.initialView;
+            
+            // Set camera position and target for both perspective and orthographic cameras
+            if (viewer.scene.cameraP) {
+              viewer.scene.cameraP.position.set(position[0], position[1], position[2]);
+              viewer.scene.view.lookAt(new THREE.Vector3(target[0], target[1], target[2]));
+            }
+            
+            if (viewer.scene.cameraO) {
+              viewer.scene.cameraO.position.set(position[0], position[1], position[2]);
+              viewer.scene.view.lookAt(new THREE.Vector3(target[0], target[1], target[2]));
+            }
+            
+            console.log(`Set camera position to: ${position} targeting: ${target}`);
+            updateStatus('📹 Camera positioned', `Set to custom view for OCC-TUT-017`);
+          }, 500);
+          
           viewer.setMoveSpeed(pointcloud.boundingSphere.radius / 5);
           loading.style.display = 'none';
           
