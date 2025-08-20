@@ -180,6 +180,13 @@
     .animation-btn.playing {
       background: rgba(200,40,40,0.9);
       border-color: rgba(200,40,40,1);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(200,40,40,0.4); }
+      70% { box-shadow: 0 0 0 8px rgba(200,40,40,0); }
+      100% { box-shadow: 0 0 0 0 rgba(200,40,40,0); }
     }
 
     /* Alignment Controls */
@@ -388,6 +395,7 @@
 
     <div class="animation-controls">
       <button class="animation-btn" id="toggle-animation">🔄 Rotate View</button>
+      <button class="animation-btn" id="fly-through">✈️ Fly Through</button>
       <button class="animation-btn" id="reset-view">Reset View</button>
     </div>
 
@@ -505,6 +513,8 @@
     let pointCloudData = {};
     let isAnimating = false;
     let animationId = null;
+    let isFlyingThrough = false;
+    let flyThroughId = null;
     
     // Manual alignment controls - declare at global scope
     let currentAlignment = { x: 4.79, y: 3.50, z: -0.71 }; // Start with configured values
@@ -760,6 +770,7 @@
       
       // Animation controls
       document.getElementById('toggle-animation').addEventListener('click', toggleAnimation);
+      document.getElementById('fly-through').addEventListener('click', startFlyThrough);
       document.getElementById('reset-view').addEventListener('click', resetView);
       
       // Manual alignment controls
@@ -1003,23 +1014,43 @@
         btn.textContent = '🔄 Rotate View';
         btn.classList.remove('playing');
       } else {
+        // Stop fly-through if running
+        if (isFlyingThrough) {
+          stopFlyThrough();
+        }
         startAnimation();
-        btn.textContent = '⏸ Stop';
+        btn.textContent = '⏸ Stop Rotation';
         btn.classList.add('playing');
       }
     }
 
-    // Start smooth camera rotation animation
+    // Start smooth camera rotation animation (fixed version)
     function startAnimation() {
       if (isAnimating) return;
       
       isAnimating = true;
-      let startTime = Date.now();
-      const rotationDuration = 15000; // 15 seconds for full rotation
+      const startTime = Date.now();
+      const rotationDuration = 20000; // 20 seconds for full rotation
       
-      // Get Potree's view system
+      // Get the scene view and calculate center point of point clouds
       const view = viewer.scene.view;
-      const initialYaw = view.yaw || 0;
+      let centerPoint = new THREE.Vector3(0, 0, 0);
+      
+      // Calculate center based on loaded point clouds
+      if (pointCloudData[2018] && pointCloudData[2023]) {
+        const pos2018 = pointCloudData[2018].pointcloud.position;
+        const pos2023 = pointCloudData[2023].pointcloud.position;
+        centerPoint = new THREE.Vector3(
+          (pos2018.x + pos2023.x) / 2,
+          (pos2018.y + pos2023.y) / 2,
+          (pos2018.z + pos2023.z) / 2
+        );
+      }
+      
+      // Store initial camera state
+      const camera = viewer.scene.getActiveCamera();
+      const initialDistance = camera.position.distanceTo(centerPoint);
+      const initialHeight = camera.position.y - centerPoint.y;
       
       function animate() {
         if (!isAnimating) return;
@@ -1029,10 +1060,19 @@
         const progress = (elapsed % rotationDuration) / rotationDuration;
         const angle = progress * Math.PI * 2; // Full circle
         
-        // Update yaw for smooth rotation around the point clouds
-        view.yaw = initialYaw + angle;
+        // Calculate smooth circular path around the center point
+        const radius = Math.max(initialDistance * 0.8, 50); // Maintain reasonable distance
+        const newPosition = new THREE.Vector3(
+          centerPoint.x + Math.cos(angle) * radius,
+          centerPoint.y + initialHeight, // Maintain height
+          centerPoint.z + Math.sin(angle) * radius
+        );
         
-        // Force view update
+        // Update camera position and look at center
+        camera.position.copy(newPosition);
+        camera.lookAt(centerPoint);
+        
+        // Update the view if it has update method
         if (view.update) {
           view.update();
         }
@@ -1041,6 +1081,7 @@
       }
       
       animate();
+      console.log('Smooth rotation animation started around center point');
     }
 
     // Stop animation
@@ -1050,6 +1091,132 @@
         cancelAnimationFrame(animationId);
         animationId = null;
       }
+    }
+
+    // Cool fly-through animation
+    function startFlyThrough() {
+      if (isFlyingThrough) {
+        stopFlyThrough();
+        return;
+      }
+      
+      // Stop rotation if running
+      if (isAnimating) {
+        stopAnimation();
+        document.getElementById('toggle-animation').textContent = '🔄 Rotate View';
+        document.getElementById('toggle-animation').classList.remove('playing');
+      }
+      
+      isFlyingThrough = true;
+      const btn = document.getElementById('fly-through');
+      btn.textContent = '⏸ Stop Fly';
+      btn.classList.add('playing');
+      
+      const startTime = Date.now();
+      const flyDuration = 15000; // 15 seconds total
+      const camera = viewer.scene.getActiveCamera();
+      
+      // Define multiple waypoints for a cinematic fly-through
+      const waypoints = [
+        // Start high and far - overview shot
+        { pos: [150, 100, 150], target: [0, 0, 0], duration: 0.15 },
+        // Fly down and around 2018 cloud
+        { pos: [-50, 30, 50], target: [-5, 0, 0], duration: 0.35 },
+        // Close-up of 2018 cloud
+        { pos: [-10, 5, 15], target: [0, 0, 0], duration: 0.50 },
+        // Transition between clouds - dramatic angle
+        { pos: [20, 40, -30], target: [10, 5, -5], duration: 0.65 },
+        // Approach 2023 cloud
+        { pos: [40, 20, 20], target: [currentAlignment.x, currentAlignment.y, currentAlignment.z], duration: 0.80 },
+        // Close-up of 2023 cloud
+        { pos: [currentAlignment.x + 15, currentAlignment.y + 8, currentAlignment.z - 10], target: [currentAlignment.x, currentAlignment.y, currentAlignment.z], duration: 0.90 },
+        // Pull back for final overview
+        { pos: [80, 60, -80], target: [currentAlignment.x / 2, currentAlignment.y / 2, currentAlignment.z / 2], duration: 1.0 }
+      ];
+      
+      function flyAnimate() {
+        if (!isFlyingThrough) return;
+        
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / flyDuration, 1);
+        
+        // Find current waypoint segment
+        let currentWaypoint = 0;
+        for (let i = 0; i < waypoints.length - 1; i++) {
+          if (progress <= waypoints[i + 1].duration) {
+            currentWaypoint = i;
+            break;
+          }
+        }
+        
+        const waypoint1 = waypoints[currentWaypoint];
+        const waypoint2 = waypoints[currentWaypoint + 1] || waypoints[currentWaypoint];
+        
+        // Calculate local progress between waypoints
+        const segmentStart = waypoint1.duration;
+        const segmentEnd = waypoint2.duration;
+        const segmentProgress = segmentEnd > segmentStart ? 
+          (progress - segmentStart) / (segmentEnd - segmentStart) : 0;
+        
+        // Smooth easing function for cinematic movement
+        const easeInOutCubic = (t) => {
+          return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        };
+        
+        const easedProgress = easeInOutCubic(segmentProgress);
+        
+        // Interpolate position and target
+        const pos = new THREE.Vector3(
+          waypoint1.pos[0] + (waypoint2.pos[0] - waypoint1.pos[0]) * easedProgress,
+          waypoint1.pos[1] + (waypoint2.pos[1] - waypoint1.pos[1]) * easedProgress,
+          waypoint1.pos[2] + (waypoint2.pos[2] - waypoint1.pos[2]) * easedProgress
+        );
+        
+        const target = new THREE.Vector3(
+          waypoint1.target[0] + (waypoint2.target[0] - waypoint1.target[0]) * easedProgress,
+          waypoint1.target[1] + (waypoint2.target[1] - waypoint1.target[1]) * easedProgress,
+          waypoint1.target[2] + (waypoint2.target[2] - waypoint1.target[2]) * easedProgress
+        );
+        
+        // Apply camera transformation
+        camera.position.copy(pos);
+        camera.lookAt(target);
+        
+        // Update view
+        const view = viewer.scene.view;
+        if (view.update) {
+          view.update();
+        }
+        
+        // Continue animation or finish
+        if (progress < 1) {
+          flyThroughId = requestAnimationFrame(flyAnimate);
+        } else {
+          stopFlyThrough();
+          // End with a nice overview position
+          setTimeout(() => {
+            camera.position.set(100, 80, 100);
+            camera.lookAt(new THREE.Vector3(currentAlignment.x / 2, currentAlignment.y / 2, currentAlignment.z / 2));
+            if (view.update) view.update();
+          }, 500);
+        }
+      }
+      
+      flyAnimate();
+      console.log('Cinematic fly-through animation started');
+    }
+
+    // Stop fly-through animation
+    function stopFlyThrough() {
+      isFlyingThrough = false;
+      if (flyThroughId) {
+        cancelAnimationFrame(flyThroughId);
+        flyThroughId = null;
+      }
+      
+      const btn = document.getElementById('fly-through');
+      btn.textContent = '✈️ Fly Through';
+      btn.classList.remove('playing');
     }
 
     // Reset view to initial position
