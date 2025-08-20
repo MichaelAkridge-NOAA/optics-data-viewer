@@ -276,6 +276,18 @@
       text-align: center;
     }
 
+    /* Keyboard shortcut styling */
+    kbd {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 3px;
+      padding: 1px 4px;
+      font-size: 10px;
+      font-family: monospace;
+      color: rgba(255,255,255,0.9);
+      margin-left: 4px;
+    }
+
     /* Status indicator */
     #status-indicator {
       position: absolute;
@@ -362,9 +374,14 @@
       <div class="quick-actions" style="margin-bottom: 15px;">
         <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eefc;">⚡ Quick Actions</h4>
         <button class="btn secondary" id="fit-to-screen">Fit to Screen</button>
-        <button class="btn secondary" id="reset-view">Reset View</button>
-        <button class="btn secondary" id="toggle-camera">Toggle Camera</button>
+        <button class="btn secondary" id="reset-view">Reset View <kbd>[R]</kbd></button>
+        <button class="btn secondary" id="toggle-camera">Toggle Camera <kbd>[C]</kbd></button>
         <button class="btn secondary" id="toggle-edl">Toggle EDL</button>
+        
+        <div style="margin-top: 8px; font-size: 11px; color: rgba(255,255,255,0.6);">
+          <strong>Keyboard Shortcuts:</strong><br>
+          <kbd>S</kbd> Toggle Shapefile • <kbd>C</kbd> Toggle Camera • <kbd>R</kbd> Reset View
+        </div>
       </div>
 
       <!-- Location Map -->
@@ -645,8 +662,20 @@
       });
       
       document.getElementById('reset-view').addEventListener('click', () => {
-        viewer.fitToScreen();
-        updateStatus('🔄 View reset', 'Camera position restored');
+        const { position, target } = PROJECT_CONFIG.initialView;
+        
+        // Set camera position and target for both perspective and orthographic cameras
+        if (viewer.scene.cameraP) {
+          viewer.scene.cameraP.position.set(position[0], position[1], position[2]);
+          viewer.scene.view.lookAt(new THREE.Vector3(target[0], target[1], target[2]));
+        }
+        
+        if (viewer.scene.cameraO) {
+          viewer.scene.cameraO.position.set(position[0], position[1], position[2]);
+          viewer.scene.view.lookAt(new THREE.Vector3(target[0], target[1], target[2]));
+        }
+        
+        updateStatus('🔄 View reset', 'Camera position restored to initial view');
       });
       
       document.getElementById('toggle-camera').addEventListener('click', () => {
@@ -662,7 +691,62 @@
         updateStatus(enabled ? '🔆 EDL enabled' : '🔅 EDL disabled', 'Visual quality adjusted');
       });
       
+      // Keyboard shortcuts
+      setupKeyboardShortcuts();
+      
       console.log('Controls initialized');
+    }
+
+    function setupKeyboardShortcuts() {
+      document.addEventListener('keydown', (e) => {
+        // Toggle shapefile with 'S' key
+        if (e.key.toLowerCase() === 's' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+          // Only trigger if not typing in an input field
+          if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            const toggle = document.getElementById('shapefile-toggle');
+            if (toggle) {
+              toggle.checked = !toggle.checked;
+              toggleShapefileVisibility(toggle.checked);
+              updateStatus(toggle.checked ? '👁️ Shapefile shown' : '🙈 Shapefile hidden', 'Toggled with [S] key');
+            }
+          }
+        }
+        
+        // Toggle camera with 'C' key
+        if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+          if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            const isOrtho = viewer.scene.cameraMode === 'orthographic';
+            viewer.setUseOrthographicCamera(!isOrtho);
+            updateStatus(isOrtho ? '📹 Perspective camera' : '📐 Orthographic camera', 
+                        'Toggled with [C] key');
+          }
+        }
+        
+        // Reset view with 'R' key
+        if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+          if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            const { position, target } = PROJECT_CONFIG.initialView;
+            
+            // Set camera position and target for both perspective and orthographic cameras
+            if (viewer.scene.cameraP) {
+              viewer.scene.cameraP.position.set(position[0], position[1], position[2]);
+              viewer.scene.view.lookAt(new THREE.Vector3(target[0], target[1], target[2]));
+            }
+            
+            if (viewer.scene.cameraO) {
+              viewer.scene.cameraO.position.set(position[0], position[1], position[2]);
+              viewer.scene.view.lookAt(new THREE.Vector3(target[0], target[1], target[2]));
+            }
+            
+            updateStatus('🔄 View reset', 'Reset to initial position with [R] key');
+          }
+        }
+      });
+      
+      console.log('Keyboard shortcuts initialized: [S] toggle shapefile, [C] toggle camera, [R] reset view');
     }
 
     function setupPointCloudControls() {
