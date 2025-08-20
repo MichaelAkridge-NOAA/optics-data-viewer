@@ -282,14 +282,6 @@
       border-color: rgba(200,40,40,1);
     }
 
-    .measurement-tools {
-      margin-bottom: 15px;
-      padding: 10px;
-      background: rgba(255,255,255,0.03);
-      border-radius: 6px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-
     /* Alignment Controls */
     .alignment-controls {
       border-top: 1px solid rgba(255,255,255,0.15);
@@ -563,17 +555,6 @@
       <button class="animation-btn" id="cycle-timepoints">⏩ Auto-Cycle</button>
     </div>
 
-    <div class="measurement-tools">
-      <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eefc;">📏 Analysis Tools</h4>
-      <button class="quick-btn" id="measure-distance">Measure Distance</button>
-      <button class="quick-btn" id="measure-area">Measure Area</button>
-      <button class="quick-btn" id="measure-volume">Measure Volume</button>
-      <button class="quick-btn" id="clear-measurements">Clear All</button>
-      <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 6px;">
-        Use Tools → Measuring to access detailed measurement controls
-      </div>
-    </div>
-
     <div class="alignment-controls">
       <h4 class="collapsible-header" id="alignment-header">
         <span class="collapse-icon">▼</span>
@@ -621,8 +602,7 @@
         <div><kbd>Space</kbd> - Toggle rotation</div>
         <div><kbd>R</kbd> - Reset view</div>
         <div><kbd>C</kbd> - Auto-cycle timepoints</div>
-        <div><kbd>M</kbd> - Measure distance</div>
-        <div><kbd>Esc</kbd> - Cancel current tool</div>
+        <div><kbd>Esc</kbd> - Stop current action</div>
       </div>
     </div>
     </div> <!-- End panel-content -->
@@ -746,6 +726,27 @@
     }
 
     console.log('Initializing timeseries viewer...');
+    
+    // Debug function to check Potree constants - can be called from browser console
+    window.debugPotreeConstants = function() {
+      console.log('=== POTREE DEBUG INFO ===');
+      console.log('Potree version:', Potree.version || 'Unknown');
+      console.log('PointColorType:', Potree.PointColorType);
+      console.log('PointShape:', Potree.PointShape);  
+      console.log('PointSizeType:', Potree.PointSizeType);
+      
+      if (Object.keys(pointCloudData).length > 0) {
+        const firstCloud = Object.values(pointCloudData)[0];
+        console.log('Sample material properties:', {
+          pointColorType: firstCloud.pointcloud?.material?.pointColorType,
+          shape: firstCloud.pointcloud?.material?.shape,
+          pointSizeType: firstCloud.pointcloud?.material?.pointSizeType,
+          size: firstCloud.pointcloud?.material?.size,
+          opacity: firstCloud.pointcloud?.material?.opacity
+        });
+      }
+      console.log('========================');
+    };
     
     // Initialize viewer with optimized settings (matching regular viewer performance)
     window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
@@ -1036,12 +1037,6 @@
       document.getElementById('reset-view').addEventListener('click', resetView);
       document.getElementById('cycle-timepoints').addEventListener('click', toggleTimepointCycling);
       
-      // Measurement tools
-      document.getElementById('measure-distance').addEventListener('click', () => activateMeasureTool('distance'));
-      document.getElementById('measure-area').addEventListener('click', () => activateMeasureTool('area'));
-      document.getElementById('measure-volume').addEventListener('click', () => activateMeasureTool('volume'));
-      document.getElementById('clear-measurements').addEventListener('click', clearAllMeasurements);
-      
       // Manual alignment controls
       initializeAlignmentControls();
       
@@ -1225,22 +1220,9 @@
           e.preventDefault();
           toggleTimepointCycling();
           break;
-        case 'm':
-        case 'M':
-          e.preventDefault();
-          activateMeasureTool('distance');
-          break;
         case 'Escape':
           e.preventDefault();
           if (isCycling) toggleTimepointCycling();
-          // Try to cancel current tool
-          try {
-            if (viewer.measuringTool) {
-              viewer.measuringTool.cancel();
-            }
-          } catch (error) {
-            // Ignore errors
-          }
           break;
       }
     });
@@ -1367,44 +1349,106 @@
 
     // Set color mode for all point clouds
     function setColorMode(mode) {
-      const potreeMode = mode === 'RGB' ? Potree.PointColorType.RGB :
-                        mode === 'ELEVATION' ? Potree.PointColorType.HEIGHT :
-                        mode === 'INTENSITY' ? Potree.PointColorType.INTENSITY :
-                        mode === 'CLASSIFICATION' ? Potree.PointColorType.CLASSIFICATION :
-                        mode === 'RETURN_NUMBER' ? Potree.PointColorType.RETURN_NUMBER :
-                        mode === 'SOURCE' ? Potree.PointColorType.SOURCE :
-                        Potree.PointColorType.RGB;
-      
-      Object.values(pointCloudData).forEach(data => {
-        if (data.pointcloud && data.pointcloud.material) {
-          data.pointcloud.material.pointColorType = potreeMode;
+      try {
+        let potreeMode;
+        
+        switch(mode) {
+          case 'RGB':
+            potreeMode = Potree.PointColorType ? Potree.PointColorType.RGB : 0;
+            break;
+          case 'ELEVATION':
+            potreeMode = Potree.PointColorType ? Potree.PointColorType.HEIGHT : 1;
+            break;
+          case 'INTENSITY':
+            potreeMode = Potree.PointColorType ? Potree.PointColorType.INTENSITY : 2;
+            break;
+          case 'CLASSIFICATION':
+            potreeMode = Potree.PointColorType ? Potree.PointColorType.CLASSIFICATION : 3;
+            break;
+          case 'RETURN_NUMBER':
+            potreeMode = Potree.PointColorType ? Potree.PointColorType.RETURN_NUMBER : 4;
+            break;
+          case 'SOURCE':
+            potreeMode = Potree.PointColorType ? Potree.PointColorType.SOURCE : 5;
+            break;
+          default:
+            potreeMode = Potree.PointColorType ? Potree.PointColorType.RGB : 0;
         }
-      });
-      console.log(`Color mode set to: ${mode}`);
+        
+        Object.values(pointCloudData).forEach(data => {
+          if (data.pointcloud && data.pointcloud.material) {
+            data.pointcloud.material.pointColorType = potreeMode;
+            // Force material update
+            data.pointcloud.material.needsUpdate = true;
+          }
+        });
+        
+        // Force viewer update
+        if (viewer.setNeedsRedraw) {
+          viewer.setNeedsRedraw();
+        }
+        
+        console.log(`Color mode set to: ${mode} (${potreeMode})`);
+        updateStatus('🎨 Color mode changed', `Now showing: ${mode}`);
+        
+      } catch (error) {
+        console.error('Error setting color mode:', error);
+        updateStatus('❌ Color mode error', 'Failed to change color mode');
+      }
     }
 
     // Set point shape for all point clouds
     function setPointShape(shape) {
-      const potreeShape = shape === 'CIRCLE' ? Potree.PointShape.CIRCLE : Potree.PointShape.SQUARE;
-      
-      Object.values(pointCloudData).forEach(data => {
-        if (data.pointcloud && data.pointcloud.material) {
-          data.pointcloud.material.shape = potreeShape;
+      try {
+        const potreeShape = shape === 'CIRCLE' ? 
+          (Potree.PointShape ? Potree.PointShape.CIRCLE : 1) : 
+          (Potree.PointShape ? Potree.PointShape.SQUARE : 0);
+        
+        Object.values(pointCloudData).forEach(data => {
+          if (data.pointcloud && data.pointcloud.material) {
+            data.pointcloud.material.shape = potreeShape;
+            data.pointcloud.material.needsUpdate = true;
+          }
+        });
+        
+        if (viewer.setNeedsRedraw) {
+          viewer.setNeedsRedraw();
         }
-      });
-      console.log(`Point shape set to: ${shape}`);
+        
+        console.log(`Point shape set to: ${shape} (${potreeShape})`);
+        updateStatus('🔷 Point shape changed', `Now using: ${shape.toLowerCase()} points`);
+        
+      } catch (error) {
+        console.error('Error setting point shape:', error);
+        updateStatus('❌ Point shape error', 'Failed to change point shape');
+      }
     }
 
     // Set point size type for all point clouds
     function setPointSizeType(type) {
-      const potreeType = type === 'FIXED' ? Potree.PointSizeType.FIXED : Potree.PointSizeType.ADAPTIVE;
-      
-      Object.values(pointCloudData).forEach(data => {
-        if (data.pointcloud && data.pointcloud.material) {
-          data.pointcloud.material.pointSizeType = potreeType;
+      try {
+        const potreeType = type === 'FIXED' ? 
+          (Potree.PointSizeType ? Potree.PointSizeType.FIXED : 1) : 
+          (Potree.PointSizeType ? Potree.PointSizeType.ADAPTIVE : 0);
+        
+        Object.values(pointCloudData).forEach(data => {
+          if (data.pointcloud && data.pointcloud.material) {
+            data.pointcloud.material.pointSizeType = potreeType;
+            data.pointcloud.material.needsUpdate = true;
+          }
+        });
+        
+        if (viewer.setNeedsRedraw) {
+          viewer.setNeedsRedraw();
         }
-      });
-      console.log(`Point size type set to: ${type}`);
+        
+        console.log(`Point size type set to: ${type} (${potreeType})`);
+        updateStatus('📏 Size type changed', `Now using: ${type.toLowerCase()} sizing`);
+        
+      } catch (error) {
+        console.error('Error setting point size type:', error);
+        updateStatus('❌ Size type error', 'Failed to change point size type');
+      }
     }
 
     // Quick action functions
@@ -1587,67 +1631,6 @@
         cycleInterval = null;
       }
       console.log('Timepoint cycling stopped');
-    }
-
-    // Measurement tool functions
-    function activateMeasureTool(type) {
-      try {
-        if (!viewer.measuringTool) {
-          console.warn('Measuring tool not available');
-          alert('Measuring tool not available. Please use the Tools menu in the sidebar.');
-          return;
-        }
-
-        switch(type) {
-          case 'distance':
-            viewer.measuringTool.startInsertion({
-              showDistances: true,
-              showAngles: false,
-              showArea: false,
-              closed: false,
-              name: `Distance_${Date.now()}`
-            });
-            break;
-          case 'area':
-            viewer.measuringTool.startInsertion({
-              showDistances: false,
-              showAngles: false,
-              showArea: true,
-              closed: true,
-              name: `Area_${Date.now()}`
-            });
-            break;
-          case 'volume':
-            viewer.measuringTool.startInsertion({
-              showDistances: true,
-              showArea: true,
-              showVolume: true,
-              closed: true,
-              name: `Volume_${Date.now()}`
-            });
-            break;
-        }
-        console.log(`${type} measurement tool activated`);
-      } catch (error) {
-        console.error('Error activating measurement tool:', error);
-        alert('Please use the Tools → Measuring menu in the sidebar for measurement tools.');
-      }
-    }
-
-    function clearAllMeasurements() {
-      try {
-        if (viewer.measuringTool && viewer.measuringTool.measurements) {
-          const measurements = [...viewer.measuringTool.measurements];
-          measurements.forEach(measurement => {
-            viewer.measuringTool.removeMeasurement(measurement);
-          });
-          console.log('All measurements cleared');
-        } else {
-          console.log('No measurements to clear');
-        }
-      } catch (error) {
-        console.error('Error clearing measurements:', error);
-      }
     }
 
     // Load GUI after first render (like regular viewer)
