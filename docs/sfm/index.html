@@ -106,6 +106,22 @@
         </div>
       </div>
 
+      <!-- Substrate Stabilization 6 Months Pre-Outplant -->
+      <div class="card">
+        <a class="thumb-link" id="open-substrate-pre-img" aria-label="Open Substrate Stabilization 6 Months Pre-Outplant">
+          <img class="thumb" alt="Substrate Stabilization 6 Months Pre-Outplant thumbnail"
+               src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/substrate_stabilization_six_month_pre_outplant/thumbnail.png">
+        </a>
+        <div class="body">
+          <div class="title">Substrate Stabilization 6M Pre-Outplant</div>
+          <p class="muted">6 Months Post Install Pre-Outplant Monitoring</p>
+          <div class="row">
+            <a class="btn primary" id="open-substrate-pre">Open</a>
+            <a class="btn" id="open-substrate-pre-anim">Camera Animation</a>
+          </div>
+        </div>
+      </div>
+
       <!-- OCC-ASC-003 -->
       <div class="card">
         <a class="thumb-link" id="open-asc-img" aria-label="Open OCC-ASC-003">
@@ -133,6 +149,21 @@
           <div class="row">
             <a class="btn primary" href="timeseries-viewer.html">Open Viewer</a>
             <a class="btn" href="timeseries-viewer.html">View Demo</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- OCC-TUT-017 Polygon Viewer -->
+      <div class="card">
+        <a class="thumb-link" href="occ-tut-017-polygon-viewer.html" aria-label="Open OCC-TUT-017 Polygon viewer">
+          <img class="thumb" src="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230727_OCC-TUT-017/thumbnail.png" alt="OCC-TUT-017 Polygon Viewer Thumbnail">
+        </a>
+        <div class="body">
+          <div class="title">OCC-TUT-017 + Polygons<span class="badge">New</span></div>
+          <p class="muted">2023-07-27 point cloud with shapefile overlays</p>
+          <div class="row">
+            <a class="btn primary" href="occ-tut-017-polygon-viewer.html">Open Viewer</a>
+            <a class="btn" href="#" onclick="alert('Upload .shp, .geojson, or .zip files to add polygon overlays')">Upload Shapefiles</a>
           </div>
         </div>
       </div>
@@ -172,6 +203,14 @@
     document.getElementById('open-substrate-img').href = substrateURL;
     document.getElementById('open-substrate-anim').href = substrateAnimURL;
     document.getElementById('open-substrate-hq').href = substrateHQURL;
+
+    // Substrate Stabilization 6 Months Pre-Outplant
+    const substratePreSrc = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/substrate_stabilization_six_month_pre_outplant/cloud.js";
+    const substratePreURL = vlink(substratePreSrc, "Substrate Stabilization 6 Months Pre-Outplant");
+    const substratePreAnimURL = sfmlink(substratePreSrc, "Substrate Stabilization 6 Months Pre-Outplant");
+    document.getElementById('open-substrate-pre').href = substratePreURL;
+    document.getElementById('open-substrate-pre-img').href = substratePreURL;
+    document.getElementById('open-substrate-pre-anim').href = substratePreAnimURL;
   </script>
 </body>
 </html>

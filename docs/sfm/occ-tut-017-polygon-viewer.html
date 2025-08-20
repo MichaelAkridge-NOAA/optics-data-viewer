@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Optics Data Viewer - OCC-TUT-017 Polygon Viewer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Potree CSS -->
+  <link rel="stylesheet" href="../build/potree/potree.css" />
+  <link rel="stylesheet" href="../libs/jquery-ui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="../libs/openlayers3/ol.css" />
+  <link rel="stylesheet" href="../libs/spectrum/spectrum.css" />
+  <link rel="stylesheet" href="../libs/jstree/themes/mixed/style.css" />
+  
+  <!-- Leaflet for OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+    
+    /* Loading + error */
+    #loading {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
+      z-index:9999; flex-direction:column; gap:10px
+    }
+    #loading .spinner { width:40px; height:40px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg) } }
+
+    #error {
+      position:absolute; top:12px; left:12px; right:12px;
+      background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
+    }
+
+    .chip{
+      position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
+      padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
+    }
+
+    /* Polygon Controls */
+    #polygon-controls {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(30,30,40,0.9);
+      color: #fff;
+      padding: 15px;
+      border-radius: 12px;
+      font: 14px system-ui;
+      z-index: 5000;
+      min-width: 300px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .panel-header {
+      margin: 0 0 15px 0;
+      color: #e8eefc;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s;
+    }
+
+    .panel-header:hover {
+      color: #4CAF50;
+    }
+
+    .panel-collapse-icon {
+      font-size: 14px;
+      transition: transform 0.2s;
+    }
+
+    .panel-collapse-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .panel-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .panel-content.collapsed {
+      max-height: 0;
+    }
+
+    /* Point Cloud Controls */
+    .cloud-controls {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+    }
+
+    .cloud-controls h4 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #e8eefc;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .control-group label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.9);
+      min-width: 80px;
+    }
+
+    .slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      outline: none;
+      border-radius: 2px;
+      min-width: 100px;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #4CAF50;
+      cursor: pointer;
+    }
+
+    .value-display {
+      font-size: 12px;
+      color: #fff;
+      font-family: monospace;
+      min-width: 35px;
+      text-align: right;
+    }
+
+    /* Shapefile Controls */
+    .shapefile-controls {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+    }
+
+    .shapefile-controls h4 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #e8eefc;
+    }
+
+    .shapefile-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      padding: 6px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 4px;
+      gap: 8px;
+    }
+
+    .shapefile-checkbox {
+      transform: scale(1.2);
+    }
+
+    .shapefile-name {
+      flex: 1;
+      font-size: 13px;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .shapefile-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.3);
+      cursor: pointer;
+    }
+
+    .upload-area {
+      border: 2px dashed rgba(255,255,255,0.3);
+      border-radius: 6px;
+      padding: 15px;
+      text-align: center;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .upload-area:hover {
+      border-color: rgba(76,175,80,0.6);
+      background: rgba(76,175,80,0.1);
+    }
+
+    .upload-area.dragover {
+      border-color: #4CAF50;
+      background: rgba(76,175,80,0.2);
+    }
+
+    .upload-text {
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 5px;
+    }
+
+    .upload-subtext {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .btn {
+      background: rgba(76,175,80,0.8);
+      border: 1px solid rgba(76,175,80,1);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font: 12px system-ui;
+      transition: all 0.2s;
+      margin-right: 8px;
+      margin-bottom: 6px;
+      display: inline-block;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: rgba(96,195,100,0.9);
+      transform: translateY(-1px);
+    }
+
+    .btn.secondary {
+      background: rgba(96, 125, 139, 0.8);
+      border-color: rgba(96, 125, 139, 1);
+    }
+
+    .btn.secondary:hover {
+      background: rgba(116, 145, 159, 0.9);
+    }
+
+    /* Location Map */
+    .location-map {
+      border-top: 1px solid rgba(255,255,255,0.15);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+
+    .location-map h4 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: #e8eefc;
+      font-weight: 600;
+    }
+
+    #map {
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .map-info {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* Status indicator */
+    #status-indicator {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(20,30,40,0.9);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font: 12px system-ui;
+      z-index: 1000;
+      display: none;
+    }
+
+    #status-text {
+      font-weight: 500;
+    }
+
+    #status-details {
+      font-size: 10px;
+      opacity: 0.8;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="potree_container" class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+    <div id="potree_render_area">
+    </div>
+    <div id="potree_sidebar_container"> </div>
+  </div>
+
+  <!-- Polygon Controls -->
+  <div id="polygon-controls">
+    <h3 class="panel-header" id="controls-header">
+      <span class="panel-collapse-icon">▼</span>
+      OCC-TUT-017 (2023-07-27) + Polygons
+    </h3>
+    
+    <div class="panel-content" id="controls-content">
+      
+      <!-- Point Cloud Controls -->
+      <div class="cloud-controls">
+        <h4>🌊 Point Cloud Settings</h4>
+        <div class="control-group">
+          <label>Point Size:</label>
+          <input type="range" class="slider" id="point-size" min="0.1" max="5.0" step="0.1" value="1.0">
+          <span class="value-display" id="point-size-value">1.0</span>
+        </div>
+        <div class="control-group">
+          <label>Opacity:</label>
+          <input type="range" class="slider" id="point-opacity" min="0" max="100" step="1" value="100">
+          <span class="value-display" id="point-opacity-value">100%</span>
+        </div>
+        <div class="control-group">
+          <label>Point Budget:</label>
+          <input type="range" class="slider" id="point-budget" min="1000000" max="10000000" step="500000" value="5000000">
+          <span class="value-display" id="point-budget-value">5M</span>
+        </div>
+      </div>
+
+      <!-- Shapefile Controls -->
+      <div class="shapefile-controls">
+        <h4>📐 IGB Shapefile Overlay</h4>
+        
+        <div class="shapefile-item">
+          <input type="checkbox" class="shapefile-checkbox" id="shapefile-toggle" checked>
+          <span class="shapefile-name" id="shapefile-name">T2023 OCC-TUT-017 IGB</span>
+          <div class="shapefile-color" id="shapefile-color" style="background-color: #4ECDC4"></div>
+        </div>
+
+        <div class="control-group">
+          <label>Opacity:</label>
+          <input type="range" class="slider" id="shapefile-opacity" min="0" max="100" step="1" value="60">
+          <span class="value-display" id="shapefile-opacity-value">60%</span>
+        </div>
+
+        <button class="btn" id="load-shapefile">Load IGB Shapefile</button>
+        <button class="btn secondary" id="clear-shapefile">Clear Overlay</button>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-actions" style="margin-bottom: 15px;">
+        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eefc;">⚡ Quick Actions</h4>
+        <button class="btn secondary" id="fit-to-screen">Fit to Screen</button>
+        <button class="btn secondary" id="reset-view">Reset View</button>
+        <button class="btn secondary" id="toggle-edl">Toggle EDL</button>
+      </div>
+
+      <!-- Location Map -->
+      <div class="location-map">
+        <h4>📍 Study Site Location</h4>
+        <div id="map"></div>
+        <div class="map-info">OCC-TUT-017 Site<br>American Samoa</div>
+      </div>
+
+    </div> <!-- End panel-content -->
+  </div>
+
+  <div id="error"></div>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-text">Loading OCC-TUT-017 (2023-07-27) with polygon overlays…</div>
+    <div id="loading-progress" style="font-size:12px;opacity:0.8;margin-top:5px;"></div>
+  </div>
+  <div class="chip" id="chip">OCC-TUT-017 (2023-07-27) Polygon Viewer</div>
+  
+  <!-- Status indicator -->
+  <div id="status-indicator">
+    <div id="status-text">Ready</div>
+    <div id="status-details"></div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="../libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="../libs/spectrum/spectrum.js"></script>
+  <script src="../libs/jquery-ui/jquery-ui.min.js"></script>
+  <script src="../libs/other/BinaryHeap.js"></script>
+  <script src="../libs/tween/tween.min.js"></script>
+  <script src="../libs/d3/d3.js"></script>
+  <script src="../libs/proj4/proj4.js"></script>
+  <script src="../libs/openlayers3/ol.js"></script>
+  <script src="../libs/i18next/i18next.js"></script>
+  <script src="../libs/jstree/jstree.js"></script>
+  <script src="../libs/shapefile/shapefile.js"></script>
+  <script src="../libs/plasio/js/laslaz.js"></script>
+
+  <!-- Three.js (required for THREE.Color and other three.js functionality) -->
+  <script src="../libs/three.js/build/three.min.js"></script>
+
+  <!-- Potree -->
+  <script src="../build/potree/potree.js"></script>
+  
+  <!-- Leaflet for OpenStreetMap -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // Configuration for OCC-TUT-017 (2023-07-27) project with shapefiles
+    const PROJECT_CONFIG = {
+      name: "OCC-TUT-017 (2023-07-27)",
+      description: "OCC-TUT-017 July 27, 2023 Point Cloud with Polygon Overlays",
+      location: {
+        lat: -14.36347,
+        lng: -170.76314,
+        name: "American Samoa",
+        description: "Coral reef monitoring site"
+      },
+      pointCloud: {
+        name: "OCC-TUT-017 (2023-07-27)",
+        url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230727_OCC-TUT-017/cloud.js",
+        color: new THREE.Color(0.8, 0.9, 1.0), // Light blue for natural appearance
+        position: [0, 0, 0], // Base position
+        scale: [1, 1, 1], // Base scale
+        rotation: [0, 0, 0]
+      },
+      shapefile: {
+        name: "T2023 OCC-TUT-017 IGB",
+        url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230727_OCC-TUT-017/shapefiles/T2023_OCC_TUT_017_IGB.shp",
+        color: "#4ECDC4",
+        opacity: 0.6,
+        strokeColor: "#26A69A",
+        strokeWidth: 2
+      },
+      initialView: {
+        position: [0, 0, 50],
+        target: [0, 0, 0]
+      }
+    };
+
+    // Global variables
+    let pointCloudData = null;
+    let shapefileOverlay = null;
+    let isAnimating = false;
+    let animationId = null;
+
+    const errorBox = document.getElementById('error');
+    const loading = document.getElementById('loading');
+
+    function showError(msg, details) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = `<strong>Couldn't load viewer.</strong> ${msg}`
+        + (details ? `<div style="opacity:.9;margin-top:6px;font-size:13px">${details}</div>` : '');
+      console.error('Viewer load error:', msg, details);
+      loading.style.display = 'none';
+    }
+
+    function updateStatus(text, details = '', duration = 3000) {
+      const indicator = document.getElementById('status-indicator');
+      const statusText = document.getElementById('status-text');
+      const statusDetails = document.getElementById('status-details');
+      
+      statusText.textContent = text;
+      statusDetails.textContent = details;
+      indicator.style.display = 'block';
+      
+      if (duration > 0) {
+        setTimeout(() => {
+          indicator.style.display = 'none';
+        }, duration);
+      }
+    }
+
+    console.log('Initializing OCC-TUT-017 polygon viewer...');
+    
+    // Initialize viewer with optimized settings
+    window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+    
+    viewer.setEDLEnabled(true); // Enable EDL for better visual quality
+    viewer.setFOV(60);
+    viewer.setPointBudget(5_000_000);
+    viewer.loadSettingsFromURL();
+    viewer.setBackground("gradient");
+    viewer.setDescription(PROJECT_CONFIG.description);
+    
+    console.log('Loading GUI...');
+    
+    // Load GUI first
+    viewer.loadGUI(() => {
+      console.log('GUI loaded, setting up sidebar...');
+      viewer.setLanguage('en');
+      $("#menu_scene").next().show();
+      $("#menu_tools").next().show();
+      viewer.toggleSidebar();
+      
+      // Load point cloud after GUI is ready
+      loadPointCloud();
+    });
+    
+    // Load the single point cloud
+    function loadPointCloud() {
+      console.log('Starting to load point cloud...');
+      const config = PROJECT_CONFIG.pointCloud;
+      
+      try {
+        Potree.loadPointCloud(config.url, config.name, (e) => {
+          console.log(`Potree callback for ${config.name}:`, e);
+          
+          if (e.type === 'loading_failed' || !e.pointcloud) {
+            console.error(`Failed to load ${config.name}:`, e);
+            showError('Failed to load point cloud. Check console for details.');
+            return;
+          }
+          
+          const pointcloud = e.pointcloud;
+          console.log(`Point cloud loaded:`, {
+            numPoints: pointcloud.numPoints,
+            boundingSphere: pointcloud.boundingSphere?.radius,
+            url: config.url
+          });
+          
+          // Configure point cloud
+          pointcloud.name = config.name;
+          
+          let material = pointcloud.material;
+          material.size = 1;
+          material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+          material.shape = Potree.PointShape.SQUARE;
+          
+          // Apply color if specified
+          if (config.color) {
+            material.color = config.color;
+          }
+          
+          // Store reference
+          pointCloudData = {
+            pointcloud: pointcloud,
+            config: config,
+            visible: true,
+            opacity: 1.0
+          };
+          
+          // Add to scene
+          viewer.scene.addPointCloud(pointcloud);
+          
+          // Setup viewer
+          viewer.fitToScreen();
+          viewer.setMoveSpeed(pointcloud.boundingSphere.radius / 5);
+          loading.style.display = 'none';
+          
+          updateStatus('✅ Point cloud loaded', 'Ready to add shapefiles');
+          
+          // Load the specific IGB shapefile
+          setTimeout(() => {
+            loadIGBShapefile();
+          }, 1000);
+        });
+        
+      } catch (error) {
+        console.error(`Failed to load point cloud:`, error);
+        showError('Failed to initialize point cloud loading');
+      }
+    }
+
+    // Initialize controls
+    initializeControls();
+
+    function initializeControls() {
+      console.log('Initializing controls...');
+      
+      // Initialize map
+      initializeLocationMap();
+      
+      // Panel collapse functionality
+      const panelHeader = document.getElementById('controls-header');
+      const panelContent = document.getElementById('controls-content');
+      const panelIcon = panelHeader.querySelector('.panel-collapse-icon');
+      
+      panelContent.style.maxHeight = panelContent.scrollHeight + 'px';
+      
+      panelHeader.addEventListener('click', () => {
+        const isCollapsed = panelContent.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+          panelContent.classList.remove('collapsed');
+          panelContent.style.maxHeight = panelContent.scrollHeight + 'px';
+          panelIcon.classList.remove('collapsed');
+        } else {
+          panelContent.style.maxHeight = '0px';
+          panelContent.classList.add('collapsed');
+          panelIcon.classList.add('collapsed');
+        }
+      });
+      
+      // Point cloud controls
+      setupPointCloudControls();
+      
+      // Shapefile controls
+      setupShapefileControls();
+      
+      // Quick action buttons
+      document.getElementById('fit-to-screen').addEventListener('click', () => {
+        viewer.fitToScreen();
+        updateStatus('📐 Fit to screen', 'View adjusted');
+      });
+      
+      document.getElementById('reset-view').addEventListener('click', () => {
+        viewer.fitToScreen();
+        updateStatus('🔄 View reset', 'Camera position restored');
+      });
+      
+      document.getElementById('toggle-edl').addEventListener('click', () => {
+        const enabled = !viewer.scene.getEDLEnabled();
+        viewer.setEDLEnabled(enabled);
+        updateStatus(enabled ? '🔆 EDL enabled' : '🔅 EDL disabled', 'Visual quality adjusted');
+      });
+      
+      console.log('Controls initialized');
+    }
+
+    function setupPointCloudControls() {
+      // Point size control
+      const pointSizeSlider = document.getElementById('point-size');
+      const pointSizeValue = document.getElementById('point-size-value');
+      
+      pointSizeSlider.addEventListener('input', (e) => {
+        const size = parseFloat(e.target.value);
+        if (pointCloudData && pointCloudData.pointcloud) {
+          pointCloudData.pointcloud.material.size = size;
+          pointSizeValue.textContent = size.toFixed(1);
+        }
+      });
+      
+      // Opacity control
+      const opacitySlider = document.getElementById('point-opacity');
+      const opacityValue = document.getElementById('point-opacity-value');
+      
+      opacitySlider.addEventListener('input', (e) => {
+        const opacity = parseFloat(e.target.value) / 100;
+        if (pointCloudData && pointCloudData.pointcloud) {
+          pointCloudData.pointcloud.material.opacity = opacity;
+          pointCloudData.opacity = opacity;
+          opacityValue.textContent = `${e.target.value}%`;
+        }
+      });
+      
+      // Point budget control
+      const budgetSlider = document.getElementById('point-budget');
+      const budgetValue = document.getElementById('point-budget-value');
+      
+      budgetSlider.addEventListener('input', (e) => {
+        const budget = parseInt(e.target.value);
+        viewer.setPointBudget(budget);
+        budgetValue.textContent = `${(budget / 1000000).toFixed(1)}M`;
+      });
+    }
+
+    function setupShapefileControls() {
+      // Visibility toggle
+      const shapefileToggle = document.getElementById('shapefile-toggle');
+      shapefileToggle.addEventListener('change', (e) => {
+        toggleShapefileVisibility(e.target.checked);
+      });
+      
+      // Opacity control
+      const opacitySlider = document.getElementById('shapefile-opacity');
+      const opacityValue = document.getElementById('shapefile-opacity-value');
+      
+      opacitySlider.addEventListener('input', (e) => {
+        const opacity = parseFloat(e.target.value) / 100;
+        setShapefileOpacity(opacity);
+        opacityValue.textContent = `${e.target.value}%`;
+      });
+      
+      // Color cycling
+      const colorDiv = document.getElementById('shapefile-color');
+      colorDiv.addEventListener('click', () => {
+        cycleShapefileColor();
+      });
+      
+      // Action buttons
+      document.getElementById('load-shapefile').addEventListener('click', loadIGBShapefile);
+      document.getElementById('clear-shapefile').addEventListener('click', clearShapefile);
+    }
+
+    function initializeLocationMap() {
+      try {
+        const { lat, lng, name, description } = PROJECT_CONFIG.location;
+        
+        const map = L.map('map', {
+          zoomControl: false,
+          attributionControl: false,
+          scrollWheelZoom: false,
+          doubleClickZoom: false,
+          dragging: true
+        }).setView([lat, lng], 15);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap',
+          maxZoom: 18
+        }).addTo(map);
+        
+        const marker = L.marker([lat, lng]).addTo(map);
+        marker.bindPopup(`
+          <strong>${PROJECT_CONFIG.name}</strong><br>
+          ${description}<br>
+          <small>${lat.toFixed(5)}°, ${lng.toFixed(5)}°</small>
+        `);
+        
+        L.circle([lat, lng], { radius: 200, color: '#4ECDC4', opacity: 0.7 }).addTo(map);
+        
+        console.log('Location map initialized');
+        
+      } catch (error) {
+        console.error('Error initializing map:', error);
+      }
+    }
+
+    function loadIGBShapefile() {
+      console.log('Loading IGB shapefile using Potree ShapefileLoader...');
+      updateStatus('📐 Loading shapefile', 'Fetching T2023_OCC_TUT_017_IGB.shp...');
+      
+      const shapefileConfig = PROJECT_CONFIG.shapefile;
+      
+      // Use Potree's built-in ShapefileLoader
+      const loader = new Potree.ShapefileLoader();
+      
+      // Define coordinate system transformation if needed
+      // Most point clouds use a projected coordinate system, shapefiles often use WGS84
+      if (pointCloudData && pointCloudData.pointcloud.projection) {
+        proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+        proj4.defs("pointcloud", pointCloudData.pointcloud.projection);
+        loader.transform = proj4("WGS84", "pointcloud");
+      }
+      
+      // Load the shapefile
+      loader.load(shapefileConfig.url)
+        .then(shapefileData => {
+          console.log('Shapefile loaded successfully:', shapefileData);
+          
+          // Add to scene
+          viewer.scene.scene.add(shapefileData.node);
+          
+          // Apply custom styling
+          shapefileData.node.traverse(node => {
+            if (node.material) {
+              node.material.color.setHex(parseInt(shapefileConfig.color.replace('#', '0x')));
+              node.material.opacity = shapefileConfig.opacity;
+              node.material.transparent = true;
+            }
+          });
+          
+          // Store reference
+          shapefileOverlay = {
+            name: shapefileConfig.name,
+            node: shapefileData.node,
+            shapefileData: shapefileData,
+            style: shapefileConfig,
+            visible: true
+          };
+          
+          // Update resolution for fat lines (if applicable)
+          viewer.addEventListener("update", () => {
+            const size = viewer.renderer.getSize(new THREE.Vector2());
+            if (shapefileData.setResolution) {
+              shapefileData.setResolution(size.width, size.height);
+            }
+          });
+          
+          // Add to sidebar if GUI is loaded
+          if (viewer.onGUILoaded) {
+            viewer.onGUILoaded(() => {
+              addShapefileToSidebar(shapefileOverlay);
+            });
+          } else {
+            // GUI already loaded
+            setTimeout(() => {
+              addShapefileToSidebar(shapefileOverlay);
+            }, 500);
+          }
+          
+          updateStatus('✅ Shapefile loaded', `${shapefileConfig.name} added to scene`);
+          
+        })
+        .catch(error => {
+          console.error('Error loading shapefile:', error);
+          updateStatus('❌ Error loading shapefile', `Failed to load ${shapefileConfig.name}`);
+          
+          // Fallback: try loading as if it were a GeoJSON or show informative error
+          updateStatus('💡 Tip', 'Make sure the shapefile URL includes all required files (.shp, .dbf, .shx)', 5000);
+        });
+    }
+    
+    function addShapefileToSidebar(overlay) {
+      try {
+        // Add entry to object list in sidebar
+        let tree = $(`#jstree_scene`);
+        let parentNode = "other";
+        
+        if (tree.length && tree.jstree) {
+          let shapefileID = tree.jstree('create_node', parentNode, { 
+            "text": overlay.name, 
+            "icon": `${Potree.resourcePath}/icons/triangle.svg`,
+            "object": overlay.node,
+            "data": overlay.node,
+          }, "last", false, false);
+          
+          tree.jstree(overlay.node.visible ? "check_node" : "uncheck_node", shapefileID);
+          
+          console.log('Added shapefile to sidebar:', overlay.name);
+        }
+      } catch (error) {
+        console.warn('Could not add shapefile to sidebar:', error);
+      }
+    }
+
+    function toggleShapefileVisibility(visible) {
+      if (shapefileOverlay) {
+        shapefileOverlay.visible = visible;
+        shapefileOverlay.group.visible = visible;
+        updateStatus(visible ? '👁️ Overlay shown' : '🙈 Overlay hidden', shapefileOverlay.name);
+      }
+    }
+
+    function setShapefileOpacity(opacity) {
+      if (shapefileOverlay) {
+        // Update materials
+        shapefileOverlay.group.children.forEach(child => {
+          if (child.material) {
+            child.material.opacity = opacity;
+          }
+        });
+        shapefileOverlay.style.opacity = opacity;
+        updateStatus('� Opacity changed', `${Math.round(opacity * 100)}%`);
+      }
+    }
+
+    function cycleShapefileColor() {
+      if (shapefileOverlay) {
+        const colors = ['#4ECDC4', '#FF6B35', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
+        const currentColor = shapefileOverlay.style.color;
+        const currentIndex = colors.indexOf(currentColor);
+        const newColor = colors[(currentIndex + 1) % colors.length];
+        
+        shapefileOverlay.style.color = newColor;
+        
+        // Update materials
+        shapefileOverlay.group.children.forEach(child => {
+          if (child.material && child.material.color) {
+            child.material.color.setHex(parseInt(newColor.replace('#', '0x')));
+          }
+        });
+        
+        // Update UI
+        document.getElementById('shapefile-color').style.backgroundColor = newColor;
+        updateStatus('🎨 Color changed', `IGB shapefile updated`);
+      }
+    }
+
+    function clearShapefile() {
+      if (shapefileOverlay && shapefileOverlay.node) {
+        viewer.scene.scene.remove(shapefileOverlay.node);
+        shapefileOverlay = null;
+        document.getElementById('shapefile-toggle').checked = false;
+        updateStatus('🗑️ Cleared', 'IGB shapefile overlay removed');
+      }
+    }
+
+    // Export functions for console debugging
+    window.debugShapefile = function() {
+      console.log('=== SHAPEFILE DEBUG ===');
+      if (shapefileOverlay) {
+        console.log('Loaded overlay:', shapefileOverlay.name, {
+          visible: shapefileOverlay.visible,
+          node: shapefileOverlay.node,
+          style: shapefileOverlay.style
+        });
+        console.log('Shapefile data:', shapefileOverlay.shapefileData);
+      } else {
+        console.log('No shapefile overlay loaded');
+      }
+      console.log('=====================');
+    };
+
+    window.exportShapefileData = function() {
+      if (shapefileOverlay) {
+        return {
+          name: shapefileOverlay.name,
+          shapefileData: shapefileOverlay.shapefileData,
+          style: shapefileOverlay.style
+        };
+      }
+      return null;
+    };
+
+    console.log('OCC-TUT-017 polygon viewer initialization complete');
+  </script>
+</body>
+</html>
