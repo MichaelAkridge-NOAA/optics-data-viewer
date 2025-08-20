@@ -479,9 +479,33 @@
     <div class="alignment-controls">
       <h4 class="collapsible-header" id="alignment-header">
         <span class="collapse-icon">▼</span>
-        🎯 Manual Alignment (2023-07-27 vs 2023-07-01)
+        ⚙️ Alignment Options
       </h4>
       <div class="alignment-content" id="alignment-content">
+        
+        <!-- Auto-alignment options -->
+        <div class="auto-alignment-section">
+          <h5 style="margin: 0 0 10px 0; color: #4CAF50; font-size: 13px;">🤖 Automatic Alignment (Recommended)</h5>
+          <div class="alignment-buttons" style="margin-bottom: 15px;">
+            <button class="alignment-btn" id="auto-align-centroid" style="background: rgba(76,175,80,0.8);">
+              📍 Align to Centroids
+            </button>
+            <button class="alignment-btn" id="reset-to-wgs84" style="background: rgba(33,150,243,0.8);">
+              🌍 Reset to WGS84 Origins
+            </button>
+            <button class="alignment-btn" id="auto-scale-normalize" style="background: rgba(255,152,0,0.8);">
+              📏 Normalize Scales
+            </button>
+          </div>
+          <div style="font-size: 11px; color: rgba(255,255,255,0.7); margin-bottom: 15px; line-height: 1.4;">
+            💡 <strong>Try automatic alignment first!</strong> If your data is properly georeferenced in WGS84, 
+            these options should align your point clouds without manual adjustment.
+          </div>
+        </div>
+        
+        <!-- Manual alignment as fallback -->
+        <div class="manual-alignment-section" style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 12px;">
+          <h5 style="margin: 0 0 10px 0; color: #FF9800; font-size: 13px;">🎯 Manual Fine-tuning (Fallback)</h5>
         <div class="alignment-group">
           <label>X Offset (Left/Right):</label>
           <button class="arrow-btn" data-target="align-x" data-direction="-1">◀</button>
@@ -504,9 +528,10 @@
           <span id="align-z-value">0.0</span>
         </div>
         <div class="alignment-buttons">
-          <button class="alignment-btn" id="reset-alignment">Reset</button>
+          <button class="alignment-btn" id="reset-alignment">Reset Manual</button>
           <button class="alignment-btn" id="print-alignment">📋 Print Values</button>
         </div>
+        </div> <!-- End manual alignment section -->
       </div>
     </div>
 
@@ -554,6 +579,27 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
+    /* 
+     * ===============================================
+     * ALIGNMENT STRATEGY FOR WGS84 PROJECTED DATA
+     * ===============================================
+     * 
+     * With properly georeferenced WGS84 data, you should ideally NOT need manual alignment.
+     * Try these approaches in order:
+     * 
+     * 1. AUTO-ALIGN TO CENTROIDS: Best for data with small registration errors
+     * 2. RESET TO WGS84 ORIGINS: Use if data should align at configured positions  
+     * 3. NORMALIZE SCALES: Fix scale inconsistencies between timepoints
+     * 4. Manual fine-tuning: Only as last resort for stubborn misalignments
+     * 
+     * If you frequently need manual alignment, consider:
+     * - Improving your SfM processing workflow
+     * - Using consistent Ground Control Points (GCPs) 
+     * - Standardizing your coordinate system transformation
+     * - Using ICP (Iterative Closest Point) alignment in preprocessing
+     * 
+     */
+    
     // Configuration for OCC-TUT-017 project (all data projected to WGS84)
     const PROJECT_CONFIG = {
       name: "OCC-TUT-017",
@@ -589,7 +635,7 @@
         {
           year: "2025-03-14",
           name: "OCC-TUT-017 (2025-03-14) - WGS84",
-          url: "gs://nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/cloud.js",
+          url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/cloud.js",
           color: new THREE.Color(1.0, 0.3, 0.7), // Magenta tint for March 2025
           position: [0, 0, 0], // Base position (will need manual alignment)
           scale: [1, 1, 1],
@@ -995,15 +1041,7 @@
     }
 
     function initializeAlignmentControls() {
-      // Get slider elements
-      const xSlider = document.getElementById('align-x');
-      const ySlider = document.getElementById('align-y');
-      const zSlider = document.getElementById('align-z');
-      const xValue = document.getElementById('align-x-value');
-      const yValue = document.getElementById('align-y-value');
-      const zValue = document.getElementById('align-z-value');
-      
-      // Initialize collapsible header
+      // Initialize collapsible header first
       const header = document.getElementById('alignment-header');
       const content = document.getElementById('alignment-content');
       const icon = header.querySelector('.collapse-icon');
@@ -1024,6 +1062,19 @@
           icon.classList.add('collapsed');
         }
       });
+      
+      // Initialize automatic alignment buttons
+      document.getElementById('auto-align-centroid')?.addEventListener('click', autoAlignToCentroids);
+      document.getElementById('reset-to-wgs84')?.addEventListener('click', resetToWGS84Origins);
+      document.getElementById('auto-scale-normalize')?.addEventListener('click', autoNormalizeScales);
+      
+      // Get manual alignment slider elements
+      const xSlider = document.getElementById('align-x');
+      const ySlider = document.getElementById('align-y');
+      const zSlider = document.getElementById('align-z');
+      const xValue = document.getElementById('align-x-value');
+      const yValue = document.getElementById('align-y-value');
+      const zValue = document.getElementById('align-z-value');
       
       // Update value displays and apply alignment
       function updateAlignment() {
@@ -1088,6 +1139,144 @@
           btn.classList.add('active');
         }
       });
+    }
+
+    // Automatic alignment functions
+    function autoAlignToCentroids() {
+      console.log('🤖 Starting automatic centroid-based alignment...');
+      updateStatus('🤖 Auto-aligning to centroids', 'Computing point cloud centers...');
+      
+      try {
+        const clouds = Object.values(pointCloudData).filter(data => data.pointcloud);
+        if (clouds.length < 2) {
+          updateStatus('❌ Need at least 2 point clouds', 'Load more data first', 3000);
+          return;
+        }
+        
+        // Use first cloud as reference
+        const referenceCloud = clouds[0].pointcloud;
+        const referenceCenter = referenceCloud.boundingBox ? 
+          referenceCloud.boundingBox.getCenter(new THREE.Vector3()) : 
+          new THREE.Vector3(0, 0, 0);
+        
+        console.log('Reference center:', referenceCenter);
+        
+        // Align other clouds to reference
+        for (let i = 1; i < clouds.length; i++) {
+          const cloud = clouds[i].pointcloud;
+          const cloudCenter = cloud.boundingBox ? 
+            cloud.boundingBox.getCenter(new THREE.Vector3()) : 
+            new THREE.Vector3(0, 0, 0);
+          
+          const offset = new THREE.Vector3().subVectors(referenceCenter, cloudCenter);
+          cloud.position.add(offset);
+          
+          console.log(`Aligned ${cloud.name} by offset:`, offset);
+        }
+        
+        updateStatus('✅ Centroid alignment complete', 'All clouds aligned to reference center');
+        
+      } catch (error) {
+        console.error('Auto-alignment error:', error);
+        updateStatus('❌ Auto-alignment failed', error.message, 5000);
+      }
+    }
+    
+    function resetToWGS84Origins() {
+      console.log('🌍 Resetting all point clouds to WGS84 configured positions...');
+      updateStatus('🌍 Resetting to WGS84 origins', 'Using configured positions...');
+      
+      try {
+        for (const [year, data] of Object.entries(pointCloudData)) {
+          if (data.pointcloud && data.config) {
+            const configPos = data.config.position || [0, 0, 0];
+            data.pointcloud.position.set(configPos[0], configPos[1], configPos[2]);
+            console.log(`Reset ${year} to configured position:`, configPos);
+          }
+        }
+        
+        // Also reset manual alignment sliders
+        const xSlider = document.getElementById('align-x');
+        const ySlider = document.getElementById('align-y');
+        const zSlider = document.getElementById('align-z');
+        
+        if (xSlider) {
+          xSlider.value = 0;
+          currentAlignment.x = 0;
+          document.getElementById('align-x-value').textContent = '0.0';
+        }
+        if (ySlider) {
+          ySlider.value = 0;
+          currentAlignment.y = 0;
+          document.getElementById('align-y-value').textContent = '0.0';
+        }
+        if (zSlider) {
+          zSlider.value = 0;
+          currentAlignment.z = 0;
+          document.getElementById('align-z-value').textContent = '0.0';
+        }
+        
+        updateStatus('✅ Reset to WGS84 complete', 'All clouds at configured positions');
+        
+      } catch (error) {
+        console.error('WGS84 reset error:', error);
+        updateStatus('❌ Reset failed', error.message, 5000);
+      }
+    }
+    
+    function autoNormalizeScales() {
+      console.log('📏 Auto-normalizing point cloud scales...');
+      updateStatus('📏 Normalizing scales', 'Computing bounding box sizes...');
+      
+      try {
+        const clouds = Object.values(pointCloudData).filter(data => data.pointcloud);
+        if (clouds.length < 2) {
+          updateStatus('❌ Need at least 2 point clouds', 'Load more data first', 3000);
+          return;
+        }
+        
+        // Find the largest bounding box as reference
+        let maxSize = 0;
+        let referenceSize = null;
+        
+        for (const data of clouds) {
+          const cloud = data.pointcloud;
+          if (cloud.boundingBox) {
+            const size = cloud.boundingBox.getSize(new THREE.Vector3());
+            const avgSize = (size.x + size.y + size.z) / 3;
+            if (avgSize > maxSize) {
+              maxSize = avgSize;
+              referenceSize = size;
+            }
+          }
+        }
+        
+        if (!referenceSize) {
+          updateStatus('❌ No valid bounding boxes found', 'Point clouds may not be loaded properly', 3000);
+          return;
+        }
+        
+        // Scale all clouds relative to the reference
+        for (const data of clouds) {
+          const cloud = data.pointcloud;
+          if (cloud.boundingBox) {
+            const size = cloud.boundingBox.getSize(new THREE.Vector3());
+            const avgSize = (size.x + size.y + size.z) / 3;
+            const scaleFactor = maxSize / avgSize;
+            
+            if (Math.abs(scaleFactor - 1.0) > 0.01) { // Only scale if significant difference
+              cloud.scale.multiplyScalar(scaleFactor);
+              console.log(`Scaled ${cloud.name} by factor:`, scaleFactor.toFixed(3));
+            }
+          }
+        }
+        
+        updateStatus('✅ Scale normalization complete', 'All clouds normalized to similar sizes');
+        
+      } catch (error) {
+        console.error('Scale normalization error:', error);
+        updateStatus('❌ Scale normalization failed', error.message, 5000);
+      }
     }
 
     function applyManualAlignment() {
