@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Optics Data Viewer - AI Coral Segmentation Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Potree CSS -->
+  <link rel="stylesheet" href="../build/potree/potree.css" />
+  <link rel="stylesheet" href="../libs/jquery-ui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="../libs/openlayers3/ol.css" />
+  <link rel="stylesheet" href="../libs/spectrum/spectrum.css" />
+  <link rel="stylesheet" href="../libs/jstree/themes/mixed/style.css" />
+  
+  <!-- Leaflet for OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+    
+    /* Loading + error */
+    #loading {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
+      z-index:9999; flex-direction:column; gap:10px
+    }
+    #loading .spinner { width:40px; height:40px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg) } }
+
+    #error {
+      position:absolute; top:12px; left:12px; right:12px;
+      background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
+    }
+
+    .chip{
+      position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
+      padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
+    }
+
+    /* AI Demo Controls */
+    #ai-demo-controls {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(30,30,40,0.9);
+      color: #fff;
+      padding: 15px;
+      border-radius: 12px;
+      font: 14px system-ui;
+      z-index: 5000;
+      min-width: 320px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .panel-header {
+      margin: 0 0 15px 0;
+      color: #e8eefc;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s;
+    }
+
+    .panel-header:hover {
+      color: #4CAF50;
+    }
+
+    .panel-collapse-icon {
+      font-size: 14px;
+      transition: transform 0.2s;
+    }
+
+    .panel-collapse-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .panel-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .panel-content.collapsed {
+      max-height: 0;
+    }
+
+    /* AI Status Panel */
+    .ai-status {
+      margin-bottom: 15px;
+      padding: 12px;
+      background: rgba(76, 175, 80, 0.1);
+      border: 1px solid rgba(76, 175, 80, 0.3);
+      border-radius: 8px;
+    }
+
+    .ai-status h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #4CAF50;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ai-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(76, 175, 80, 0.3);
+      border-top: 2px solid #4CAF50;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+
+    .ai-progress {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .ai-progress-bar {
+      flex: 1;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .ai-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50, #66BB6A);
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .ai-stats {
+      font-size: 12px;
+      color: rgba(255,255,255,0.8);
+      line-height: 1.4;
+    }
+
+    /* Control Groups */
+    .control-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .control-group label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.9);
+      min-width: 80px;
+    }
+
+    .slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      outline: none;
+      border-radius: 2px;
+      min-width: 100px;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #4CAF50;
+      cursor: pointer;
+    }
+
+    .value-display {
+      font-size: 12px;
+      color: #fff;
+      font-family: monospace;
+      min-width: 35px;
+      text-align: right;
+    }
+
+    .btn {
+      background: rgba(76,175,80,0.8);
+      border: 1px solid rgba(76,175,80,1);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font: 12px system-ui;
+      transition: all 0.2s;
+      margin-right: 8px;
+      margin-bottom: 6px;
+      display: inline-block;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: rgba(96,195,100,0.9);
+      transform: translateY(-1px);
+    }
+
+    .btn.secondary {
+      background: rgba(96, 125, 139, 0.8);
+      border-color: rgba(96, 125, 139, 1);
+    }
+
+    .btn.secondary:hover {
+      background: rgba(116, 145, 159, 0.9);
+    }
+
+    .btn.danger {
+      background: rgba(244, 67, 54, 0.8);
+      border-color: rgba(244, 67, 54, 1);
+    }
+
+    .btn.danger:hover {
+      background: rgba(244, 67, 54, 0.9);
+    }
+
+    /* Location Map */
+    .location-map {
+      border-top: 1px solid rgba(255,255,255,0.15);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+
+    .location-map h4 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: #e8eefc;
+      font-weight: 600;
+    }
+
+    #map {
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .map-info {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* Status indicator */
+    #status-indicator {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(20,30,40,0.9);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font: 12px system-ui;
+      z-index: 1000;
+      display: none;
+    }
+
+    #status-text {
+      font-weight: 500;
+    }
+
+    #status-details {
+      font-size: 10px;
+      opacity: 0.8;
+      margin-top: 2px;
+    }
+
+    /* Confidence badge */
+    .confidence-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: bold;
+      margin-left: 6px;
+    }
+
+    .confidence-high {
+      background: rgba(76, 175, 80, 0.8);
+      color: #fff;
+    }
+
+    .confidence-medium {
+      background: rgba(255, 193, 7, 0.8);
+      color: #000;
+    }
+
+    .confidence-low {
+      background: rgba(244, 67, 54, 0.8);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="potree_container" class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+    <div id="potree_render_area">
+    </div>
+    <div id="potree_sidebar_container"> </div>
+  </div>
+
+  <!-- AI Demo Controls -->
+  <div id="ai-demo-controls">
+    <h3 class="panel-header" id="controls-header">
+      <span class="panel-collapse-icon">▼</span>
+      🤖 AI Coral Segmentation Demo
+    </h3>
+    
+    <div class="panel-content" id="controls-content">
+      
+      <!-- AI Status Panel -->
+      <div class="ai-status" id="ai-status">
+        <h4 id="ai-status-title">
+          <div class="ai-spinner" id="ai-spinner" style="display: none;"></div>
+          🔍 Ready to Analyze
+        </h4>
+        
+        <div class="ai-progress">
+          <div class="ai-progress-bar">
+            <div class="ai-progress-fill" id="ai-progress-fill"></div>
+          </div>
+          <span id="ai-progress-text">0%</span>
+        </div>
+        
+        <div class="ai-stats" id="ai-stats">
+          Coral segments detected: <strong>0</strong><br>
+          Analysis confidence: <span id="confidence-display">--</span><br>
+          Processing time: <span id="processing-time">0.0s</span>
+        </div>
+      </div>
+
+      <!-- AI Demo Controls -->
+      <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+        <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #e8eefc;">🧠 AI Model Controls</h4>
+        
+        <div class="control-group">
+          <label>Speed:</label>
+          <input type="range" class="slider" id="segmentation-speed" min="0.5" max="5.0" step="0.5" value="2.0">
+          <span class="value-display" id="speed-value">2.0x</span>
+        </div>
+        
+        <div class="control-group">
+          <label>Confidence:</label>
+          <input type="range" class="slider" id="confidence-threshold" min="0.3" max="0.95" step="0.05" value="0.75">
+          <span class="value-display" id="confidence-value">75%</span>
+        </div>
+        
+        <button class="btn" id="start-segmentation">▶️ Start AI Analysis</button>
+        <button class="btn secondary" id="pause-segmentation" disabled>⏸️ Pause</button>
+        <button class="btn danger" id="reset-segmentation">🔄 Reset</button>
+      </div>
+
+      <!-- Point Cloud Controls -->
+      <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+        <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #e8eefc;">🌊 Point Cloud Settings</h4>
+        <div class="control-group">
+          <label>Point Size:</label>
+          <input type="range" class="slider" id="point-size" min="0.1" max="5.0" step="0.1" value="1.0">
+          <span class="value-display" id="point-size-value">1.0</span>
+        </div>
+        <div class="control-group">
+          <label>Opacity:</label>
+          <input type="range" class="slider" id="point-opacity" min="0" max="100" step="1" value="100">
+          <span class="value-display" id="point-opacity-value">100%</span>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div style="margin-bottom: 15px;">
+        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eefc;">⚡ Quick Actions</h4>
+        <button class="btn secondary" id="fit-to-screen">Fit to Screen</button>
+        <button class="btn secondary" id="reset-view">Reset View</button>
+        <button class="btn secondary" id="toggle-camera">Toggle Camera</button>
+      </div>
+
+      <!-- Location Map -->
+      <div class="location-map">
+        <h4>📍 Study Site Location</h4>
+        <div id="map"></div>
+        <div class="map-info">OCC-TUT-017 Site<br>AI Coral Analysis Demo</div>
+      </div>
+
+    </div> <!-- End panel-content -->
+  </div>
+
+  <div id="error"></div>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-text">Loading AI Coral Segmentation Demo…</div>
+    <div id="loading-progress" style="font-size:12px;opacity:0.8;margin-top:5px;"></div>
+  </div>
+  <div class="chip" id="chip">🤖 AI Coral Segmentation Demo</div>
+  
+  <!-- Status indicator -->
+  <div id="status-indicator">
+    <div id="status-text">Ready</div>
+    <div id="status-details"></div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="../libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="../libs/spectrum/spectrum.js"></script>
+  <script src="../libs/jquery-ui/jquery-ui.min.js"></script>
+  <script src="../libs/other/BinaryHeap.js"></script>
+  <script src="../libs/tween/tween.min.js"></script>
+  <script src="../libs/d3/d3.js"></script>
+  <script src="../libs/proj4/proj4.js"></script>
+  <script src="../libs/openlayers3/ol.js"></script>
+  <script src="../libs/i18next/i18next.js"></script>
+  <script src="../libs/jstree/jstree.js"></script>
+  <script src="../libs/shapefile/shapefile.js"></script>
+  <script src="../libs/plasio/js/laslaz.js"></script>
+
+  <!-- Three.js (required for THREE.Color and other three.js functionality) -->
+  <script src="../libs/three.js/build/three.min.js"></script>
+
+  <!-- Potree -->
+  <script src="../build/potree/potree.js"></script>
+  
+  <!-- Leaflet for OpenStreetMap -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // Configuration for AI Coral Segmentation Demo
+    const PROJECT_CONFIG = {
+      name: "AI Coral Segmentation Demo",
+      description: "OCC-TUT-017 AI-Powered Coral Segmentation Analysis",
+      location: {
+        lat: -14.36347,
+        lng: -170.76314,
+        name: "American Samoa",
+        description: "AI coral analysis demo site"
+      },
+      pointCloud: {
+        name: "OCC-TUT-017 (2023-07-27)",
+        url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230727_OCC-TUT-017/cloud.js",
+        color: new THREE.Color(0.8, 0.9, 1.0), // Light blue for natural appearance
+        position: [0, 0, 0], // Base position
+        scale: [1, 1, 1], // Base scale
+        rotation: [0, 0, 0]
+      },
+      shapefile: {
+        name: "Coral Segments",
+        url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230727_OCC-TUT-017/shapefiles/T2023_OCC_TUT_017_IGB.shp",
+        colors: ['#4ECDC4', '#FF6B35', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#26A69A', '#FFA726', '#AB47BC'],
+        opacity: 0.7,
+        strokeWidth: 2
+      },
+      initialView: {
+        position: [4.923, 0.245, -6.813],
+        target: [4.923, 0.245, -15.794]
+      },
+      aiDemo: {
+        segmentationInterval: 2000, // Default interval between segments (ms)
+        confidenceRange: [0.65, 0.95], // Random confidence range
+        processingTimeRange: [0.8, 3.2] // Random processing time range (seconds)
+      }
+    };
+
+    // Global variables
+    let pointCloudData = null;
+    let shapefileOverlay = null;
+    let aiSegments = [];
+    let currentSegmentIndex = 0;
+    let segmentationTimer = null;
+    let isSegmentationRunning = false;
+    let isPaused = false;
+    let startTime = null;
+    let totalSegments = 0;
+
+    const errorBox = document.getElementById('error');
+    const loading = document.getElementById('loading');
+
+    function showError(msg, details) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = `<strong>Couldn't load AI demo.</strong> ${msg}`
+        + (details ? `<div style="opacity:.9;margin-top:6px;font-size:13px">${details}</div>` : '');
+      console.error('AI demo load error:', msg, details);
+      loading.style.display = 'none';
+    }
+
+    function updateStatus(text, details = '', duration = 3000) {
+      const indicator = document.getElementById('status-indicator');
+      const statusText = document.getElementById('status-text');
+      const statusDetails = document.getElementById('status-details');
+      
+      statusText.textContent = text;
+      statusDetails.textContent = details;
+      indicator.style.display = 'block';
+      
+      if (duration > 0) {
+        setTimeout(() => {
+          indicator.style.display = 'none';
+        }, duration);
+      }
+    }
+
+    function updateAIStatus(title, progress, segmentsDetected, confidence, processingTime) {
+      document.getElementById('ai-status-title').innerHTML = title;
+      document.getElementById('ai-progress-fill').style.width = `${progress}%`;
+      document.getElementById('ai-progress-text').textContent = `${Math.round(progress)}%`;
+      
+      const confidencePercent = Math.round(confidence * 100);
+      let confidenceClass = 'confidence-low';
+      if (confidence >= 0.8) confidenceClass = 'confidence-high';
+      else if (confidence >= 0.6) confidenceClass = 'confidence-medium';
+      
+      document.getElementById('ai-stats').innerHTML = `
+        Coral segments detected: <strong>${segmentsDetected}</strong><br>
+        Analysis confidence: <span class="confidence-badge ${confidenceClass}">${confidencePercent}%</span><br>
+        Processing time: <span id="processing-time">${processingTime.toFixed(1)}s</span>
+      `;
+    }
+
+    function startAISegmentation() {
+      if (isSegmentationRunning || !shapefileOverlay || aiSegments.length === 0) return;
+      
+      isSegmentationRunning = true;
+      isPaused = false;
+      startTime = Date.now();
+      currentSegmentIndex = 0;
+      
+      // Hide all segments initially
+      aiSegments.forEach(segment => {
+        segment.visible = false;
+      });
+      
+      // Update UI
+      document.getElementById('start-segmentation').disabled = true;
+      document.getElementById('pause-segmentation').disabled = false;
+      document.getElementById('ai-spinner').style.display = 'inline-block';
+      
+      updateAIStatus(
+        '<div class="ai-spinner" style="display: inline-block; margin-right: 6px;"></div>🔍 Analyzing Coral Structures...',
+        0, 0, 0.5, 0
+      );
+      
+      updateStatus('🤖 AI Analysis Started', 'Beginning coral segmentation...');
+      
+      processNextSegment();
+    }
+
+    function processNextSegment() {
+      if (!isSegmentationRunning || isPaused || currentSegmentIndex >= aiSegments.length) return;
+      
+      const segment = aiSegments[currentSegmentIndex];
+      const speed = parseFloat(document.getElementById('segmentation-speed').value);
+      const confidenceThreshold = parseFloat(document.getElementById('confidence-threshold').value);
+      
+      // Simulate AI processing time
+      const processingTime = Math.random() * (PROJECT_CONFIG.aiDemo.processingTimeRange[1] - PROJECT_CONFIG.aiDemo.processingTimeRange[0]) + PROJECT_CONFIG.aiDemo.processingTimeRange[0];
+      const confidence = Math.random() * (PROJECT_CONFIG.aiDemo.confidenceRange[1] - PROJECT_CONFIG.aiDemo.confidenceRange[0]) + PROJECT_CONFIG.aiDemo.confidenceRange[0];
+      
+      // Only show segment if confidence is above threshold
+      if (confidence >= confidenceThreshold) {
+        segment.visible = true;
+        
+        // Update segment color based on confidence
+        const colorIndex = Math.floor(confidence * PROJECT_CONFIG.shapefile.colors.length);
+        const color = PROJECT_CONFIG.shapefile.colors[colorIndex] || PROJECT_CONFIG.shapefile.colors[0];
+        
+        segment.traverse(child => {
+          if (child.material && child.material.color) {
+            child.material.color.setHex(parseInt(color.replace('#', '0x')));
+            child.material.opacity = PROJECT_CONFIG.shapefile.opacity;
+          }
+        });
+      }
+      
+      currentSegmentIndex++;
+      const progress = (currentSegmentIndex / aiSegments.length) * 100;
+      const elapsedTime = (Date.now() - startTime) / 1000;
+      const visibleSegments = aiSegments.filter(s => s.visible).length;
+      
+      updateAIStatus(
+        confidence >= confidenceThreshold ? 
+          '<div class="ai-spinner" style="display: inline-block; margin-right: 6px;"></div>✅ Coral Segment Detected!' :
+          '<div class="ai-spinner" style="display: inline-block; margin-right: 6px;"></div>❓ Low Confidence - Skipping...',
+        progress, visibleSegments, confidence, elapsedTime
+      );
+      
+      // Continue to next segment or finish
+      if (currentSegmentIndex < aiSegments.length) {
+        segmentationTimer = setTimeout(() => {
+          processNextSegment();
+        }, PROJECT_CONFIG.aiDemo.segmentationInterval / speed);
+      } else {
+        finishSegmentation();
+      }
+    }
+
+    function finishSegmentation() {
+      isSegmentationRunning = false;
+      clearTimeout(segmentationTimer);
+      
+      const elapsedTime = (Date.now() - startTime) / 1000;
+      const visibleSegments = aiSegments.filter(s => s.visible).length;
+      
+      document.getElementById('start-segmentation').disabled = false;
+      document.getElementById('pause-segmentation').disabled = true;
+      document.getElementById('ai-spinner').style.display = 'none';
+      
+      updateAIStatus(
+        '🎉 Analysis Complete!',
+        100, visibleSegments, 0.85, elapsedTime
+      );
+      
+      updateStatus('🎯 AI Analysis Complete', `Detected ${visibleSegments} coral segments`);
+    }
+
+    function pauseSegmentation() {
+      isPaused = !isPaused;
+      const pauseBtn = document.getElementById('pause-segmentation');
+      
+      if (isPaused) {
+        clearTimeout(segmentationTimer);
+        pauseBtn.textContent = '▶️ Resume';
+        updateStatus('⏸️ Analysis Paused', 'Click Resume to continue');
+      } else {
+        pauseBtn.textContent = '⏸️ Pause';
+        processNextSegment();
+        updateStatus('▶️ Analysis Resumed', 'Continuing coral segmentation...');
+      }
+    }
+
+    function resetSegmentation() {
+      isSegmentationRunning = false;
+      isPaused = false;
+      currentSegmentIndex = 0;
+      clearTimeout(segmentationTimer);
+      
+      // Hide all segments
+      if (aiSegments.length > 0) {
+        aiSegments.forEach(segment => {
+          segment.visible = false;
+        });
+      }
+      
+      // Reset UI
+      document.getElementById('start-segmentation').disabled = false;
+      document.getElementById('pause-segmentation').disabled = true;
+      document.getElementById('pause-segmentation').textContent = '⏸️ Pause';
+      document.getElementById('ai-spinner').style.display = 'none';
+      
+      updateAIStatus(
+        '🔍 Ready to Analyze',
+        0, 0, 0, 0
+      );
+      
+      updateStatus('🔄 Analysis Reset', 'Ready for new analysis');
+    }
+
+    console.log('Initializing AI Coral Segmentation Demo...');
+    
+    // Initialize viewer with optimized settings
+    window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+    
+    viewer.setEDLEnabled(true); // Enable EDL for better visual quality
+    viewer.setFOV(60);
+    viewer.setPointBudget(5_000_000);
+    viewer.loadSettingsFromURL();
+    viewer.setBackground("gradient");
+    viewer.setDescription(PROJECT_CONFIG.description);
+    
+    // Set default camera to orthographic (better for shapefile overlays)
+    viewer.scene.cameraO.up.set(0, 0, 1);
+    
+    console.log('Loading GUI...');
+    
+    // Load GUI first
+    viewer.loadGUI(() => {
+      console.log('GUI loaded, setting up sidebar...');
+      viewer.setLanguage('en');
+      $("#menu_scene").next().show();
+      $("#menu_tools").next().show();
+      // Sidebar is hidden by default - removed viewer.toggleSidebar()
+      
+      // Load point cloud after GUI is ready
+      loadPointCloud();
+    });
+    
+    // Load the single point cloud
+    function loadPointCloud() {
+      console.log('Starting to load point cloud...');
+      const config = PROJECT_CONFIG.pointCloud;
+      
+      try {
+        Potree.loadPointCloud(config.url, config.name, (e) => {
+          console.log(`Potree callback for ${config.name}:`, e);
+          
+          if (e.type === 'loading_failed' || !e.pointcloud) {
+            console.error(`Failed to load ${config.name}:`, e);
+            showError('Failed to load point cloud. Check console for details.');
+            return;
+          }
+          
+          const pointcloud = e.pointcloud;
+          console.log(`Point cloud loaded:`, {
+            numPoints: pointcloud.numPoints,
+            boundingSphere: pointcloud.boundingSphere?.radius,
+            url: config.url
+          });
+          
+          // Configure point cloud
+          pointcloud.name = config.name;
+          
+          let material = pointcloud.material;
+          material.size = 1;
+          material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+          material.shape = Potree.PointShape.SQUARE;
+          
+          // Apply color if specified
+          if (config.color) {
+            material.color = config.color;
+          }
+          
+          // Store reference
+          pointCloudData = {
+            pointcloud: pointcloud,
+            config: config,
+            visible: true,
+            opacity: 1.0
+          };
+          
+          // Add to scene
+          viewer.scene.addPointCloud(pointcloud);
+          
+          // Setup viewer with custom camera position
+          viewer.fitToScreen();
+          
+          // Set custom starting camera position after a brief delay to ensure scene is ready
+          setTimeout(() => {
+            const { position, target } = PROJECT_CONFIG.initialView;
+            
+            // Use proper Potree method to set camera position and target
+            viewer.scene.view.position.set(position[0], position[1], position[2]);
+            viewer.scene.view.lookAt(target[0], target[1], target[2]);
+            
+            // Set orthographic camera as default after position is set
+            viewer.setCameraMode(0); // 0 = orthographic, 1 = perspective
+            console.log('Set default camera to orthographic for AI demo');
+            
+            console.log(`Set camera position to: ${position} targeting: ${target}`);
+            updateStatus('📹 Camera positioned', `Set to custom view for AI demo (orthographic)`);
+          }, 1000);
+          
+          viewer.setMoveSpeed(pointcloud.boundingSphere.radius / 5);
+          loading.style.display = 'none';
+          
+          updateStatus('✅ Point cloud loaded', 'Ready to load coral segments');
+          
+          // Load the shapefile for AI segmentation demo
+          setTimeout(() => {
+            loadCoralShapefile();
+          }, 1000);
+        });
+        
+      } catch (error) {
+        console.error(`Failed to load point cloud:`, error);
+        showError('Failed to initialize point cloud loading');
+      }
+    }
+
+    // Initialize controls
+    initializeControls();
+
+    function initializeControls() {
+      console.log('Initializing AI demo controls...');
+      
+      // Initialize map
+      initializeLocationMap();
+      
+      // Panel collapse functionality
+      const panelHeader = document.getElementById('controls-header');
+      const panelContent = document.getElementById('controls-content');
+      const panelIcon = panelHeader.querySelector('.panel-collapse-icon');
+      
+      panelContent.style.maxHeight = panelContent.scrollHeight + 'px';
+      
+      panelHeader.addEventListener('click', () => {
+        const isCollapsed = panelContent.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+          panelContent.classList.remove('collapsed');
+          panelContent.style.maxHeight = panelContent.scrollHeight + 'px';
+          panelIcon.classList.remove('collapsed');
+        } else {
+          panelContent.style.maxHeight = '0px';
+          panelContent.classList.add('collapsed');
+          panelIcon.classList.add('collapsed');
+        }
+      });
+      
+      // AI Demo controls
+      setupAIDemoControls();
+      
+      // Point cloud controls
+      setupPointCloudControls();
+      
+      // Quick action buttons
+      document.getElementById('fit-to-screen').addEventListener('click', () => {
+        viewer.fitToScreen();
+        updateStatus('📐 Fit to screen', 'View adjusted');
+      });
+      
+      document.getElementById('reset-view').addEventListener('click', () => {
+        const { position, target } = PROJECT_CONFIG.initialView;
+        
+        // Use proper Potree method to set camera position and target
+        viewer.scene.view.position.set(position[0], position[1], position[2]);
+        viewer.scene.view.lookAt(target[0], target[1], target[2]);
+        
+        updateStatus('🔄 View reset', 'Camera position restored to initial view');
+      });
+      
+      document.getElementById('toggle-camera').addEventListener('click', () => {
+        const isOrtho = viewer.scene.cameraMode === 'orthographic';
+        viewer.setCameraMode(isOrtho ? 1 : 0); // Toggle: 0 = orthographic, 1 = perspective
+        updateStatus(isOrtho ? '📹 Perspective camera' : '📐 Orthographic camera', 
+                    isOrtho ? 'Switched to perspective view' : 'Switched to orthographic view');
+      });
+      
+      console.log('AI demo controls initialized');
+    }
+
+    function setupAIDemoControls() {
+      // Speed control
+      const speedSlider = document.getElementById('segmentation-speed');
+      const speedValue = document.getElementById('speed-value');
+      
+      speedSlider.addEventListener('input', (e) => {
+        const speed = parseFloat(e.target.value);
+        speedValue.textContent = `${speed}x`;
+      });
+      
+      // Confidence threshold control
+      const confidenceSlider = document.getElementById('confidence-threshold');
+      const confidenceValue = document.getElementById('confidence-value');
+      
+      confidenceSlider.addEventListener('input', (e) => {
+        const confidence = parseFloat(e.target.value);
+        confidenceValue.textContent = `${Math.round(confidence * 100)}%`;
+      });
+      
+      // AI control buttons
+      document.getElementById('start-segmentation').addEventListener('click', startAISegmentation);
+      document.getElementById('pause-segmentation').addEventListener('click', pauseSegmentation);
+      document.getElementById('reset-segmentation').addEventListener('click', resetSegmentation);
+    }
+
+    function setupPointCloudControls() {
+      // Point size control
+      const pointSizeSlider = document.getElementById('point-size');
+      const pointSizeValue = document.getElementById('point-size-value');
+      
+      pointSizeSlider.addEventListener('input', (e) => {
+        const size = parseFloat(e.target.value);
+        if (pointCloudData && pointCloudData.pointcloud) {
+          pointCloudData.pointcloud.material.size = size;
+          pointSizeValue.textContent = size.toFixed(1);
+        }
+      });
+      
+      // Opacity control
+      const opacitySlider = document.getElementById('point-opacity');
+      const opacityValue = document.getElementById('point-opacity-value');
+      
+      opacitySlider.addEventListener('input', (e) => {
+        const opacity = parseFloat(e.target.value) / 100;
+        if (pointCloudData && pointCloudData.pointcloud) {
+          pointCloudData.pointcloud.material.opacity = opacity;
+          pointCloudData.opacity = opacity;
+          opacityValue.textContent = `${e.target.value}%`;
+        }
+      });
+    }
+
+    function initializeLocationMap() {
+      try {
+        const { lat, lng, name, description } = PROJECT_CONFIG.location;
+        
+        const map = L.map('map', {
+          zoomControl: false,
+          attributionControl: false,
+          scrollWheelZoom: false,
+          doubleClickZoom: false,
+          dragging: true
+        }).setView([lat, lng], 15);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap',
+          maxZoom: 18
+        }).addTo(map);
+        
+        const marker = L.marker([lat, lng]).addTo(map);
+        marker.bindPopup(`
+          <strong>${PROJECT_CONFIG.name}</strong><br>
+          ${description}<br>
+          <small>${lat.toFixed(5)}°, ${lng.toFixed(5)}°</small>
+        `);
+        
+        L.circle([lat, lng], { radius: 200, color: '#4CAF50', opacity: 0.7 }).addTo(map);
+        
+        console.log('Location map initialized');
+        
+      } catch (error) {
+        console.error('Error initializing map:', error);
+      }
+    }
+
+    function loadCoralShapefile() {
+      console.log('Loading coral shapefile for AI demo...');
+      updateStatus('📐 Loading coral data', 'Preparing AI analysis dataset...');
+      
+      const shapefileConfig = PROJECT_CONFIG.shapefile;
+      
+      // Use Potree's built-in ShapefileLoader
+      const loader = new Potree.ShapefileLoader();
+      
+      // Define coordinate system transformation if needed
+      // Most point clouds use a projected coordinate system, shapefiles often use WGS84
+      if (pointCloudData && pointCloudData.pointcloud.projection) {
+        proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+        proj4.defs("pointcloud", pointCloudData.pointcloud.projection);
+        loader.transform = proj4("WGS84", "pointcloud");
+      }
+      
+      // Load the shapefile
+      loader.load(shapefileConfig.url)
+        .then(shapefileData => {
+          console.log('Coral shapefile loaded successfully:', shapefileData);
+          
+          // Add to scene
+          viewer.scene.scene.add(shapefileData.node);
+          
+          // Store reference
+          shapefileOverlay = {
+            name: shapefileConfig.name,
+            node: shapefileData.node,
+            shapefileData: shapefileData,
+            style: shapefileConfig,
+            visible: true
+          };
+          
+          // Collect individual segments for AI demo
+          aiSegments = [];
+          shapefileData.node.traverse(child => {
+            if (child.geometry && child.material) {
+              // Initially hide all segments
+              child.visible = false;
+              aiSegments.push(child);
+            }
+          });
+          
+          totalSegments = aiSegments.length;
+          console.log(`Found ${totalSegments} coral segments for AI analysis`);
+          
+          // Shuffle segments for more realistic AI demo
+          for (let i = aiSegments.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [aiSegments[i], aiSegments[j]] = [aiSegments[j], aiSegments[i]];
+          }
+          
+          updateStatus('✅ Coral data loaded', `${totalSegments} segments ready for AI analysis`);
+          
+        })
+        .catch(error => {
+          console.error('Error loading coral shapefile:', error);
+          updateStatus('❌ Error loading coral data', `Failed to load coral segments for AI demo`);
+        });
+    }
+
+    console.log('AI Coral Segmentation Demo initialization complete');
+  </script>
+</body>
+</html>
