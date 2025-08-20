@@ -522,14 +522,6 @@
       $("#menu_tools").next().show();
       viewer.toggleSidebar();
       
-      // Set orthographic camera as default after GUI is ready
-      setTimeout(() => {
-        if (viewer.scene && viewer.setUseOrthographicCamera) {
-          viewer.setUseOrthographicCamera(true);
-          console.log('Set default camera to orthographic for shapefile viewing');
-        }
-      }, 1000);
-      
       // Load point cloud after GUI is ready
       loadPointCloud();
     });
@@ -598,8 +590,14 @@
               viewer.scene.view.lookAt(new THREE.Vector3(target[0], target[1], target[2]));
             }
             
+            // Set orthographic camera as default after position is set
+            if (viewer.setUseOrthographicCamera) {
+              viewer.setUseOrthographicCamera(true);
+              console.log('Set default camera to orthographic for shapefile viewing');
+            }
+            
             console.log(`Set camera position to: ${position} targeting: ${target}`);
-            updateStatus('📹 Camera positioned', `Set to custom view for OCC-TUT-017`);
+            updateStatus('📹 Camera positioned', `Set to custom view for OCC-TUT-017 (orthographic)`);
           }, 500);
           
           viewer.setMoveSpeed(pointcloud.boundingSphere.radius / 5);
@@ -948,21 +946,21 @@
     function toggleShapefileVisibility(visible) {
       if (shapefileOverlay) {
         shapefileOverlay.visible = visible;
-        shapefileOverlay.group.visible = visible;
+        shapefileOverlay.node.visible = visible;
         updateStatus(visible ? '👁️ Overlay shown' : '🙈 Overlay hidden', shapefileOverlay.name);
       }
     }
 
     function setShapefileOpacity(opacity) {
       if (shapefileOverlay) {
-        // Update materials
-        shapefileOverlay.group.children.forEach(child => {
+        // Update materials by traversing the node
+        shapefileOverlay.node.traverse(child => {
           if (child.material) {
             child.material.opacity = opacity;
           }
         });
         shapefileOverlay.style.opacity = opacity;
-        updateStatus('� Opacity changed', `${Math.round(opacity * 100)}%`);
+        updateStatus('🔍 Opacity changed', `${Math.round(opacity * 100)}%`);
       }
     }
 
@@ -975,8 +973,8 @@
         
         shapefileOverlay.style.color = newColor;
         
-        // Update materials
-        shapefileOverlay.group.children.forEach(child => {
+        // Update materials by traversing the node
+        shapefileOverlay.node.traverse(child => {
           if (child.material && child.material.color) {
             child.material.color.setHex(parseInt(newColor.replace('#', '0x')));
           }
