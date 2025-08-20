@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Optics Data Viewer - Timeseries Point Cloud Viewer</title>
+  <title>Optics Data Viewer - OCC-TUT-017 Three-Point Timeseries Viewer</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
 
   <!-- Potree CSS -->
@@ -363,14 +363,15 @@
   <div id="timeseries-controls">
     <h3 class="panel-header" id="timeseries-header">
       <span class="panel-collapse-icon">▼</span>
-      OCC-TUT-017 Timeseries
+      OCC-TUT-017 3-Point Timeseries
     </h3>
     
     <div class="panel-content" id="timeseries-content">
       <div class="time-selector">
         <button class="time-btn active" data-year="2018">2018</button>
-        <button class="time-btn" data-year="2023">2023</button>
-        <button class="time-btn" data-year="both">Both</button>
+        <button class="time-btn" data-year="2023-07-01">2023-07-01</button>
+        <button class="time-btn" data-year="2023-07-27">2023-07-27</button>
+        <button class="time-btn" data-year="all">All</button>
       </div>
 
     <div class="visibility-controls">
@@ -380,9 +381,14 @@
         <input type="range" class="opacity-slider" id="opacity-2018" min="0" max="100" value="100">
       </div>
       <div class="visibility-item">
-        <input type="checkbox" class="visibility-checkbox" id="vis-2023" checked>
-        <label class="year-label" for="vis-2023">2023 Point Cloud</label>
-        <input type="range" class="opacity-slider" id="opacity-2023" min="0" max="100" value="100">
+        <input type="checkbox" class="visibility-checkbox" id="vis-2023-07-01" checked>
+        <label class="year-label" for="vis-2023-07-01">2023-07-01 Point Cloud</label>
+        <input type="range" class="opacity-slider" id="opacity-2023-07-01" min="0" max="100" value="100">
+      </div>
+      <div class="visibility-item">
+        <input type="checkbox" class="visibility-checkbox" id="vis-2023-07-27" checked>
+        <label class="year-label" for="vis-2023-07-27">2023-07-27 Point Cloud</label>
+        <input type="range" class="opacity-slider" id="opacity-2023-07-27" min="0" max="100" value="100">
       </div>
     </div>
 
@@ -394,29 +400,29 @@
     <div class="alignment-controls">
       <h4 class="collapsible-header" id="alignment-header">
         <span class="collapse-icon">▼</span>
-        🎯 Manual Alignment (2023 vs 2018)
+        🎯 Manual Alignment (2023-07-27 vs 2018)
       </h4>
       <div class="alignment-content" id="alignment-content">
         <div class="alignment-group">
           <label>X Offset (Left/Right):</label>
           <button class="arrow-btn" data-target="align-x" data-direction="-1">◀</button>
-          <input type="range" id="align-x" min="-100" max="100" value="4.8" step="0.1">
+          <input type="range" id="align-x" min="-100" max="100" value="0" step="0.1">
           <button class="arrow-btn" data-target="align-x" data-direction="1">▶</button>
-          <span id="align-x-value">4.8</span>
+          <span id="align-x-value">0.0</span>
         </div>
         <div class="alignment-group">
           <label>Y Offset (Up/Down):</label>
           <button class="arrow-btn" data-target="align-y" data-direction="-1">◀</button>
-          <input type="range" id="align-y" min="-50" max="50" value="3.5" step="0.1">
+          <input type="range" id="align-y" min="-50" max="50" value="0" step="0.1">
           <button class="arrow-btn" data-target="align-y" data-direction="1">▶</button>
-          <span id="align-y-value">3.5</span>
+          <span id="align-y-value">0.0</span>
         </div>
         <div class="alignment-group">
           <label>Z Offset (Forward/Back):</label>
           <button class="arrow-btn" data-target="align-z" data-direction="-1">◀</button>
-          <input type="range" id="align-z" min="-100" max="100" value="-0.7" step="0.1">
+          <input type="range" id="align-z" min="-100" max="100" value="0" step="0.1">
           <button class="arrow-btn" data-target="align-z" data-direction="1">▶</button>
-          <span id="align-z-value">-0.7</span>
+          <span id="align-z-value">0.0</span>
         </div>
         <div class="alignment-buttons">
           <button class="alignment-btn" id="reset-alignment">Reset</button>
@@ -436,10 +442,10 @@
   <div id="error"></div>
   <div id="loading">
     <div class="spinner"></div>
-    <div id="loading-text">Loading OCC-TUT-017 timeseries viewer…</div>
+    <div id="loading-text">Loading OCC-TUT-017 3-point timeseries viewer…</div>
     <div id="loading-progress" style="font-size:12px;opacity:0.8;margin-top:5px;"></div>
   </div>
-  <div class="chip" id="chip">OCC-TUT-017 Timeseries Viewer</div>
+  <div class="chip" id="chip">OCC-TUT-017 3-Point Timeseries Viewer</div>
 
   <!-- Libraries -->
   <script src="../libs/jquery/jquery-3.1.1.min.js"></script>
@@ -466,7 +472,7 @@
     // Configuration for OCC-TUT-017 project
     const PROJECT_CONFIG = {
       name: "OCC-TUT-017",
-      description: "OCC-TUT-017 Timeseries Point Cloud Analysis",
+      description: "OCC-TUT-017 Three-Point Timeseries Point Cloud Analysis",
       location: {
         lat: -14.36347,
         lng: -170.76314,
@@ -484,12 +490,21 @@
           rotation: [0, 0, 0]
         },
         {
-          year: 2023,
-          name: "OCC-TUT-017 (2023)",
+          year: "2023-07-01",
+          name: "OCC-TUT-017 (2023-07-01)",
           url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230701_OCC-TUT-017/cloud.js",
-          color: new THREE.Color(1.0, 0.7, 0.3), // Orange tint for 2023
+          color: new THREE.Color(1.0, 0.7, 0.3), // Orange tint for July 2023
           position: [4.79, 3.50, -0.71], // Manually aligned position
           scale: [1, 1, 1], // Will be adjusted by smart alignment
+          rotation: [0, 0, 0]
+        },
+        {
+          year: "2023-07-27",
+          name: "OCC-TUT-017 (2023-07-27)",
+          url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230727_OCC-TUT-017/cloud.js",
+          color: new THREE.Color(0.7, 1.0, 0.3), // Green tint for July 27, 2023
+          position: [0, 0, 0], // Will need manual alignment
+          scale: [1, 1, 1], // Base scale
           rotation: [0, 0, 0]
         }
       ],
@@ -505,7 +520,7 @@
     let animationId = null;
     
     // Manual alignment controls - declare at global scope
-    let currentAlignment = { x: 4.79, y: 3.50, z: -0.71 }; // Start with configured values
+    let currentAlignment = { x: 0.0, y: 0.0, z: 0.0 }; // Start with default values for new timepoint
     let basePosition = null;
 
     const errorBox = document.getElementById('error');
@@ -743,8 +758,12 @@
         togglePointCloudVisibility(2018, e.target.checked);
       });
       
-      document.getElementById('vis-2023').addEventListener('change', (e) => {
-        togglePointCloudVisibility(2023, e.target.checked);
+      document.getElementById('vis-2023-07-01').addEventListener('change', (e) => {
+        togglePointCloudVisibility("2023-07-01", e.target.checked);
+      });
+      
+      document.getElementById('vis-2023-07-27').addEventListener('change', (e) => {
+        togglePointCloudVisibility("2023-07-27", e.target.checked);
       });
       
       // Opacity sliders
@@ -752,8 +771,12 @@
         setPointCloudOpacity(2018, e.target.value / 100);
       });
       
-      document.getElementById('opacity-2023').addEventListener('input', (e) => {
-        setPointCloudOpacity(2023, e.target.value / 100);
+      document.getElementById('opacity-2023-07-01').addEventListener('input', (e) => {
+        setPointCloudOpacity("2023-07-01", e.target.value / 100);
+      });
+      
+      document.getElementById('opacity-2023-07-27').addEventListener('input', (e) => {
+        setPointCloudOpacity("2023-07-27", e.target.value / 100);
       });
       
       // Animation controls
@@ -886,11 +909,11 @@
         });
       });
       
-      // Reset button - reset to configured values
+      // Reset button - reset to default values
       document.getElementById('reset-alignment').addEventListener('click', () => {
-        xSlider.value = 4.79;
-        ySlider.value = 3.50;
-        zSlider.value = -0.71;
+        xSlider.value = 0.0;
+        ySlider.value = 0.0;
+        zSlider.value = 0.0;
         updateAlignment();
       });
       
@@ -904,34 +927,31 @@
     }
 
     function applyManualAlignment() {
-      if (pointCloudData[2023] && pointCloudData[2023].pointcloud) {
-        const cloud2023 = pointCloudData[2023].pointcloud;
+      if (pointCloudData["2023-07-27"] && pointCloudData["2023-07-27"].pointcloud) {
+        const cloud2023_27 = pointCloudData["2023-07-27"].pointcloud;
         
-        // Use configured position as base (no more smart alignment overrides)
-        const configuredPosition = pointCloudData[2023].config.position;
-        
-        // Apply the current alignment values directly
-        cloud2023.position.set(
+        // Apply the current alignment values directly to the July 27 timepoint
+        cloud2023_27.position.set(
           currentAlignment.x,
           currentAlignment.y,
           currentAlignment.z
         );
         
-        console.log(`Manual alignment applied: [${currentAlignment.x.toFixed(1)}, ${currentAlignment.y.toFixed(1)}, ${currentAlignment.z.toFixed(1)}]`);
+        console.log(`Manual alignment applied to 2023-07-27: [${currentAlignment.x.toFixed(1)}, ${currentAlignment.y.toFixed(1)}, ${currentAlignment.z.toFixed(1)}]`);
       }
     }
 
     function printAlignmentValues() {
-      const cloud2023 = pointCloudData[2023]?.pointcloud;
-      if (cloud2023) {
+      const cloud2023_27 = pointCloudData["2023-07-27"]?.pointcloud;
+      if (cloud2023_27) {
         const finalPosition = {
-          x: cloud2023.position.x,
-          y: cloud2023.position.y,
-          z: cloud2023.position.z
+          x: cloud2023_27.position.x,
+          y: cloud2023_27.position.y,
+          z: cloud2023_27.position.z
         };
         
         console.log('\n=== ALIGNMENT VALUES FOR CONFIGURATION ===');
-        console.log('Copy these values to update the 2023 point cloud position in PROJECT_CONFIG:');
+        console.log('Copy these values to update the 2023-07-27 point cloud position in PROJECT_CONFIG:');
         console.log(`position: [${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}, ${finalPosition.z.toFixed(2)}],`);
         console.log('\nCurrent manual adjustments:');
         console.log(`Manual offset: [${currentAlignment.x.toFixed(1)}, ${currentAlignment.y.toFixed(1)}, ${currentAlignment.z.toFixed(1)}]`);
@@ -941,34 +961,49 @@
         const configText = `position: [${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}, ${finalPosition.z.toFixed(2)}],`;
         alert(`📋 Copy this line to update PROJECT_CONFIG:\n\n${configText}\n\n(Also check the console for more details)`);
       } else {
-        alert('No 2023 point cloud found. Make sure it\'s loaded first.');
+        alert('No 2023-07-27 point cloud found. Make sure it\'s loaded first.');
       }
     }
 
-    // Set time view (2018, 2023, or both)
+    // Set time view (2018, 2023-07-01, 2023-07-27, or all)
     function setTimeView(view) {
       console.log(`Setting time view to: ${view}`);
       
       switch(view) {
         case '2018':
           togglePointCloudVisibility(2018, true);
-          togglePointCloudVisibility(2023, false);
+          togglePointCloudVisibility("2023-07-01", false);
+          togglePointCloudVisibility("2023-07-27", false);
           document.getElementById('vis-2018').checked = true;
-          document.getElementById('vis-2023').checked = false;
+          document.getElementById('vis-2023-07-01').checked = false;
+          document.getElementById('vis-2023-07-27').checked = false;
           break;
           
-        case '2023':
+        case '2023-07-01':
           togglePointCloudVisibility(2018, false);
-          togglePointCloudVisibility(2023, true);
+          togglePointCloudVisibility("2023-07-01", true);
+          togglePointCloudVisibility("2023-07-27", false);
           document.getElementById('vis-2018').checked = false;
-          document.getElementById('vis-2023').checked = true;
+          document.getElementById('vis-2023-07-01').checked = true;
+          document.getElementById('vis-2023-07-27').checked = false;
           break;
           
-        case 'both':
+        case '2023-07-27':
+          togglePointCloudVisibility(2018, false);
+          togglePointCloudVisibility("2023-07-01", false);
+          togglePointCloudVisibility("2023-07-27", true);
+          document.getElementById('vis-2018').checked = false;
+          document.getElementById('vis-2023-07-01').checked = false;
+          document.getElementById('vis-2023-07-27').checked = true;
+          break;
+          
+        case 'all':
           togglePointCloudVisibility(2018, true);
-          togglePointCloudVisibility(2023, true);
+          togglePointCloudVisibility("2023-07-01", true);
+          togglePointCloudVisibility("2023-07-27", true);
           document.getElementById('vis-2018').checked = true;
-          document.getElementById('vis-2023').checked = true;
+          document.getElementById('vis-2023-07-01').checked = true;
+          document.getElementById('vis-2023-07-27').checked = true;
           break;
       }
     }
