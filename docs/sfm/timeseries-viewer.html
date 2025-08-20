@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Optics Data Viewer - OCC-TUT-017 Timeseries Viewer</title>
+  <title>Optics Data Viewer - OCC-TUT-017 3-Point Timeseries Viewer (WGS84)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
 
   <!-- Potree CSS -->
@@ -426,25 +426,18 @@
   <div id="timeseries-controls">
     <h3 class="panel-header" id="timeseries-header">
       <span class="panel-collapse-icon">▼</span>
-      OCC-TUT-017 3-Point Timeseries
+      OCC-TUT-017 3-Point Timeseries (WGS84)
     </h3>
     
     <div class="panel-content" id="timeseries-content">
       <div class="time-selector">
-        <button class="time-btn active" data-year="2018">2018</button>
-        <button class="time-btn" data-year="2023-07-01">2023-07-01</button>
+        <button class="time-btn active" data-year="2023-07-01">2023-07-01</button>
         <button class="time-btn" data-year="2023-07-27">2023-07-27</button>
+        <button class="time-btn" data-year="2025-03-14">2025-03-14</button>
         <button class="time-btn" data-year="all">All</button>
       </div>
 
     <div class="visibility-controls">
-      <div class="visibility-item">
-        <input type="checkbox" class="visibility-checkbox" id="vis-2018" checked>
-        <label class="year-label" for="vis-2018">2018 Point Cloud</label>
-        <input type="range" class="opacity-slider" id="opacity-2018" min="0" max="100" value="100" title="Opacity">
-        <input type="range" class="point-size-slider" id="size-2018" min="0.5" max="10" value="1" step="0.1" title="Point Size">
-        <span class="size-value" id="size-2018-value">1.0</span>
-      </div>
       <div class="visibility-item">
         <input type="checkbox" class="visibility-checkbox" id="vis-2023-07-01" checked>
         <label class="year-label" for="vis-2023-07-01">2023-07-01 Point Cloud</label>
@@ -458,6 +451,13 @@
         <input type="range" class="opacity-slider" id="opacity-2023-07-27" min="0" max="100" value="100" title="Opacity">
         <input type="range" class="point-size-slider" id="size-2023-07-27" min="0.5" max="10" value="1" step="0.1" title="Point Size">
         <span class="size-value" id="size-2023-07-27-value">1.0</span>
+      </div>
+      <div class="visibility-item">
+        <input type="checkbox" class="visibility-checkbox" id="vis-2025-03-14" checked>
+        <label class="year-label" for="vis-2025-03-14">2025-03-14 Point Cloud</label>
+        <input type="range" class="opacity-slider" id="opacity-2025-03-14" min="0" max="100" value="100" title="Opacity">
+        <input type="range" class="point-size-slider" id="size-2025-03-14" min="0.5" max="10" value="1" step="0.1" title="Point Size">
+        <span class="size-value" id="size-2025-03-14-value">1.0</span>
       </div>
     </div>
 
@@ -479,7 +479,7 @@
     <div class="alignment-controls">
       <h4 class="collapsible-header" id="alignment-header">
         <span class="collapse-icon">▼</span>
-        🎯 Manual Alignment (2023-07-27 vs 2018)
+        🎯 Manual Alignment (2023-07-27 vs 2023-07-01)
       </h4>
       <div class="alignment-content" id="alignment-content">
         <div class="alignment-group">
@@ -521,10 +521,10 @@
   <div id="error"></div>
   <div id="loading">
     <div class="spinner"></div>
-    <div id="loading-text">Loading OCC-TUT-017 3-point timeseries viewer…</div>
+    <div id="loading-text">Loading OCC-TUT-017 3-point timeseries viewer (WGS84)…</div>
     <div id="loading-progress" style="font-size:12px;opacity:0.8;margin-top:5px;"></div>
   </div>
-  <div class="chip" id="chip">OCC-TUT-017 3-Point Timeseries Viewer</div>
+  <div class="chip" id="chip">OCC-TUT-017 3-Point Timeseries Viewer (WGS84)</div>
   
   <!-- Status indicator -->
   <div id="status-indicator" style="position: absolute; top: 12px; left: 12px; background: rgba(20,30,40,0.9); color: #fff; padding: 6px 12px; border-radius: 8px; font: 12px system-ui; z-index: 1000; display: none;">
@@ -554,10 +554,11 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // Configuration for OCC-TUT-017 project
+    // Configuration for OCC-TUT-017 project (all data projected to WGS84)
     const PROJECT_CONFIG = {
       name: "OCC-TUT-017",
-      description: "OCC-TUT-017 Three-Point Timeseries Point Cloud Analysis",
+      description: "OCC-TUT-017 Three-Point Timeseries Point Cloud Analysis (WGS84 Projection)",
+      projection: "EPSG:4326", // WGS84 coordinate reference system
       location: {
         lat: -14.36347,
         lng: -170.76314,
@@ -566,31 +567,34 @@
       },
       pointClouds: [
         {
-          year: 2018,
-          name: "OCC-TUT-017 (2018)",
-          url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/2018_OCC-TUT-017/cloud.js",
-          color: new THREE.Color(0.3, 0.7, 1.0), // Blue tint for 2018
-          position: [0, 0, 0], // Base position
-          scale: [1, 1, 1], // Base scale
-          rotation: [0, 0, 0]
-        },
-        {
           year: "2023-07-01",
-          name: "OCC-TUT-017 (2023-07-01)",
+          name: "OCC-TUT-017 (2023-07-01) - WGS84",
           url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230701_OCC-TUT-017/cloud.js",
           color: new THREE.Color(1.0, 0.7, 0.3), // Orange tint for July 2023
-          position: [4.79, 3.50, -0.71], // Manually aligned position
-          scale: [1, 1, 1], // Will be adjusted by smart alignment
-          rotation: [0, 0, 0]
+          position: [0, 0, 0], // Base position for WGS84 projection
+          scale: [1, 1, 1],
+          rotation: [0, 0, 0],
+          projection: "EPSG:4326" // Ensure WGS84 projection
         },
         {
           year: "2023-07-27",
-          name: "OCC-TUT-017 (2023-07-27)",
+          name: "OCC-TUT-017 (2023-07-27) - WGS84",
           url: "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20230727_OCC-TUT-017/cloud.js",
           color: new THREE.Color(0.7, 1.0, 0.3), // Green tint for July 27, 2023
-          position: [4.79, 3.50, -0.71], // Will need manual alignment
-          scale: [1, 1, 1], // Base scale
-          rotation: [0, 0, 0]
+          position: [4.79, 3.50, -0.71], // Manually aligned position relative to 2023-07-01
+          scale: [1, 1, 1],
+          rotation: [0, 0, 0],
+          projection: "EPSG:4326" // Ensure WGS84 projection
+        },
+        {
+          year: "2025-03-14",
+          name: "OCC-TUT-017 (2025-03-14) - WGS84",
+          url: "gs://nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/cloud.js",
+          color: new THREE.Color(1.0, 0.3, 0.7), // Magenta tint for March 2025
+          position: [0, 0, 0], // Base position (will need manual alignment)
+          scale: [1, 1, 1],
+          rotation: [0, 0, 0],
+          projection: "EPSG:4326" // Ensure WGS84 projection
         }
       ],
       initialView: {
@@ -878,10 +882,6 @@
       });
       
       // Visibility checkboxes
-      document.getElementById('vis-2018').addEventListener('change', (e) => {
-        togglePointCloudVisibility(2018, e.target.checked);
-      });
-      
       document.getElementById('vis-2023-07-01').addEventListener('change', (e) => {
         togglePointCloudVisibility("2023-07-01", e.target.checked);
       });
@@ -890,11 +890,11 @@
         togglePointCloudVisibility("2023-07-27", e.target.checked);
       });
       
-      // Opacity sliders
-      document.getElementById('opacity-2018').addEventListener('input', (e) => {
-        setPointCloudOpacity(2018, e.target.value / 100);
+      document.getElementById('vis-2025-03-14').addEventListener('change', (e) => {
+        togglePointCloudVisibility("2025-03-14", e.target.checked);
       });
       
+      // Opacity sliders
       document.getElementById('opacity-2023-07-01').addEventListener('input', (e) => {
         setPointCloudOpacity("2023-07-01", e.target.value / 100);
       });
@@ -903,13 +903,11 @@
         setPointCloudOpacity("2023-07-27", e.target.value / 100);
       });
       
-      // Point size sliders
-      document.getElementById('size-2018').addEventListener('input', (e) => {
-        const size = parseFloat(e.target.value);
-        setPointCloudSize(2018, size);
-        document.getElementById('size-2018-value').textContent = size.toFixed(1);
+      document.getElementById('opacity-2025-03-14').addEventListener('input', (e) => {
+        setPointCloudOpacity("2025-03-14", e.target.value / 100);
       });
       
+      // Point size sliders
       document.getElementById('size-2023-07-01').addEventListener('input', (e) => {
         const size = parseFloat(e.target.value);
         setPointCloudSize("2023-07-01", size);
@@ -920,6 +918,12 @@
         const size = parseFloat(e.target.value);
         setPointCloudSize("2023-07-27", size);
         document.getElementById('size-2023-07-27-value').textContent = size.toFixed(1);
+      });
+      
+      document.getElementById('size-2025-03-14').addEventListener('input', (e) => {
+        const size = parseFloat(e.target.value);
+        setPointCloudSize("2025-03-14", size);
+        document.getElementById('size-2025-03-14-value').textContent = size.toFixed(1);
       });
       
       // Quick actions
@@ -1125,45 +1129,45 @@
       }
     }
 
-    // Set time view (2018, 2023-07-01, 2023-07-27, or all)
+    // Set time view (2023-07-01, 2023-07-27, 2025-03-14, or all)
     function setTimeView(view) {
       console.log(`Setting time view to: ${view}`);
       
       switch(view) {
-        case '2018':
-          togglePointCloudVisibility(2018, true);
-          togglePointCloudVisibility("2023-07-01", false);
-          togglePointCloudVisibility("2023-07-27", false);
-          document.getElementById('vis-2018').checked = true;
-          document.getElementById('vis-2023-07-01').checked = false;
-          document.getElementById('vis-2023-07-27').checked = false;
-          break;
-          
         case '2023-07-01':
-          togglePointCloudVisibility(2018, false);
           togglePointCloudVisibility("2023-07-01", true);
           togglePointCloudVisibility("2023-07-27", false);
-          document.getElementById('vis-2018').checked = false;
+          togglePointCloudVisibility("2025-03-14", false);
           document.getElementById('vis-2023-07-01').checked = true;
           document.getElementById('vis-2023-07-27').checked = false;
+          document.getElementById('vis-2025-03-14').checked = false;
           break;
           
         case '2023-07-27':
-          togglePointCloudVisibility(2018, false);
           togglePointCloudVisibility("2023-07-01", false);
           togglePointCloudVisibility("2023-07-27", true);
-          document.getElementById('vis-2018').checked = false;
+          togglePointCloudVisibility("2025-03-14", false);
           document.getElementById('vis-2023-07-01').checked = false;
           document.getElementById('vis-2023-07-27').checked = true;
+          document.getElementById('vis-2025-03-14').checked = false;
+          break;
+          
+        case '2025-03-14':
+          togglePointCloudVisibility("2023-07-01", false);
+          togglePointCloudVisibility("2023-07-27", false);
+          togglePointCloudVisibility("2025-03-14", true);
+          document.getElementById('vis-2023-07-01').checked = false;
+          document.getElementById('vis-2023-07-27').checked = false;
+          document.getElementById('vis-2025-03-14').checked = true;
           break;
           
         case 'all':
-          togglePointCloudVisibility(2018, true);
           togglePointCloudVisibility("2023-07-01", true);
           togglePointCloudVisibility("2023-07-27", true);
-          document.getElementById('vis-2018').checked = true;
+          togglePointCloudVisibility("2025-03-14", true);
           document.getElementById('vis-2023-07-01').checked = true;
           document.getElementById('vis-2023-07-27').checked = true;
+          document.getElementById('vis-2025-03-14').checked = true;
           break;
       }
     }
@@ -1199,8 +1203,8 @@
 
     // Quick action functions
     function syncPointSizes() {
-      const averageSize = (1.0 + 1.0 + 1.0) / 3; // Get current average or default
-      ['2018', '2023-07-01', '2023-07-27'].forEach(year => {
+      const averageSize = (1.0 + 1.0 + 1.0) / 3; // Get current average for 3 timepoints
+      ['2023-07-01', '2023-07-27', '2025-03-14'].forEach(year => {
         const slider = document.getElementById(`size-${year}`);
         const value = document.getElementById(`size-${year}-value`);
         if (slider && value) {
@@ -1214,7 +1218,7 @@
     }
 
     function resetAllOpacity() {
-      ['2018', '2023-07-01', '2023-07-27'].forEach(year => {
+      ['2023-07-01', '2023-07-27', '2025-03-14'].forEach(year => {
         const slider = document.getElementById(`opacity-${year}`);
         if (slider) {
           slider.value = 100;
@@ -1227,15 +1231,18 @@
 
     function isolateChanges() {
       updateStatus('🔍 Isolating changes', 'Cycling through timepoints for comparison');
-      // Show only 2023 data for change detection
+      // Show data for change detection (without 2018)
       setTimeView('2023-07-01');
       setTimeout(() => {
         setTimeView('2023-07-27');
       }, 2000);
       setTimeout(() => {
+        setTimeView('2025-03-14');
+      }, 4000);
+      setTimeout(() => {
         setTimeView('all');
         updateStatus('✨ Change isolation complete', 'All timepoints visible again');
-      }, 4000);
+      }, 6000);
     }
 
     function setBestQuality() {
@@ -1325,7 +1332,7 @@
     // Auto-cycle between timepoints
     let isCycling = false;
     let cycleInterval = null;
-    const cycleOrder = ['2018', '2023-07-01', '2023-07-27', 'all'];
+    const cycleOrder = ['2023-07-01', '2023-07-27', '2025-03-14', 'all'];
     let currentCycleIndex = 0;
 
     function toggleTimepointCycling() {
@@ -1421,7 +1428,7 @@
 
     // Export functions (same as SFM viewer)
     window.saveCameraTrack = function(animation) {
-      const title = PROJECT_CONFIG.name + ' Timeseries';
+      const title = PROJECT_CONFIG.name + ' Timeseries (WGS84)';
       
       try {
         const trackData = {
@@ -1429,6 +1436,7 @@
           created: new Date().toISOString(),
           title: title,
           project: PROJECT_CONFIG.name,
+          projection: PROJECT_CONFIG.projection || "EPSG:4326",
           duration: animation.duration || 10,
           controlPoints: []
         };
@@ -1540,7 +1548,7 @@
     };
 
     window.initializeSidebarExports = function() {
-      const title = PROJECT_CONFIG.name + ' Timeseries';
+      const title = PROJECT_CONFIG.name + ' Timeseries (WGS84)';
       
       const checkSidebar = () => {
         const btnScreenshot = document.getElementById('btnExportScreenshot');

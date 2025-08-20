@@ -494,7 +494,6 @@
     
     // Set default camera to orthographic (better for shapefile overlays)
     viewer.scene.cameraO.up.set(0, 0, 1);
-    viewer.setUseCameraControls(false); // Use orthographic by default
     setTimeout(() => {
       // Switch to orthographic camera after scene is ready
       if (viewer.scene && viewer.scene.cameraO) {
