@@ -135,24 +135,124 @@
       display: flex;
       align-items: center;
       margin-bottom: 8px;
-      padding: 6px;
+      padding: 8px;
       background: rgba(255,255,255,0.05);
       border-radius: 4px;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .visibility-checkbox {
       margin-right: 10px;
       transform: scale(1.2);
+      flex-shrink: 0;
     }
 
     .year-label {
       font-weight: 500;
       flex: 1;
+      min-width: 140px;
+      font-size: 13px;
     }
 
-    .opacity-slider {
-      width: 80px;
-      margin-left: 10px;
+    .opacity-slider, .point-size-slider {
+      width: 60px;
+      margin: 0 4px;
+      flex-shrink: 0;
+    }
+
+    .size-value {
+      font-size: 11px;
+      color: rgba(255,255,255,0.8);
+      font-family: monospace;
+      min-width: 25px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .point-size-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      outline: none;
+      border-radius: 2px;
+    }
+
+    .point-size-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #FF9800;
+      cursor: pointer;
+    }
+
+    .color-mode-controls {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+
+    .control-group label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.9);
+      min-width: 80px;
+    }
+
+    .control-select {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      flex: 1;
+      max-width: 150px;
+    }
+
+    .control-select option {
+      background: #2a2a3a;
+      color: #fff;
+    }
+
+    .quick-actions {
+      margin-bottom: 15px;
+    }
+
+    .quick-actions h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #e8eefc;
+    }
+
+    .quick-btn {
+      background: rgba(96, 125, 139, 0.8);
+      border: 1px solid rgba(96, 125, 139, 1);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font: 11px system-ui;
+      transition: all 0.2s;
+      margin-right: 6px;
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+
+    .quick-btn:hover {
+      background: rgba(116, 145, 159, 0.9);
+      transform: translateY(-1px);
     }
 
     .animation-controls {
@@ -180,6 +280,14 @@
     .animation-btn.playing {
       background: rgba(200,40,40,0.9);
       border-color: rgba(200,40,40,1);
+    }
+
+    .measurement-tools {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.1);
     }
 
     /* Alignment Controls */
@@ -349,6 +457,19 @@
       margin-top: 6px;
       text-align: center;
     }
+
+    kbd {
+      display: inline-block;
+      padding: 2px 4px;
+      font-size: 10px;
+      line-height: 1;
+      color: #fff;
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px;
+      border: 1px solid rgba(255,255,255,0.3);
+      margin: 0 2px;
+      font-family: monospace;
+    }
   </style>
 </head>
 <body>
@@ -378,23 +499,79 @@
       <div class="visibility-item">
         <input type="checkbox" class="visibility-checkbox" id="vis-2018" checked>
         <label class="year-label" for="vis-2018">2018 Point Cloud</label>
-        <input type="range" class="opacity-slider" id="opacity-2018" min="0" max="100" value="100">
+        <input type="range" class="opacity-slider" id="opacity-2018" min="0" max="100" value="100" title="Opacity">
+        <input type="range" class="point-size-slider" id="size-2018" min="0.5" max="10" value="1" step="0.1" title="Point Size">
+        <span class="size-value" id="size-2018-value">1.0</span>
       </div>
       <div class="visibility-item">
         <input type="checkbox" class="visibility-checkbox" id="vis-2023-07-01" checked>
         <label class="year-label" for="vis-2023-07-01">2023-07-01 Point Cloud</label>
-        <input type="range" class="opacity-slider" id="opacity-2023-07-01" min="0" max="100" value="100">
+        <input type="range" class="opacity-slider" id="opacity-2023-07-01" min="0" max="100" value="100" title="Opacity">
+        <input type="range" class="point-size-slider" id="size-2023-07-01" min="0.5" max="10" value="1" step="0.1" title="Point Size">
+        <span class="size-value" id="size-2023-07-01-value">1.0</span>
       </div>
       <div class="visibility-item">
         <input type="checkbox" class="visibility-checkbox" id="vis-2023-07-27" checked>
         <label class="year-label" for="vis-2023-07-27">2023-07-27 Point Cloud</label>
-        <input type="range" class="opacity-slider" id="opacity-2023-07-27" min="0" max="100" value="100">
+        <input type="range" class="opacity-slider" id="opacity-2023-07-27" min="0" max="100" value="100" title="Opacity">
+        <input type="range" class="point-size-slider" id="size-2023-07-27" min="0.5" max="10" value="1" step="0.1" title="Point Size">
+        <span class="size-value" id="size-2023-07-27-value">1.0</span>
       </div>
+    </div>
+
+    <div class="color-mode-controls">
+      <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #e8eefc;">🎨 Point Cloud Display</h4>
+      <div class="control-group">
+        <label>Color Mode:</label>
+        <select id="color-mode-select" class="control-select">
+          <option value="RGB">RGB (Natural Colors)</option>
+          <option value="ELEVATION">Elevation</option>
+          <option value="INTENSITY">Intensity</option>
+          <option value="CLASSIFICATION">Classification</option>
+          <option value="RETURN_NUMBER">Return Number</option>
+          <option value="SOURCE">Source ID</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Point Shape:</label>
+        <select id="point-shape-select" class="control-select">
+          <option value="SQUARE">Square</option>
+          <option value="CIRCLE">Circle</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Point Size Type:</label>
+        <select id="point-size-type-select" class="control-select">
+          <option value="ADAPTIVE">Adaptive</option>
+          <option value="FIXED">Fixed</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="quick-actions">
+      <h4>⚡ Quick Actions</h4>
+      <button class="quick-btn" id="sync-point-sizes">Sync Point Sizes</button>
+      <button class="quick-btn" id="reset-all-opacity">Reset Opacity</button>
+      <button class="quick-btn" id="isolate-changes">Show Changes Only</button>
+      <button class="quick-btn" id="best-quality">Best Quality</button>
+      <button class="quick-btn" id="performance-mode">Performance Mode</button>
     </div>
 
     <div class="animation-controls">
       <button class="animation-btn" id="toggle-animation">🔄 Rotate View</button>
       <button class="animation-btn" id="reset-view">Reset View</button>
+      <button class="animation-btn" id="cycle-timepoints">⏩ Auto-Cycle</button>
+    </div>
+
+    <div class="measurement-tools">
+      <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eefc;">📏 Analysis Tools</h4>
+      <button class="quick-btn" id="measure-distance">Measure Distance</button>
+      <button class="quick-btn" id="measure-area">Measure Area</button>
+      <button class="quick-btn" id="measure-volume">Measure Volume</button>
+      <button class="quick-btn" id="clear-measurements">Clear All</button>
+      <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 6px;">
+        Use Tools → Measuring to access detailed measurement controls
+      </div>
     </div>
 
     <div class="alignment-controls">
@@ -436,6 +613,18 @@
       <div id="map"></div>
       <div class="map-info">American Samoa<br>14°21'48"S, 170°45'47"W</div>
     </div>
+
+    <div class="help-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15);">
+      <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #e8eefc;">⌨️ Keyboard Shortcuts</h4>
+      <div style="font-size: 11px; color: rgba(255,255,255,0.7); line-height: 1.4;">
+        <div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> - Switch timepoints</div>
+        <div><kbd>Space</kbd> - Toggle rotation</div>
+        <div><kbd>R</kbd> - Reset view</div>
+        <div><kbd>C</kbd> - Auto-cycle timepoints</div>
+        <div><kbd>M</kbd> - Measure distance</div>
+        <div><kbd>Esc</kbd> - Cancel current tool</div>
+      </div>
+    </div>
     </div> <!-- End panel-content -->
   </div>
 
@@ -446,6 +635,12 @@
     <div id="loading-progress" style="font-size:12px;opacity:0.8;margin-top:5px;"></div>
   </div>
   <div class="chip" id="chip">OCC-TUT-017 3-Point Timeseries Viewer</div>
+  
+  <!-- Status indicator -->
+  <div id="status-indicator" style="position: absolute; top: 12px; left: 12px; background: rgba(20,30,40,0.9); color: #fff; padding: 6px 12px; border-radius: 8px; font: 12px system-ui; z-index: 1000; display: none;">
+    <div id="status-text">Ready</div>
+    <div id="status-details" style="font-size: 10px; opacity: 0.8; margin-top: 2px;"></div>
+  </div>
 
   <!-- Libraries -->
   <script src="../libs/jquery/jquery-3.1.1.min.js"></script>
@@ -532,6 +727,22 @@
         + (details ? `<div style="opacity:.9;margin-top:6px;font-size:13px">${details}</div>` : '');
       console.error('Timeseries load error:', msg, details);
       loading.style.display = 'none';
+    }
+
+    function updateStatus(text, details = '', duration = 3000) {
+      const indicator = document.getElementById('status-indicator');
+      const statusText = document.getElementById('status-text');
+      const statusDetails = document.getElementById('status-details');
+      
+      statusText.textContent = text;
+      statusDetails.textContent = details;
+      indicator.style.display = 'block';
+      
+      if (duration > 0) {
+        setTimeout(() => {
+          indicator.style.display = 'none';
+        }, duration);
+      }
     }
 
     console.log('Initializing timeseries viewer...');
@@ -690,12 +901,14 @@
               setTimeout(() => {
                 viewer.setEDLEnabled(true);
                 console.log('All point clouds loaded, EDL enabled');
+                updateStatus('✅ All timepoints loaded', `${totalClouds} point clouds ready`);
               }, 500);
             }
           });
           
         } catch (error) {
           console.error(`Failed to load ${config.name}:`, error);
+          updateStatus('❌ Load failed', `Error loading ${config.name}`);
         }
       }
       
@@ -779,9 +992,55 @@
         setPointCloudOpacity("2023-07-27", e.target.value / 100);
       });
       
+      // Point size sliders
+      document.getElementById('size-2018').addEventListener('input', (e) => {
+        const size = parseFloat(e.target.value);
+        setPointCloudSize(2018, size);
+        document.getElementById('size-2018-value').textContent = size.toFixed(1);
+      });
+      
+      document.getElementById('size-2023-07-01').addEventListener('input', (e) => {
+        const size = parseFloat(e.target.value);
+        setPointCloudSize("2023-07-01", size);
+        document.getElementById('size-2023-07-01-value').textContent = size.toFixed(1);
+      });
+      
+      document.getElementById('size-2023-07-27').addEventListener('input', (e) => {
+        const size = parseFloat(e.target.value);
+        setPointCloudSize("2023-07-27", size);
+        document.getElementById('size-2023-07-27-value').textContent = size.toFixed(1);
+      });
+      
+      // Display controls
+      document.getElementById('color-mode-select').addEventListener('change', (e) => {
+        setColorMode(e.target.value);
+      });
+      
+      document.getElementById('point-shape-select').addEventListener('change', (e) => {
+        setPointShape(e.target.value);
+      });
+      
+      document.getElementById('point-size-type-select').addEventListener('change', (e) => {
+        setPointSizeType(e.target.value);
+      });
+      
+      // Quick actions
+      document.getElementById('sync-point-sizes').addEventListener('click', syncPointSizes);
+      document.getElementById('reset-all-opacity').addEventListener('click', resetAllOpacity);
+      document.getElementById('isolate-changes').addEventListener('click', isolateChanges);
+      document.getElementById('best-quality').addEventListener('click', setBestQuality);
+      document.getElementById('performance-mode').addEventListener('click', setPerformanceMode);
+      
       // Animation controls
       document.getElementById('toggle-animation').addEventListener('click', toggleAnimation);
       document.getElementById('reset-view').addEventListener('click', resetView);
+      document.getElementById('cycle-timepoints').addEventListener('click', toggleTimepointCycling);
+      
+      // Measurement tools
+      document.getElementById('measure-distance').addEventListener('click', () => activateMeasureTool('distance'));
+      document.getElementById('measure-area').addEventListener('click', () => activateMeasureTool('area'));
+      document.getElementById('measure-volume').addEventListener('click', () => activateMeasureTool('volume'));
+      document.getElementById('clear-measurements').addEventListener('click', clearAllMeasurements);
       
       // Manual alignment controls
       initializeAlignmentControls();
@@ -926,6 +1185,75 @@
       console.log('Alignment controls initialized');
     }
 
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Don't trigger if user is typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      
+      switch(e.key) {
+        case '1':
+          e.preventDefault();
+          setTimeView('2018');
+          updateActiveTimeButton('2018');
+          break;
+        case '2':
+          e.preventDefault();
+          setTimeView('2023-07-01');
+          updateActiveTimeButton('2023-07-01');
+          break;
+        case '3':
+          e.preventDefault();
+          setTimeView('2023-07-27');
+          updateActiveTimeButton('2023-07-27');
+          break;
+        case '4':
+          e.preventDefault();
+          setTimeView('all');
+          updateActiveTimeButton('all');
+          break;
+        case ' ': // Space bar
+          e.preventDefault();
+          toggleAnimation();
+          break;
+        case 'r':
+        case 'R':
+          e.preventDefault();
+          resetView();
+          break;
+        case 'c':
+        case 'C':
+          e.preventDefault();
+          toggleTimepointCycling();
+          break;
+        case 'm':
+        case 'M':
+          e.preventDefault();
+          activateMeasureTool('distance');
+          break;
+        case 'Escape':
+          e.preventDefault();
+          if (isCycling) toggleTimepointCycling();
+          // Try to cancel current tool
+          try {
+            if (viewer.measuringTool) {
+              viewer.measuringTool.cancel();
+            }
+          } catch (error) {
+            // Ignore errors
+          }
+          break;
+      }
+    });
+
+    function updateActiveTimeButton(year) {
+      document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.year === year) {
+          btn.classList.add('active');
+        }
+      });
+    }
+
     function applyManualAlignment() {
       if (pointCloudData["2023-07-27"] && pointCloudData["2023-07-27"].pointcloud) {
         const cloud2023_27 = pointCloudData["2023-07-27"].pointcloud;
@@ -1027,6 +1355,119 @@
       }
     }
 
+    // Set point cloud size
+    function setPointCloudSize(year, size) {
+      if (pointCloudData[year]) {
+        const material = pointCloudData[year].pointcloud.material;
+        material.size = size;
+        pointCloudData[year].size = size;
+        console.log(`${year} point cloud size set to: ${size}`);
+      }
+    }
+
+    // Set color mode for all point clouds
+    function setColorMode(mode) {
+      const potreeMode = mode === 'RGB' ? Potree.PointColorType.RGB :
+                        mode === 'ELEVATION' ? Potree.PointColorType.HEIGHT :
+                        mode === 'INTENSITY' ? Potree.PointColorType.INTENSITY :
+                        mode === 'CLASSIFICATION' ? Potree.PointColorType.CLASSIFICATION :
+                        mode === 'RETURN_NUMBER' ? Potree.PointColorType.RETURN_NUMBER :
+                        mode === 'SOURCE' ? Potree.PointColorType.SOURCE :
+                        Potree.PointColorType.RGB;
+      
+      Object.values(pointCloudData).forEach(data => {
+        if (data.pointcloud && data.pointcloud.material) {
+          data.pointcloud.material.pointColorType = potreeMode;
+        }
+      });
+      console.log(`Color mode set to: ${mode}`);
+    }
+
+    // Set point shape for all point clouds
+    function setPointShape(shape) {
+      const potreeShape = shape === 'CIRCLE' ? Potree.PointShape.CIRCLE : Potree.PointShape.SQUARE;
+      
+      Object.values(pointCloudData).forEach(data => {
+        if (data.pointcloud && data.pointcloud.material) {
+          data.pointcloud.material.shape = potreeShape;
+        }
+      });
+      console.log(`Point shape set to: ${shape}`);
+    }
+
+    // Set point size type for all point clouds
+    function setPointSizeType(type) {
+      const potreeType = type === 'FIXED' ? Potree.PointSizeType.FIXED : Potree.PointSizeType.ADAPTIVE;
+      
+      Object.values(pointCloudData).forEach(data => {
+        if (data.pointcloud && data.pointcloud.material) {
+          data.pointcloud.material.pointSizeType = potreeType;
+        }
+      });
+      console.log(`Point size type set to: ${type}`);
+    }
+
+    // Quick action functions
+    function syncPointSizes() {
+      const averageSize = (1.0 + 1.0 + 1.0) / 3; // Get current average or default
+      ['2018', '2023-07-01', '2023-07-27'].forEach(year => {
+        const slider = document.getElementById(`size-${year}`);
+        const value = document.getElementById(`size-${year}-value`);
+        if (slider && value) {
+          slider.value = averageSize;
+          value.textContent = averageSize.toFixed(1);
+          setPointCloudSize(year, averageSize);
+        }
+      });
+      console.log('Point sizes synchronized');
+      updateStatus('🔄 Point sizes synchronized', 'All timepoints now have matching point sizes');
+    }
+
+    function resetAllOpacity() {
+      ['2018', '2023-07-01', '2023-07-27'].forEach(year => {
+        const slider = document.getElementById(`opacity-${year}`);
+        if (slider) {
+          slider.value = 100;
+          setPointCloudOpacity(year, 1.0);
+        }
+      });
+      console.log('All opacity reset to 100%');
+      updateStatus('💯 Opacity reset', 'All timepoints now fully visible');
+    }
+
+    function isolateChanges() {
+      updateStatus('🔍 Isolating changes', 'Cycling through timepoints for comparison');
+      // Show only 2023 data for change detection
+      setTimeView('2023-07-01');
+      setTimeout(() => {
+        setTimeView('2023-07-27');
+      }, 2000);
+      setTimeout(() => {
+        setTimeView('all');
+        updateStatus('✨ Change isolation complete', 'All timepoints visible again');
+      }, 4000);
+    }
+
+    function setBestQuality() {
+      viewer.setPointBudget(10_000_000); // Increase point budget
+      viewer.setEDLEnabled(true); // Enable EDL
+      setColorMode('RGB');
+      setPointShape('CIRCLE');
+      setPointSizeType('ADAPTIVE');
+      console.log('Best quality settings applied');
+      updateStatus('⭐ Best quality mode', '10M points, EDL enabled, RGB colors');
+    }
+
+    function setPerformanceMode() {
+      viewer.setPointBudget(2_000_000); // Reduce point budget
+      viewer.setEDLEnabled(false); // Disable EDL
+      setColorMode('RGB');
+      setPointShape('SQUARE');
+      setPointSizeType('FIXED');
+      console.log('Performance mode settings applied');
+      updateStatus('⚡ Performance mode', '2M points, EDL disabled, optimized rendering');
+    }
+
     // Toggle animation between time periods
     function toggleAnimation() {
       const btn = document.getElementById('toggle-animation');
@@ -1094,6 +1535,118 @@
         );
       } else {
         viewer.fitToScreen();
+      }
+    }
+
+    // Auto-cycle between timepoints
+    let isCycling = false;
+    let cycleInterval = null;
+    const cycleOrder = ['2018', '2023-07-01', '2023-07-27', 'all'];
+    let currentCycleIndex = 0;
+
+    function toggleTimepointCycling() {
+      const btn = document.getElementById('cycle-timepoints');
+      
+      if (isCycling) {
+        stopTimepointCycling();
+        btn.textContent = '⏩ Auto-Cycle';
+        btn.classList.remove('playing');
+      } else {
+        startTimepointCycling();
+        btn.textContent = '⏸ Stop Cycle';
+        btn.classList.add('playing');
+      }
+    }
+
+    function startTimepointCycling() {
+      if (isCycling) return;
+      
+      isCycling = true;
+      cycleInterval = setInterval(() => {
+        const currentView = cycleOrder[currentCycleIndex];
+        setTimeView(currentView);
+        
+        // Update active button
+        document.querySelectorAll('.time-btn').forEach(btn => {
+          btn.classList.remove('active');
+          if (btn.dataset.year === currentView) {
+            btn.classList.add('active');
+          }
+        });
+        
+        currentCycleIndex = (currentCycleIndex + 1) % cycleOrder.length;
+      }, 3000); // 3 second intervals
+      
+      console.log('Timepoint cycling started');
+    }
+
+    function stopTimepointCycling() {
+      isCycling = false;
+      if (cycleInterval) {
+        clearInterval(cycleInterval);
+        cycleInterval = null;
+      }
+      console.log('Timepoint cycling stopped');
+    }
+
+    // Measurement tool functions
+    function activateMeasureTool(type) {
+      try {
+        if (!viewer.measuringTool) {
+          console.warn('Measuring tool not available');
+          alert('Measuring tool not available. Please use the Tools menu in the sidebar.');
+          return;
+        }
+
+        switch(type) {
+          case 'distance':
+            viewer.measuringTool.startInsertion({
+              showDistances: true,
+              showAngles: false,
+              showArea: false,
+              closed: false,
+              name: `Distance_${Date.now()}`
+            });
+            break;
+          case 'area':
+            viewer.measuringTool.startInsertion({
+              showDistances: false,
+              showAngles: false,
+              showArea: true,
+              closed: true,
+              name: `Area_${Date.now()}`
+            });
+            break;
+          case 'volume':
+            viewer.measuringTool.startInsertion({
+              showDistances: true,
+              showArea: true,
+              showVolume: true,
+              closed: true,
+              name: `Volume_${Date.now()}`
+            });
+            break;
+        }
+        console.log(`${type} measurement tool activated`);
+      } catch (error) {
+        console.error('Error activating measurement tool:', error);
+        alert('Please use the Tools → Measuring menu in the sidebar for measurement tools.');
+      }
+    }
+
+    function clearAllMeasurements() {
+      try {
+        if (viewer.measuringTool && viewer.measuringTool.measurements) {
+          const measurements = [...viewer.measuringTool.measurements];
+          measurements.forEach(measurement => {
+            viewer.measuringTool.removeMeasurement(measurement);
+          });
+          console.log('All measurements cleared');
+        } else {
+          console.log('No measurements to clear');
+        }
+      } catch (error) {
+        console.error('Error clearing measurements:', error);
       }
     }
 
