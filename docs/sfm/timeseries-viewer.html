@@ -189,43 +189,6 @@
       cursor: pointer;
     }
 
-    .color-mode-controls {
-      margin-bottom: 15px;
-      padding: 10px;
-      background: rgba(255,255,255,0.03);
-      border-radius: 6px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .control-group {
-      display: flex;
-      align-items: center;
-      margin-bottom: 8px;
-      gap: 8px;
-    }
-
-    .control-group label {
-      font-size: 12px;
-      color: rgba(255,255,255,0.9);
-      min-width: 80px;
-    }
-
-    .control-select {
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.3);
-      color: #fff;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      flex: 1;
-      max-width: 150px;
-    }
-
-    .control-select option {
-      background: #2a2a3a;
-      color: #fff;
-    }
-
     .quick-actions {
       margin-bottom: 15px;
     }
@@ -449,19 +412,6 @@
       margin-top: 6px;
       text-align: center;
     }
-
-    kbd {
-      display: inline-block;
-      padding: 2px 4px;
-      font-size: 10px;
-      line-height: 1;
-      color: #fff;
-      background: rgba(255,255,255,0.2);
-      border-radius: 3px;
-      border: 1px solid rgba(255,255,255,0.3);
-      margin: 0 2px;
-      font-family: monospace;
-    }
   </style>
 </head>
 <body>
@@ -508,35 +458,6 @@
         <input type="range" class="opacity-slider" id="opacity-2023-07-27" min="0" max="100" value="100" title="Opacity">
         <input type="range" class="point-size-slider" id="size-2023-07-27" min="0.5" max="10" value="1" step="0.1" title="Point Size">
         <span class="size-value" id="size-2023-07-27-value">1.0</span>
-      </div>
-    </div>
-
-    <div class="color-mode-controls">
-      <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #e8eefc;">🎨 Point Cloud Display</h4>
-      <div class="control-group">
-        <label>Color Mode:</label>
-        <select id="color-mode-select" class="control-select">
-          <option value="RGB">RGB (Natural Colors)</option>
-          <option value="ELEVATION">Elevation</option>
-          <option value="INTENSITY">Intensity</option>
-          <option value="CLASSIFICATION">Classification</option>
-          <option value="RETURN_NUMBER">Return Number</option>
-          <option value="SOURCE">Source ID</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <label>Point Shape:</label>
-        <select id="point-shape-select" class="control-select">
-          <option value="SQUARE">Square</option>
-          <option value="CIRCLE">Circle</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <label>Point Size Type:</label>
-        <select id="point-size-type-select" class="control-select">
-          <option value="ADAPTIVE">Adaptive</option>
-          <option value="FIXED">Fixed</option>
-        </select>
       </div>
     </div>
 
@@ -593,17 +514,6 @@
       <h4>📍 Study Site Location</h4>
       <div id="map"></div>
       <div class="map-info">American Samoa<br>14°21'48"S, 170°45'47"W</div>
-    </div>
-
-    <div class="help-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15);">
-      <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #e8eefc;">⌨️ Keyboard Shortcuts</h4>
-      <div style="font-size: 11px; color: rgba(255,255,255,0.7); line-height: 1.4;">
-        <div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> - Switch timepoints</div>
-        <div><kbd>Space</kbd> - Toggle rotation</div>
-        <div><kbd>R</kbd> - Reset view</div>
-        <div><kbd>C</kbd> - Auto-cycle timepoints</div>
-        <div><kbd>Esc</kbd> - Stop current action</div>
-      </div>
     </div>
     </div> <!-- End panel-content -->
   </div>
@@ -1012,19 +922,6 @@
         document.getElementById('size-2023-07-27-value').textContent = size.toFixed(1);
       });
       
-      // Display controls
-      document.getElementById('color-mode-select').addEventListener('change', (e) => {
-        setColorMode(e.target.value);
-      });
-      
-      document.getElementById('point-shape-select').addEventListener('change', (e) => {
-        setPointShape(e.target.value);
-      });
-      
-      document.getElementById('point-size-type-select').addEventListener('change', (e) => {
-        setPointSizeType(e.target.value);
-      });
-      
       // Quick actions
       document.getElementById('sync-point-sizes').addEventListener('click', syncPointSizes);
       document.getElementById('reset-all-opacity').addEventListener('click', resetAllOpacity);
@@ -1180,53 +1077,6 @@
       console.log('Alignment controls initialized');
     }
 
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-      // Don't trigger if user is typing in an input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-      
-      switch(e.key) {
-        case '1':
-          e.preventDefault();
-          setTimeView('2018');
-          updateActiveTimeButton('2018');
-          break;
-        case '2':
-          e.preventDefault();
-          setTimeView('2023-07-01');
-          updateActiveTimeButton('2023-07-01');
-          break;
-        case '3':
-          e.preventDefault();
-          setTimeView('2023-07-27');
-          updateActiveTimeButton('2023-07-27');
-          break;
-        case '4':
-          e.preventDefault();
-          setTimeView('all');
-          updateActiveTimeButton('all');
-          break;
-        case ' ': // Space bar
-          e.preventDefault();
-          toggleAnimation();
-          break;
-        case 'r':
-        case 'R':
-          e.preventDefault();
-          resetView();
-          break;
-        case 'c':
-        case 'C':
-          e.preventDefault();
-          toggleTimepointCycling();
-          break;
-        case 'Escape':
-          e.preventDefault();
-          if (isCycling) toggleTimepointCycling();
-          break;
-      }
-    });
-
     function updateActiveTimeButton(year) {
       document.querySelectorAll('.time-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -1347,110 +1197,6 @@
       }
     }
 
-    // Set color mode for all point clouds
-    function setColorMode(mode) {
-      try {
-        let potreeMode;
-        
-        switch(mode) {
-          case 'RGB':
-            potreeMode = Potree.PointColorType ? Potree.PointColorType.RGB : 0;
-            break;
-          case 'ELEVATION':
-            potreeMode = Potree.PointColorType ? Potree.PointColorType.HEIGHT : 1;
-            break;
-          case 'INTENSITY':
-            potreeMode = Potree.PointColorType ? Potree.PointColorType.INTENSITY : 2;
-            break;
-          case 'CLASSIFICATION':
-            potreeMode = Potree.PointColorType ? Potree.PointColorType.CLASSIFICATION : 3;
-            break;
-          case 'RETURN_NUMBER':
-            potreeMode = Potree.PointColorType ? Potree.PointColorType.RETURN_NUMBER : 4;
-            break;
-          case 'SOURCE':
-            potreeMode = Potree.PointColorType ? Potree.PointColorType.SOURCE : 5;
-            break;
-          default:
-            potreeMode = Potree.PointColorType ? Potree.PointColorType.RGB : 0;
-        }
-        
-        Object.values(pointCloudData).forEach(data => {
-          if (data.pointcloud && data.pointcloud.material) {
-            data.pointcloud.material.pointColorType = potreeMode;
-            // Force material update
-            data.pointcloud.material.needsUpdate = true;
-          }
-        });
-        
-        // Force viewer update
-        if (viewer.setNeedsRedraw) {
-          viewer.setNeedsRedraw();
-        }
-        
-        console.log(`Color mode set to: ${mode} (${potreeMode})`);
-        updateStatus('🎨 Color mode changed', `Now showing: ${mode}`);
-        
-      } catch (error) {
-        console.error('Error setting color mode:', error);
-        updateStatus('❌ Color mode error', 'Failed to change color mode');
-      }
-    }
-
-    // Set point shape for all point clouds
-    function setPointShape(shape) {
-      try {
-        const potreeShape = shape === 'CIRCLE' ? 
-          (Potree.PointShape ? Potree.PointShape.CIRCLE : 1) : 
-          (Potree.PointShape ? Potree.PointShape.SQUARE : 0);
-        
-        Object.values(pointCloudData).forEach(data => {
-          if (data.pointcloud && data.pointcloud.material) {
-            data.pointcloud.material.shape = potreeShape;
-            data.pointcloud.material.needsUpdate = true;
-          }
-        });
-        
-        if (viewer.setNeedsRedraw) {
-          viewer.setNeedsRedraw();
-        }
-        
-        console.log(`Point shape set to: ${shape} (${potreeShape})`);
-        updateStatus('🔷 Point shape changed', `Now using: ${shape.toLowerCase()} points`);
-        
-      } catch (error) {
-        console.error('Error setting point shape:', error);
-        updateStatus('❌ Point shape error', 'Failed to change point shape');
-      }
-    }
-
-    // Set point size type for all point clouds
-    function setPointSizeType(type) {
-      try {
-        const potreeType = type === 'FIXED' ? 
-          (Potree.PointSizeType ? Potree.PointSizeType.FIXED : 1) : 
-          (Potree.PointSizeType ? Potree.PointSizeType.ADAPTIVE : 0);
-        
-        Object.values(pointCloudData).forEach(data => {
-          if (data.pointcloud && data.pointcloud.material) {
-            data.pointcloud.material.pointSizeType = potreeType;
-            data.pointcloud.material.needsUpdate = true;
-          }
-        });
-        
-        if (viewer.setNeedsRedraw) {
-          viewer.setNeedsRedraw();
-        }
-        
-        console.log(`Point size type set to: ${type} (${potreeType})`);
-        updateStatus('📏 Size type changed', `Now using: ${type.toLowerCase()} sizing`);
-        
-      } catch (error) {
-        console.error('Error setting point size type:', error);
-        updateStatus('❌ Size type error', 'Failed to change point size type');
-      }
-    }
-
     // Quick action functions
     function syncPointSizes() {
       const averageSize = (1.0 + 1.0 + 1.0) / 3; // Get current average or default
@@ -1495,19 +1241,13 @@
     function setBestQuality() {
       viewer.setPointBudget(10_000_000); // Increase point budget
       viewer.setEDLEnabled(true); // Enable EDL
-      setColorMode('RGB');
-      setPointShape('CIRCLE');
-      setPointSizeType('ADAPTIVE');
       console.log('Best quality settings applied');
-      updateStatus('⭐ Best quality mode', '10M points, EDL enabled, RGB colors');
+      updateStatus('⭐ Best quality mode', '10M points, EDL enabled');
     }
 
     function setPerformanceMode() {
       viewer.setPointBudget(2_000_000); // Reduce point budget
       viewer.setEDLEnabled(false); // Disable EDL
-      setColorMode('RGB');
-      setPointShape('SQUARE');
-      setPointSizeType('FIXED');
       console.log('Performance mode settings applied');
       updateStatus('⚡ Performance mode', '2M points, EDL disabled, optimized rendering');
     }
