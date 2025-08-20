@@ -363,6 +363,7 @@
         <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eefc;">⚡ Quick Actions</h4>
         <button class="btn secondary" id="fit-to-screen">Fit to Screen</button>
         <button class="btn secondary" id="reset-view">Reset View</button>
+        <button class="btn secondary" id="toggle-camera">Toggle Camera</button>
         <button class="btn secondary" id="toggle-edl">Toggle EDL</button>
       </div>
 
@@ -491,6 +492,17 @@
     viewer.setBackground("gradient");
     viewer.setDescription(PROJECT_CONFIG.description);
     
+    // Set default camera to orthographic (better for shapefile overlays)
+    viewer.scene.cameraO.up.set(0, 0, 1);
+    viewer.setUseCameraControls(false); // Use orthographic by default
+    setTimeout(() => {
+      // Switch to orthographic camera after scene is ready
+      if (viewer.scene && viewer.scene.cameraO) {
+        viewer.setUseOrthographicCamera(true);
+        console.log('Set default camera to orthographic for shapefile viewing');
+      }
+    }, 500);
+    
     console.log('Loading GUI...');
     
     // Load GUI first
@@ -615,6 +627,13 @@
       document.getElementById('reset-view').addEventListener('click', () => {
         viewer.fitToScreen();
         updateStatus('🔄 View reset', 'Camera position restored');
+      });
+      
+      document.getElementById('toggle-camera').addEventListener('click', () => {
+        const isOrtho = viewer.scene.cameraMode === 'orthographic';
+        viewer.setUseOrthographicCamera(!isOrtho);
+        updateStatus(isOrtho ? '📹 Perspective camera' : '📐 Orthographic camera', 
+                    isOrtho ? 'Switched to perspective view' : 'Switched to orthographic view');
       });
       
       document.getElementById('toggle-edl').addEventListener('click', () => {
