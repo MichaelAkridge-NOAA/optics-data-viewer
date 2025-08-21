@@ -226,6 +226,49 @@
       text-align: right;
     }
 
+    .select-control {
+      flex: 1;
+      background: rgba(30,30,40,0.95);
+      border: 2px solid rgba(76,175,80,0.5);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      outline: none;
+      backdrop-filter: blur(4px);
+    }
+
+    .select-control:hover {
+      border-color: rgba(76,175,80,0.8);
+      background: rgba(40,40,50,0.95);
+      box-shadow: 0 2px 8px rgba(76,175,80,0.2);
+    }
+
+    .select-control:focus {
+      border-color: #4CAF50;
+      background: rgba(50,50,60,0.95);
+      box-shadow: 0 0 0 2px rgba(76,175,80,0.3);
+    }
+
+    .select-control option {
+      background: rgba(30,30,40,0.98);
+      color: #fff;
+      padding: 6px 8px;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+    }
+
+    .select-control option:hover,
+    .select-control option:checked {
+      background: rgba(76,175,80,0.8);
+      color: #000;
+      font-weight: 600;
+    }
+
     .btn {
       background: rgba(76,175,80,0.8);
       border: 1px solid rgba(76,175,80,1);
@@ -425,14 +468,14 @@
         </div>
         <div class="control-group">
           <label>Point Shape:</label>
-          <select id="point-shape" style="flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+          <select id="point-shape" class="select-control">
             <option value="circle">● Circle</option>
             <option value="square" selected>■ Square</option>
           </select>
         </div>
         <div class="control-group">
           <label>Point Attribute:</label>
-          <select id="point-attribute" style="flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+          <select id="point-attribute" class="select-control">
             <option value="rgb">RGB</option>
             <option value="elevation">Elevation</option>
             <option value="intensity">Intensity</option>
@@ -1072,26 +1115,30 @@
             return;
           }
           
+          // Debug: log available properties
+          console.log('Material properties:', Object.keys(material));
+          console.log('Available PointColorType values:', Potree.PointColorType);
+          
           try {
             switch (attribute) {
               case 'rgb':
-                material.pointColorType = Potree.PointColorType.RGB;
+                material.activeAttributeName = 'rgba';
                 updateStatus('RGB colors', 'Showing natural RGB colors');
                 break;
               case 'elevation':
-                material.pointColorType = Potree.PointColorType.ELEVATION;
+                material.activeAttributeName = 'elevation';
                 updateStatus('Elevation colors', 'Coloring by height/elevation');
                 break;
               case 'intensity':
-                material.pointColorType = Potree.PointColorType.INTENSITY;
+                material.activeAttributeName = 'intensity';
                 updateStatus('Intensity colors', 'Coloring by laser return intensity');
                 break;
               case 'classification':
-                material.pointColorType = Potree.PointColorType.CLASSIFICATION;
+                material.activeAttributeName = 'classification';
                 updateStatus('Classification colors', 'Coloring by point classification');
                 break;
               default:
-                material.pointColorType = Potree.PointColorType.RGB;
+                material.activeAttributeName = 'rgba';
                 break;
             }
           } catch (error) {
