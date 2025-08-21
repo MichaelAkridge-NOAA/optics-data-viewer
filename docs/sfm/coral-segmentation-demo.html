@@ -930,26 +930,13 @@
           material.size = 1;
           material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
           material.shape = Potree.PointShape.SQUARE; // Default to square shape
+          material.activeAttributeName = 'rgba'; // Set default attribute
           
-          // Set default point color type to RGB
-          if (Potree.PointColorType && Potree.PointColorType.RGB) {
-            material.pointColorType = Potree.PointColorType.RGB;
-          }
-          
-          // Initialize the attribute selector to match the material
+          // Initialize the attribute selector to match the material (like viewer.html)
           setTimeout(() => {
             const attrSelect = document.getElementById('point-attribute');
-            if (attrSelect && material.pointColorType !== undefined) {
-              // Set the selector to match the current material setting
-              if (material.pointColorType === Potree.PointColorType.RGB) {
-                attrSelect.value = 'rgba';
-              } else if (material.pointColorType === Potree.PointColorType.HEIGHT) {
-                attrSelect.value = 'elevation';
-              } else if (material.pointColorType === Potree.PointColorType.INTENSITY) {
-                attrSelect.value = 'intensity';
-              } else if (material.pointColorType === Potree.PointColorType.CLASSIFICATION) {
-                attrSelect.value = 'classification';
-              }
+            if (attrSelect) {
+              attrSelect.value = material.activeAttributeName || 'rgba';
             }
           }, 500);
           
@@ -1140,46 +1127,9 @@
       pointAttributeSelect.addEventListener('change', (e) => {
         if (pointCloudData && pointCloudData.pointcloud) {
           const material = pointCloudData.pointcloud.material;
-          const attribute = e.target.value;
-          
-          // Check if Potree constants are available
-          if (!Potree.PointColorType) {
-            console.warn('Potree.PointColorType not available yet');
-            updateStatus('⚠️ Potree not ready', 'Point color types not available');
-            return;
-          }
-          
-          try {
-            // Set the appropriate point color type based on attribute
-            switch (attribute) {
-              case 'rgba':
-                material.pointColorType = Potree.PointColorType.RGB;
-                break;
-              case 'elevation':
-                material.pointColorType = Potree.PointColorType.HEIGHT;
-                break;
-              case 'intensity':
-                material.pointColorType = Potree.PointColorType.INTENSITY;
-                break;
-              case 'classification':
-                material.pointColorType = Potree.PointColorType.CLASSIFICATION;
-                break;
-              default:
-                material.pointColorType = Potree.PointColorType.RGB;
-            }
-            
-            // Set the active attribute name if the property exists
-            if (material.activeAttributeName !== undefined) {
-              material.activeAttributeName = attribute;
-            }
-            
-            console.log(`Set point color type to: ${attribute}`);
-            updateStatus('🎨 Attribute changed', `Now showing: ${e.target.options[e.target.selectedIndex].text}`);
-            
-          } catch (error) {
-            console.error('Error setting point attribute:', error);
-            updateStatus('❌ Attribute change failed', `Error: ${error.message}`);
-          }
+          // Use the same simple approach as the working viewer.html
+          material.activeAttributeName = e.target.value;
+          updateStatus('🎨 Attribute changed', `Now showing: ${e.target.options[e.target.selectedIndex].text}`);
         }
       });
       
