@@ -415,13 +415,13 @@
         <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #e8eefc;">🌊 Point Cloud Settings</h4>
         <div class="control-group">
           <label>Point Size:</label>
-          <input type="range" class="slider" id="point-size" min="0.1" max="5.0" step="0.1" value="0.1">
-          <span class="value-display" id="point-size-value">0.1</span>
+          <input type="range" class="slider" id="point-size" min="0.1" max="5.0" step="0.1" value="1.0">
+          <span class="value-display" id="point-size-value">1.0</span>
         </div>
         <div class="control-group">
           <label>Point Budget:</label>
-          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="10">
-          <span class="value-display" id="point-budget-value">10.0M</span>
+          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="5">
+          <span class="value-display" id="point-budget-value">5.0M</span>
         </div>
         <div class="control-group">
           <label>Point Shape:</label>
@@ -1026,19 +1026,6 @@
         if (pointCloudData && pointCloudData.pointcloud) {
           pointCloudData.pointcloud.material.size = size;
           pointSizeValue.textContent = size.toFixed(1);
-        }
-      });
-      
-      // Opacity control
-      const opacitySlider = document.getElementById('point-opacity');
-      const opacityValue = document.getElementById('point-opacity-value');
-      
-      opacitySlider.addEventListener('input', (e) => {
-        const opacity = parseFloat(e.target.value) / 100;
-        if (pointCloudData && pointCloudData.pointcloud) {
-          pointCloudData.pointcloud.material.opacity = opacity;
-          pointCloudData.opacity = opacity;
-          opacityValue.textContent = `${e.target.value}%`;
         }
       });
       
