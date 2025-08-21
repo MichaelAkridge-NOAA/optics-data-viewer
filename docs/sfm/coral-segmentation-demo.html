@@ -458,7 +458,7 @@
         <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #e8eefc;">🌊 Point Cloud Settings</h4>
         <div class="control-group">
           <label>Point Size:</label>
-          <input type="range" class="slider" id="point-size" min="0.1" max="5.0" step="0.1" value="1.0">
+          <input type="range" class="slider" id="point-size" min="0.1" max="5.0" step="0.1" value="0.1">
           <span class="value-display" id="point-size-value">1.0</span>
         </div>
         <div class="control-group">
@@ -476,7 +476,7 @@
         <div class="control-group">
           <label>Point Attribute:</label>
           <select id="point-attribute" class="select-control">
-            <option value="rgb">RGB</option>
+            <option value="rgba">RGB</option>
             <option value="elevation">Elevation</option>
             <option value="intensity">Intensity</option>
             <option value="classification">Classification</option>
@@ -509,7 +509,7 @@
     <div id="loading-text">Loading AI Coral Segmentation Demo…</div>
     <div id="loading-progress" style="font-size:12px;opacity:0.8;margin-top:5px;"></div>
   </div>
-  <div class="chip" id="chip">🤖 AI Coral Segmentation Demo</div>
+  <div class="chip" id="chip"> AI Coral Segmentation Demo</div>
   
   <!-- Status indicator -->
   <div id="status-indicator">
@@ -1104,47 +1104,10 @@
       // Point attribute (color by) control
       const pointAttributeSelect = document.getElementById('point-attribute');
       pointAttributeSelect.addEventListener('change', (e) => {
-        const attribute = e.target.value;
         if (pointCloudData && pointCloudData.pointcloud) {
           const material = pointCloudData.pointcloud.material;
-          
-          // Check if Potree constants are available
-          if (!Potree.PointColorType) {
-            console.warn('Potree.PointColorType not available yet');
-            updateStatus('⚠️ Potree not ready', 'Point color constants not available');
-            return;
-          }
-          
-          // Debug: log available properties
-          console.log('Material properties:', Object.keys(material));
-          console.log('Available PointColorType values:', Potree.PointColorType);
-          
-          try {
-            switch (attribute) {
-              case 'rgb':
-                material.activeAttributeName = 'rgba';
-                updateStatus('RGB colors', 'Showing natural RGB colors');
-                break;
-              case 'elevation':
-                material.activeAttributeName = 'elevation';
-                updateStatus('Elevation colors', 'Coloring by height/elevation');
-                break;
-              case 'intensity':
-                material.activeAttributeName = 'intensity';
-                updateStatus('Intensity colors', 'Coloring by laser return intensity');
-                break;
-              case 'classification':
-                material.activeAttributeName = 'classification';
-                updateStatus('Classification colors', 'Coloring by point classification');
-                break;
-              default:
-                material.activeAttributeName = 'rgba';
-                break;
-            }
-          } catch (error) {
-            console.error('Error setting point color type:', error);
-            updateStatus('❌ Color change failed', `Error: ${error.message}`);
-          }
+          material.activeAttributeName = e.target.value;
+          updateStatus('🎨 Attribute changed', `Now showing: ${e.target.options[e.target.selectedIndex].text}`);
         }
       });
       
