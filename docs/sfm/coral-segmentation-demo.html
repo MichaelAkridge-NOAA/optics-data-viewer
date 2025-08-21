@@ -852,9 +852,22 @@
           shape: material.shape,
           pointSizeType: material.pointSizeType,
           size: material.size,
-          opacity: material.opacity
+          opacity: material.opacity,
+          activeAttributeName: material.activeAttributeName
         });
+        
+        // Show available attributes on the point cloud
+        if (pointCloudData.pointcloud.getActiveAttributeByName) {
+          console.log('Available attributes:', pointCloudData.pointcloud.attributes || 'Not available');
+        }
       }
+      
+      // Check the current UI state
+      const attrSelect = document.getElementById('point-attribute');
+      if (attrSelect) {
+        console.log('Attribute selector current value:', attrSelect.value);
+      }
+      
       console.log('========================');
     };
     
@@ -917,7 +930,28 @@
           material.size = 1;
           material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
           material.shape = Potree.PointShape.SQUARE; // Default to square shape
-          // Note: pointColorType will be set by default, or when user changes attribute selector
+          
+          // Set default point color type to RGB
+          if (Potree.PointColorType && Potree.PointColorType.RGB) {
+            material.pointColorType = Potree.PointColorType.RGB;
+          }
+          
+          // Initialize the attribute selector to match the material
+          setTimeout(() => {
+            const attrSelect = document.getElementById('point-attribute');
+            if (attrSelect && material.pointColorType !== undefined) {
+              // Set the selector to match the current material setting
+              if (material.pointColorType === Potree.PointColorType.RGB) {
+                attrSelect.value = 'rgba';
+              } else if (material.pointColorType === Potree.PointColorType.HEIGHT) {
+                attrSelect.value = 'elevation';
+              } else if (material.pointColorType === Potree.PointColorType.INTENSITY) {
+                attrSelect.value = 'intensity';
+              } else if (material.pointColorType === Potree.PointColorType.CLASSIFICATION) {
+                attrSelect.value = 'classification';
+              }
+            }
+          }, 500);
           
           // Apply color if specified
           if (config.color) {
@@ -1106,8 +1140,46 @@
       pointAttributeSelect.addEventListener('change', (e) => {
         if (pointCloudData && pointCloudData.pointcloud) {
           const material = pointCloudData.pointcloud.material;
-          material.activeAttributeName = e.target.value;
-          updateStatus('🎨 Attribute changed', `Now showing: ${e.target.options[e.target.selectedIndex].text}`);
+          const attribute = e.target.value;
+          
+          // Check if Potree constants are available
+          if (!Potree.PointColorType) {
+            console.warn('Potree.PointColorType not available yet');
+            updateStatus('⚠️ Potree not ready', 'Point color types not available');
+            return;
+          }
+          
+          try {
+            // Set the appropriate point color type based on attribute
+            switch (attribute) {
+              case 'rgba':
+                material.pointColorType = Potree.PointColorType.RGB;
+                break;
+              case 'elevation':
+                material.pointColorType = Potree.PointColorType.HEIGHT;
+                break;
+              case 'intensity':
+                material.pointColorType = Potree.PointColorType.INTENSITY;
+                break;
+              case 'classification':
+                material.pointColorType = Potree.PointColorType.CLASSIFICATION;
+                break;
+              default:
+                material.pointColorType = Potree.PointColorType.RGB;
+            }
+            
+            // Set the active attribute name if the property exists
+            if (material.activeAttributeName !== undefined) {
+              material.activeAttributeName = attribute;
+            }
+            
+            console.log(`Set point color type to: ${attribute}`);
+            updateStatus('🎨 Attribute changed', `Now showing: ${e.target.options[e.target.selectedIndex].text}`);
+            
+          } catch (error) {
+            console.error('Error setting point attribute:', error);
+            updateStatus('❌ Attribute change failed', `Error: ${error.message}`);
+          }
         }
       });
       
