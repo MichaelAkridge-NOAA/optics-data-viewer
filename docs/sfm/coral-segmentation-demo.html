@@ -415,13 +415,18 @@
         <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #e8eefc;">🌊 Point Cloud Settings</h4>
         <div class="control-group">
           <label>Point Size:</label>
-          <input type="range" class="slider" id="point-size" min="0.1" max="5.0" step="0.1" value="0.1">
+          <input type="range" class="slider" id="point-size" min="0.1" max="5.0" step="0.1" value="1.0">
           <span class="value-display" id="point-size-value">1.0</span>
         </div>
         <div class="control-group">
           <label>Opacity:</label>
           <input type="range" class="slider" id="point-opacity" min="0" max="100" step="1" value="100">
           <span class="value-display" id="point-opacity-value">100%</span>
+        </div>
+        <div class="control-group">
+          <label>Point Budget:</label>
+          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="5">
+          <span class="value-display" id="point-budget-value">5.0M</span>
         </div>
       </div>
 
@@ -1005,6 +1010,21 @@
           pointCloudData.opacity = opacity;
           opacityValue.textContent = `${e.target.value}%`;
         }
+      });
+      
+      // Point budget control
+      const pointBudgetSlider = document.getElementById('point-budget');
+      const pointBudgetValue = document.getElementById('point-budget-value');
+      
+      pointBudgetSlider.addEventListener('input', (e) => {
+        const budget = parseFloat(e.target.value);
+        const budgetPoints = Math.round(budget * 1000000); // Convert to actual point count
+        
+        viewer.setPointBudget(budgetPoints);
+        pointBudgetValue.textContent = `${budget.toFixed(1)}M`;
+        
+        // Show status update
+        updateStatus('📊 Point budget updated', `Set to ${budget.toFixed(1)} million points`);
       });
     }
 
