@@ -141,9 +141,45 @@
     }
 
     .ai-stats {
+      display: flex;
+      justify-content: space-between;
+      gap: 15px;
       font-size: 12px;
       color: rgba(255,255,255,0.8);
       line-height: 1.4;
+    }
+
+    .stat-counter {
+      flex: 1;
+      text-align: center;
+      padding: 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      border: 1px solid rgba(76, 175, 80, 0.2);
+    }
+
+    .stat-number {
+      font-size: 28px;
+      font-weight: bold;
+      color: #4CAF50;
+      line-height: 1;
+      margin-bottom: 4px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .confidence-number {
+      color: #FFA726;
+    }
+
+    .time-number {
+      color: #42A5F5;
     }
 
     /* Control Groups */
@@ -338,9 +374,18 @@
         </div>
         
         <div class="ai-stats" id="ai-stats">
-          Coral segments detected: <strong style="font-size: 16px; color: #4CAF50;">0</strong><br>
-          Analysis confidence: <span id="confidence-display" style="font-size: 14px;">--</span><br>
-          Processing time: <span id="processing-time" style="font-size: 14px;">0.0s</span>
+          <div class="stat-counter">
+            <div class="stat-number" id="coral-count">0</div>
+            <div class="stat-label">Coral Segments</div>
+          </div>
+          <div class="stat-counter">
+            <div class="stat-number confidence-number" id="confidence-number">--</div>
+            <div class="stat-label">Confidence</div>
+          </div>
+          <div class="stat-counter">
+            <div class="stat-number time-number" id="time-number">0.0s</div>
+            <div class="stat-label">Processing Time</div>
+          </div>
         </div>
       </div>
 
@@ -516,15 +561,11 @@
       document.getElementById('ai-progress-text').textContent = `${Math.round(progress)}%`;
       
       const confidencePercent = Math.round(confidence * 100);
-      let confidenceClass = 'confidence-low';
-      if (confidence >= 0.8) confidenceClass = 'confidence-high';
-      else if (confidence >= 0.6) confidenceClass = 'confidence-medium';
       
-      document.getElementById('ai-stats').innerHTML = `
-        Coral segments detected: <strong style="font-size: 18px; color: #4CAF50;">${segmentsDetected}</strong><br>
-        Analysis confidence: <span class="confidence-badge ${confidenceClass}" style="font-size: 12px;">${confidencePercent}%</span><br>
-        Processing time: <span id="processing-time" style="font-size: 14px;">${processingTime.toFixed(1)}s</span>
-      `;
+      // Update dashboard counters
+      document.getElementById('coral-count').textContent = segmentsDetected;
+      document.getElementById('confidence-number').textContent = `${confidencePercent}%`;
+      document.getElementById('time-number').textContent = `${processingTime.toFixed(1)}s`;
     }
 
     function startAISegmentation() {
