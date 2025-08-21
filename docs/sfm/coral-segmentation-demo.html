@@ -419,32 +419,25 @@
           <span class="value-display" id="point-size-value">1.0</span>
         </div>
         <div class="control-group">
-          <label>Opacity:</label>
-          <input type="range" class="slider" id="point-opacity" min="0" max="100" step="1" value="100">
-          <span class="value-display" id="point-opacity-value">100%</span>
+          <label>Point Budget:</label>
+          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="10">
+          <span class="value-display" id="point-budget-value">7.0M</span>
         </div>
         <div class="control-group">
           <label>Point Shape:</label>
           <select id="point-shape" style="flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
             <option value="circle">● Circle</option>
-            <option value="square">■ Square</option>
+            <option value="square" selected>■ Square</option>
           </select>
         </div>
         <div class="control-group">
-          <label>Color By:</label>
+          <label>Point Attribute:</label>
           <select id="point-attribute" style="flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
-            <option value="rgb">🌈 RGB Colors</option>
-            <option value="elevation">📏 Elevation</option>
-            <option value="intensity">💡 Intensity</option>
-            <option value="classification">🏷️ Classification</option>
-            <option value="return_number">🔢 Return Number</option>
-            <option value="uniform">🎨 Uniform Color</option>
+            <option value="rgb">RGB</option>
+            <option value="elevation">Elevation</option>
+            <option value="intensity">Intensity</option>
+            <option value="classification">Classification</option>
           </select>
-        </div>
-        <div class="control-group">
-          <label>Point Budget:</label>
-          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="5">
-          <span class="value-display" id="point-budget-value">7.0M</span>
         </div>
       </div>
 
@@ -754,7 +747,7 @@
       
       isRotating = true;
       let startTime = Date.now();
-      const rotationDuration = 60000; // 15 seconds for full rotation
+      const rotationDuration = 120000; // 15 seconds for full rotation
       
       // Get Potree's view system
       const view = viewer.scene.view;
@@ -877,7 +870,7 @@
           let material = pointcloud.material;
           material.size = 1;
           material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-          material.shape = Potree.PointShape.CIRCLE; // Default to circle shape
+          material.shape = Potree.PointShape.SQUARE; // Default to square shape
           // Note: pointColorType will be set by default, or when user changes attribute selector
           
           // Apply color if specified
@@ -1096,29 +1089,19 @@
             switch (attribute) {
               case 'rgb':
                 material.pointColorType = Potree.PointColorType.RGB;
-                updateStatus('🌈 RGB colors', 'Showing natural RGB colors');
+                updateStatus('RGB colors', 'Showing natural RGB colors');
                 break;
               case 'elevation':
                 material.pointColorType = Potree.PointColorType.ELEVATION;
-                updateStatus('📏 Elevation colors', 'Coloring by height/elevation');
+                updateStatus('Elevation colors', 'Coloring by height/elevation');
                 break;
               case 'intensity':
                 material.pointColorType = Potree.PointColorType.INTENSITY;
-                updateStatus('💡 Intensity colors', 'Coloring by laser return intensity');
+                updateStatus('Intensity colors', 'Coloring by laser return intensity');
                 break;
               case 'classification':
                 material.pointColorType = Potree.PointColorType.CLASSIFICATION;
-                updateStatus('🏷️ Classification colors', 'Coloring by point classification');
-                break;
-              case 'return_number':
-                material.pointColorType = Potree.PointColorType.RETURN_NUMBER;
-                updateStatus('🔢 Return number colors', 'Coloring by laser return number');
-                break;
-              case 'uniform':
-                material.pointColorType = Potree.PointColorType.COLOR;
-                // Set a nice uniform color for coral analysis
-                material.color = new THREE.Color(0.2, 0.8, 0.9); // Light cyan
-                updateStatus('🎨 Uniform color', 'Using single uniform color');
+                updateStatus('Classification colors', 'Coloring by point classification');
                 break;
               default:
                 material.pointColorType = Potree.PointColorType.RGB;
