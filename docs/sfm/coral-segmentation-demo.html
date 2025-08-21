@@ -722,66 +722,63 @@
     function startCinematicRotation() {
       if (isRotating) {
         // Stop rotation
-        isRotating = false;
-        if (rotationAnimation) {
-          rotationAnimation = null;
-        }
-        document.getElementById('rotate-view').textContent = '🔄 Rotate View';
-        updateStatus('⏹️ Rotation stopped', 'Camera rotation disabled');
+        stopRotation();
         return;
       }
       
       // Start rotation
+      startRotation();
+    }
+
+    // Start smooth camera rotation animation (based on working timeseries viewer)
+    function startRotation() {
+      if (isRotating) return;
+      
       isRotating = true;
+      let startTime = Date.now();
+      const rotationDuration = 15000; // 15 seconds for full rotation
+      
+      // Get Potree's view system
+      const view = viewer.scene.view;
+      const initialYaw = view.yaw || 0;
+      
+      // Update button state
       document.getElementById('rotate-view').textContent = '⏹️ Stop Rotate';
       updateStatus('🎬 Cinematic rotation', 'Smooth camera rotation enabled');
-      
-      const startTime = Date.now();
-      const rotationSpeed = 0.0003; // Very slow rotation speed
-      const verticalOscillation = 0.00015; // Gentle up/down movement
-      
-      // Store initial camera position and target for smooth interpolation
-      const initialPosition = viewer.scene.view.position.clone();
-      const initialTarget = new THREE.Vector3();
-      viewer.scene.view.getWorldDirection(initialTarget);
-      initialTarget.multiplyScalar(10).add(initialPosition);
-      
-      // Calculate center point for rotation (use point cloud center if available)
-      let centerPoint = new THREE.Vector3(0, 0, 0);
-      if (pointCloudData && pointCloudData.pointcloud && pointCloudData.pointcloud.boundingSphere) {
-        centerPoint.copy(pointCloudData.pointcloud.boundingSphere.center);
-      }
-      
-      // Calculate distance from center for orbit
-      const radius = initialPosition.distanceTo(centerPoint);
       
       function animate() {
         if (!isRotating) return;
         
-        const elapsed = (Date.now() - startTime) / 1000;
-        const angle = elapsed * rotationSpeed * 2 * Math.PI;
-        const verticalOffset = Math.sin(elapsed * verticalOscillation * 2 * Math.PI) * radius * 0.1;
+        const currentTime = Date.now();
+        const elapsed = currentTime - startTime;
+        const progress = (elapsed % rotationDuration) / rotationDuration;
+        const angle = progress * Math.PI * 2; // Full circle
         
-        // Calculate new camera position in orbit around center
-        const newPosition = new THREE.Vector3(
-          centerPoint.x + Math.cos(angle) * radius,
-          centerPoint.y + Math.sin(angle) * radius,
-          centerPoint.z + verticalOffset
-        );
+        // Update yaw for smooth rotation around the point clouds
+        view.yaw = initialYaw + angle;
         
-        // Smoothly interpolate to new position
-        viewer.scene.view.position.lerp(newPosition, 0.02);
+        // Force view update
+        if (view.update) {
+          view.update();
+        }
         
-        // Always look at the center point with slight upward tilt
-        const lookTarget = centerPoint.clone();
-        lookTarget.z += radius * 0.1; // Slight upward tilt
-        viewer.scene.view.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
-        
-        // Continue animation
         rotationAnimation = requestAnimationFrame(animate);
       }
       
       animate();
+    }
+
+    // Stop animation
+    function stopRotation() {
+      isRotating = false;
+      if (rotationAnimation) {
+        cancelAnimationFrame(rotationAnimation);
+        rotationAnimation = null;
+      }
+      
+      // Update button state
+      document.getElementById('rotate-view').textContent = '🔄 Rotate View';
+      updateStatus('⏹️ Rotation stopped', 'Camera rotation disabled');
     }
 
     console.log('Initializing AI Coral Segmentation Demo...');
