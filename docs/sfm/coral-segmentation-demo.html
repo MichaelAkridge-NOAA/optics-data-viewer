@@ -611,18 +611,12 @@
       if (confidence >= confidenceThreshold) {
         segment.visible = true;
         
-        // Make detected segments more prominent based on confidence
+        // Apply original default styling - simple and clean
         segment.traverse(child => {
           if (child.material) {
-            // Use consistent color but vary opacity and size based on confidence
             child.material.color.setHex(parseInt('#4ECDC4'.replace('#', '0x')));
-            child.material.opacity = Math.max(0.6, confidence); // Higher confidence = more opaque
-            
-            // Scale up the segment slightly to make it more prominent
-            if (child.scale) {
-              const scaleMultiplier = 1 + (confidence - 0.5) * 0.3; // Scale 1.0 to 1.15
-              child.scale.setScalar(scaleMultiplier);
-            }
+            child.material.opacity = 0.6;
+            child.material.transparent = true;
           }
         });
       }
