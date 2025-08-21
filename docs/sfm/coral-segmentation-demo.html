@@ -443,7 +443,7 @@
         </div>
         <div class="control-group">
           <label>Point Budget:</label>
-          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="7">
+          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="5">
           <span class="value-display" id="point-budget-value">7.0M</span>
         </div>
       </div>
@@ -801,6 +801,27 @@
 
     console.log('Initializing AI Coral Segmentation Demo...');
     
+    // Debug function to check Potree constants - can be called from browser console
+    window.debugPotreeConstants = function() {
+      console.log('=== POTREE DEBUG INFO ===');
+      console.log('Potree version:', Potree.version || 'Unknown');
+      console.log('PointColorType:', Potree.PointColorType);
+      console.log('PointShape:', Potree.PointShape);  
+      console.log('PointSizeType:', Potree.PointSizeType);
+      
+      if (pointCloudData && pointCloudData.pointcloud) {
+        const material = pointCloudData.pointcloud.material;
+        console.log('Current material properties:', {
+          pointColorType: material.pointColorType,
+          shape: material.shape,
+          pointSizeType: material.pointSizeType,
+          size: material.size,
+          opacity: material.opacity
+        });
+      }
+      console.log('========================');
+    };
+    
     // Initialize viewer with optimized settings
     window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
     
@@ -857,7 +878,7 @@
           material.size = 1;
           material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
           material.shape = Potree.PointShape.CIRCLE; // Default to circle shape
-          material.pointColorType = Potree.PointColorType.RGB; // Default to RGB colors
+          // Note: pointColorType will be set by default, or when user changes attribute selector
           
           // Apply color if specified
           if (config.color) {
@@ -1034,12 +1055,25 @@
         const shape = e.target.value;
         if (pointCloudData && pointCloudData.pointcloud) {
           const material = pointCloudData.pointcloud.material;
-          if (shape === 'circle') {
-            material.shape = Potree.PointShape.CIRCLE;
-            updateStatus('⚫ Circle points', 'Point shape set to circles');
-          } else if (shape === 'square') {
-            material.shape = Potree.PointShape.SQUARE;
-            updateStatus('⬛ Square points', 'Point shape set to squares');
+          
+          // Check if Potree constants are available
+          if (!Potree.PointShape) {
+            console.warn('Potree.PointShape not available yet');
+            updateStatus('⚠️ Potree not ready', 'Point shape constants not available');
+            return;
+          }
+          
+          try {
+            if (shape === 'circle') {
+              material.shape = Potree.PointShape.CIRCLE;
+              updateStatus('⚫ Circle points', 'Point shape set to circles');
+            } else if (shape === 'square') {
+              material.shape = Potree.PointShape.SQUARE;
+              updateStatus('⬛ Square points', 'Point shape set to squares');
+            }
+          } catch (error) {
+            console.error('Error setting point shape:', error);
+            updateStatus('❌ Shape change failed', `Error: ${error.message}`);
           }
         }
       });
@@ -1051,36 +1085,48 @@
         if (pointCloudData && pointCloudData.pointcloud) {
           const material = pointCloudData.pointcloud.material;
           
-          switch (attribute) {
-            case 'rgb':
-              material.pointColorType = Potree.PointColorType.RGB;
-              updateStatus('🌈 RGB colors', 'Showing natural RGB colors');
-              break;
-            case 'elevation':
-              material.pointColorType = Potree.PointColorType.ELEVATION;
-              updateStatus('📏 Elevation colors', 'Coloring by height/elevation');
-              break;
-            case 'intensity':
-              material.pointColorType = Potree.PointColorType.INTENSITY;
-              updateStatus('💡 Intensity colors', 'Coloring by laser return intensity');
-              break;
-            case 'classification':
-              material.pointColorType = Potree.PointColorType.CLASSIFICATION;
-              updateStatus('🏷️ Classification colors', 'Coloring by point classification');
-              break;
-            case 'return_number':
-              material.pointColorType = Potree.PointColorType.RETURN_NUMBER;
-              updateStatus('🔢 Return number colors', 'Coloring by laser return number');
-              break;
-            case 'uniform':
-              material.pointColorType = Potree.PointColorType.COLOR;
-              // Set a nice uniform color for coral analysis
-              material.color = new THREE.Color(0.2, 0.8, 0.9); // Light cyan
-              updateStatus('🎨 Uniform color', 'Using single uniform color');
-              break;
-            default:
-              material.pointColorType = Potree.PointColorType.RGB;
-              break;
+          // Check if Potree constants are available
+          if (!Potree.PointColorType) {
+            console.warn('Potree.PointColorType not available yet');
+            updateStatus('⚠️ Potree not ready', 'Point color constants not available');
+            return;
+          }
+          
+          try {
+            switch (attribute) {
+              case 'rgb':
+                material.pointColorType = Potree.PointColorType.RGB;
+                updateStatus('🌈 RGB colors', 'Showing natural RGB colors');
+                break;
+              case 'elevation':
+                material.pointColorType = Potree.PointColorType.ELEVATION;
+                updateStatus('📏 Elevation colors', 'Coloring by height/elevation');
+                break;
+              case 'intensity':
+                material.pointColorType = Potree.PointColorType.INTENSITY;
+                updateStatus('💡 Intensity colors', 'Coloring by laser return intensity');
+                break;
+              case 'classification':
+                material.pointColorType = Potree.PointColorType.CLASSIFICATION;
+                updateStatus('🏷️ Classification colors', 'Coloring by point classification');
+                break;
+              case 'return_number':
+                material.pointColorType = Potree.PointColorType.RETURN_NUMBER;
+                updateStatus('🔢 Return number colors', 'Coloring by laser return number');
+                break;
+              case 'uniform':
+                material.pointColorType = Potree.PointColorType.COLOR;
+                // Set a nice uniform color for coral analysis
+                material.color = new THREE.Color(0.2, 0.8, 0.9); // Light cyan
+                updateStatus('🎨 Uniform color', 'Using single uniform color');
+                break;
+              default:
+                material.pointColorType = Potree.PointColorType.RGB;
+                break;
+            }
+          } catch (error) {
+            console.error('Error setting point color type:', error);
+            updateStatus('❌ Color change failed', `Error: ${error.message}`);
           }
         }
       });
