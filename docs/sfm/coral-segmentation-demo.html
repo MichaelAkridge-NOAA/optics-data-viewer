@@ -431,6 +431,7 @@
         <button class="btn secondary" id="fit-to-screen">Fit to Screen</button>
         <button class="btn secondary" id="reset-view">Reset View</button>
         <button class="btn secondary" id="toggle-camera">Toggle Camera</button>
+        <button class="btn secondary" id="rotate-view">🔄 Rotate View</button>
       </div>
 
       <!-- Location Map -->
@@ -527,6 +528,8 @@
     let isPaused = false;
     let startTime = null;
     let totalSegments = 0;
+    let rotationAnimation = null;
+    let isRotating = false;
 
     const errorBox = document.getElementById('error');
     const loading = document.getElementById('loading');
@@ -626,20 +629,27 @@
       const elapsedTime = (Date.now() - startTime) / 1000;
       const visibleSegments = aiSegments.filter(s => s.visible).length;
       
-      updateAIStatus(
-        confidence >= confidenceThreshold ? 
-          '<div class="ai-spinner" style="display: inline-block; margin-right: 6px;"></div>✅ Coral Segment Detected!' :
-          '<div class="ai-spinner" style="display: inline-block; margin-right: 6px;"></div>❓ Low Confidence - Skipping...',
-        progress, visibleSegments, confidence, elapsedTime
-      );
-      
-      // Continue to next segment or finish
-      if (currentSegmentIndex < aiSegments.length) {
+      // Check if we're done processing
+      if (currentSegmentIndex >= aiSegments.length) {
+        // Analysis complete - no spinner
+        updateAIStatus(
+          '🎉 Analysis Complete!',
+          100, visibleSegments, confidence, elapsedTime
+        );
+        finishSegmentation();
+      } else {
+        // Still processing - show spinner
+        updateAIStatus(
+          confidence >= confidenceThreshold ? 
+            '<div class="ai-spinner" style="display: inline-block; margin-right: 6px;"></div>✅ Coral Segment Detected!' :
+            '<div class="ai-spinner" style="display: inline-block; margin-right: 6px;"></div>❓ Low Confidence - Skipping...',
+          progress, visibleSegments, confidence, elapsedTime
+        );
+        
+        // Continue to next segment
         segmentationTimer = setTimeout(() => {
           processNextSegment();
         }, PROJECT_CONFIG.aiDemo.segmentationInterval / speed);
-      } else {
-        finishSegmentation();
       }
     }
 
@@ -702,6 +712,71 @@
       );
       
       updateStatus('🔄 Analysis Reset', 'Ready for new analysis');
+    }
+
+    function startCinematicRotation() {
+      if (isRotating) {
+        // Stop rotation
+        isRotating = false;
+        if (rotationAnimation) {
+          rotationAnimation = null;
+        }
+        document.getElementById('rotate-view').textContent = '🔄 Rotate View';
+        updateStatus('⏹️ Rotation stopped', 'Camera rotation disabled');
+        return;
+      }
+      
+      // Start rotation
+      isRotating = true;
+      document.getElementById('rotate-view').textContent = '⏹️ Stop Rotate';
+      updateStatus('🎬 Cinematic rotation', 'Smooth camera rotation enabled');
+      
+      const startTime = Date.now();
+      const rotationSpeed = 0.0003; // Very slow rotation speed
+      const verticalOscillation = 0.00015; // Gentle up/down movement
+      
+      // Store initial camera position and target for smooth interpolation
+      const initialPosition = viewer.scene.view.position.clone();
+      const initialTarget = new THREE.Vector3();
+      viewer.scene.view.getWorldDirection(initialTarget);
+      initialTarget.multiplyScalar(10).add(initialPosition);
+      
+      // Calculate center point for rotation (use point cloud center if available)
+      let centerPoint = new THREE.Vector3(0, 0, 0);
+      if (pointCloudData && pointCloudData.pointcloud && pointCloudData.pointcloud.boundingSphere) {
+        centerPoint.copy(pointCloudData.pointcloud.boundingSphere.center);
+      }
+      
+      // Calculate distance from center for orbit
+      const radius = initialPosition.distanceTo(centerPoint);
+      
+      function animate() {
+        if (!isRotating) return;
+        
+        const elapsed = (Date.now() - startTime) / 1000;
+        const angle = elapsed * rotationSpeed * 2 * Math.PI;
+        const verticalOffset = Math.sin(elapsed * verticalOscillation * 2 * Math.PI) * radius * 0.1;
+        
+        // Calculate new camera position in orbit around center
+        const newPosition = new THREE.Vector3(
+          centerPoint.x + Math.cos(angle) * radius,
+          centerPoint.y + Math.sin(angle) * radius,
+          centerPoint.z + verticalOffset
+        );
+        
+        // Smoothly interpolate to new position
+        viewer.scene.view.position.lerp(newPosition, 0.02);
+        
+        // Always look at the center point with slight upward tilt
+        const lookTarget = centerPoint.clone();
+        lookTarget.z += radius * 0.1; // Slight upward tilt
+        viewer.scene.view.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
+        
+        // Continue animation
+        rotationAnimation = requestAnimationFrame(animate);
+      }
+      
+      animate();
     }
 
     console.log('Initializing AI Coral Segmentation Demo...');
@@ -872,6 +947,10 @@
         viewer.setCameraMode(isOrtho ? 1 : 0); // Toggle: 0 = orthographic, 1 = perspective
         updateStatus(isOrtho ? '📹 Perspective camera' : '📐 Orthographic camera', 
                     isOrtho ? 'Switched to perspective view' : 'Switched to orthographic view');
+      });
+      
+      document.getElementById('rotate-view').addEventListener('click', () => {
+        startCinematicRotation();
       });
       
       console.log('AI demo controls initialized');
