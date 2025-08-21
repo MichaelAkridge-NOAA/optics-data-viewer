@@ -338,9 +338,9 @@
         </div>
         
         <div class="ai-stats" id="ai-stats">
-          Coral segments detected: <strong>0</strong><br>
-          Analysis confidence: <span id="confidence-display">--</span><br>
-          Processing time: <span id="processing-time">0.0s</span>
+          Coral segments detected: <strong style="font-size: 16px; color: #4CAF50;">0</strong><br>
+          Analysis confidence: <span id="confidence-display" style="font-size: 14px;">--</span><br>
+          Processing time: <span id="processing-time" style="font-size: 14px;">0.0s</span>
         </div>
       </div>
 
@@ -350,8 +350,8 @@
         
         <div class="control-group">
           <label>Speed:</label>
-          <input type="range" class="slider" id="segmentation-speed" min="0.5" max="5.0" step="0.5" value="2.0">
-          <span class="value-display" id="speed-value">2.0x</span>
+          <input type="range" class="slider" id="segmentation-speed" min="1.0" max="8.0" step="0.5" value="4.0">
+          <span class="value-display" id="speed-value">4.0x</span>
         </div>
         
         <div class="control-group">
@@ -466,9 +466,9 @@
         target: [4.923, 0.245, -15.794]
       },
       aiDemo: {
-        segmentationInterval: 2000, // Default interval between segments (ms)
+        segmentationInterval: 1500, // Default interval between segments (ms) - faster
         confidenceRange: [0.65, 0.95], // Random confidence range
-        processingTimeRange: [0.8, 3.2] // Random processing time range (seconds)
+        processingTimeRange: [0.5, 2.0] // Random processing time range (seconds) - faster
       }
     };
 
@@ -521,9 +521,9 @@
       else if (confidence >= 0.6) confidenceClass = 'confidence-medium';
       
       document.getElementById('ai-stats').innerHTML = `
-        Coral segments detected: <strong>${segmentsDetected}</strong><br>
-        Analysis confidence: <span class="confidence-badge ${confidenceClass}">${confidencePercent}%</span><br>
-        Processing time: <span id="processing-time">${processingTime.toFixed(1)}s</span>
+        Coral segments detected: <strong style="font-size: 18px; color: #4CAF50;">${segmentsDetected}</strong><br>
+        Analysis confidence: <span class="confidence-badge ${confidenceClass}" style="font-size: 12px;">${confidencePercent}%</span><br>
+        Processing time: <span id="processing-time" style="font-size: 14px;">${processingTime.toFixed(1)}s</span>
       `;
     }
 
@@ -570,14 +570,18 @@
       if (confidence >= confidenceThreshold) {
         segment.visible = true;
         
-        // Update segment color based on confidence
-        const colorIndex = Math.floor(confidence * PROJECT_CONFIG.shapefile.colors.length);
-        const color = PROJECT_CONFIG.shapefile.colors[colorIndex] || PROJECT_CONFIG.shapefile.colors[0];
-        
+        // Make detected segments more prominent based on confidence
         segment.traverse(child => {
-          if (child.material && child.material.color) {
-            child.material.color.setHex(parseInt(color.replace('#', '0x')));
-            child.material.opacity = PROJECT_CONFIG.shapefile.opacity;
+          if (child.material) {
+            // Use consistent color but vary opacity and size based on confidence
+            child.material.color.setHex(parseInt('#4ECDC4'.replace('#', '0x')));
+            child.material.opacity = Math.max(0.6, confidence); // Higher confidence = more opaque
+            
+            // Scale up the segment slightly to make it more prominent
+            if (child.scale) {
+              const scaleMultiplier = 1 + (confidence - 0.5) * 0.3; // Scale 1.0 to 1.15
+              child.scale.setScalar(scaleMultiplier);
+            }
           }
         });
       }
