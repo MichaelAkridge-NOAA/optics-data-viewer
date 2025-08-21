@@ -395,8 +395,8 @@
         
         <div class="control-group">
           <label>Speed:</label>
-          <input type="range" class="slider" id="segmentation-speed" min="1.0" max="8.0" step="0.5" value="4.0">
-          <span class="value-display" id="speed-value">4.0x</span>
+          <input type="range" class="slider" id="segmentation-speed" min="1.0" max="8.0" step="0.5" value="8.0">
+          <span class="value-display" id="speed-value">8.0x</span>
         </div>
         
         <div class="control-group">
@@ -424,9 +424,27 @@
           <span class="value-display" id="point-opacity-value">100%</span>
         </div>
         <div class="control-group">
+          <label>Point Shape:</label>
+          <select id="point-shape" style="flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+            <option value="circle">● Circle</option>
+            <option value="square">■ Square</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Color By:</label>
+          <select id="point-attribute" style="flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+            <option value="rgb">🌈 RGB Colors</option>
+            <option value="elevation">📏 Elevation</option>
+            <option value="intensity">💡 Intensity</option>
+            <option value="classification">🏷️ Classification</option>
+            <option value="return_number">🔢 Return Number</option>
+            <option value="uniform">🎨 Uniform Color</option>
+          </select>
+        </div>
+        <div class="control-group">
           <label>Point Budget:</label>
-          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="5">
-          <span class="value-display" id="point-budget-value">5.0M</span>
+          <input type="range" class="slider" id="point-budget" min="0.5" max="10" step="0.5" value="7">
+          <span class="value-display" id="point-budget-value">7.0M</span>
         </div>
       </div>
 
@@ -736,7 +754,7 @@
       
       isRotating = true;
       let startTime = Date.now();
-      const rotationDuration = 30000; // 15 seconds for full rotation
+      const rotationDuration = 60000; // 15 seconds for full rotation
       
       // Get Potree's view system
       const view = viewer.scene.view;
@@ -838,7 +856,8 @@
           let material = pointcloud.material;
           material.size = 1;
           material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-          material.shape = Potree.PointShape.SQUARE;
+          material.shape = Potree.PointShape.CIRCLE; // Default to circle shape
+          material.pointColorType = Potree.PointColorType.RGB; // Default to RGB colors
           
           // Apply color if specified
           if (config.color) {
@@ -1006,6 +1025,63 @@
           pointCloudData.pointcloud.material.opacity = opacity;
           pointCloudData.opacity = opacity;
           opacityValue.textContent = `${e.target.value}%`;
+        }
+      });
+      
+      // Point shape control
+      const pointShapeSelect = document.getElementById('point-shape');
+      pointShapeSelect.addEventListener('change', (e) => {
+        const shape = e.target.value;
+        if (pointCloudData && pointCloudData.pointcloud) {
+          const material = pointCloudData.pointcloud.material;
+          if (shape === 'circle') {
+            material.shape = Potree.PointShape.CIRCLE;
+            updateStatus('⚫ Circle points', 'Point shape set to circles');
+          } else if (shape === 'square') {
+            material.shape = Potree.PointShape.SQUARE;
+            updateStatus('⬛ Square points', 'Point shape set to squares');
+          }
+        }
+      });
+      
+      // Point attribute (color by) control
+      const pointAttributeSelect = document.getElementById('point-attribute');
+      pointAttributeSelect.addEventListener('change', (e) => {
+        const attribute = e.target.value;
+        if (pointCloudData && pointCloudData.pointcloud) {
+          const material = pointCloudData.pointcloud.material;
+          
+          switch (attribute) {
+            case 'rgb':
+              material.pointColorType = Potree.PointColorType.RGB;
+              updateStatus('🌈 RGB colors', 'Showing natural RGB colors');
+              break;
+            case 'elevation':
+              material.pointColorType = Potree.PointColorType.ELEVATION;
+              updateStatus('📏 Elevation colors', 'Coloring by height/elevation');
+              break;
+            case 'intensity':
+              material.pointColorType = Potree.PointColorType.INTENSITY;
+              updateStatus('💡 Intensity colors', 'Coloring by laser return intensity');
+              break;
+            case 'classification':
+              material.pointColorType = Potree.PointColorType.CLASSIFICATION;
+              updateStatus('🏷️ Classification colors', 'Coloring by point classification');
+              break;
+            case 'return_number':
+              material.pointColorType = Potree.PointColorType.RETURN_NUMBER;
+              updateStatus('🔢 Return number colors', 'Coloring by laser return number');
+              break;
+            case 'uniform':
+              material.pointColorType = Potree.PointColorType.COLOR;
+              // Set a nice uniform color for coral analysis
+              material.color = new THREE.Color(0.2, 0.8, 0.9); // Light cyan
+              updateStatus('🎨 Uniform color', 'Using single uniform color');
+              break;
+            default:
+              material.pointColorType = Potree.PointColorType.RGB;
+              break;
+          }
         }
       });
       
