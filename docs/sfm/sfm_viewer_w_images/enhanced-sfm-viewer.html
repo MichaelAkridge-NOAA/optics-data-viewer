@@ -76,12 +76,18 @@
   <div id="cameraPanel">
     <h3>OCC-ASC-003 Cameras</h3>
     <div class="camera-controls">
-      <button id="btnToggleFrustums">Toggle Cameras</button>
+      <button id="btnToggleFrustums">Show All Cameras</button>
       <button id="btnToggleImagePlane">Toggle Images</button>
-      <button id="btnLoadCameras">Reload Cameras</button>
+      <button id="btnQueryMode" class="active">Click to Query</button>
+      <button id="btnClearSelection">Clear Selection</button>
+    </div>
+    
+    <div style="margin:8px 0;font-size:11px;color:#ccc;">
+      <strong>Click Mode:</strong> Click on point cloud to see cameras that captured that area
     </div>
 
     <div id="cameraStats" style="margin:8px 0;font-size:11px;color:#aaa;"></div>
+    <div id="selectionInfo" style="margin:4px 0;font-size:10px;color:#4CAF50;display:none;"></div>
 
     <div class="camera-list" id="cameraList"></div>
   </div>
@@ -210,7 +216,7 @@
               imageDir: '', // Images are directly in the base URL path
               thumbnailDir: '', // Use same images for thumbnails for now
               scaleImage: 0.5,
-              showFrustums: true,
+              showFrustums: false, // Start with cameras hidden due to high count
               showImagePlane: false
             });
             
@@ -227,11 +233,6 @@
           } catch (error) {
             console.error('Failed to initialize camera overlay:', error);
           }
-          
-          // Start monitoring for camera animations
-          setTimeout(() => {
-            monitorCameraAnimations();
-          }, 1000);
         });
       });
     }
@@ -242,14 +243,25 @@
     function setupCameraPanel() {
       const btnToggleFrustums = document.getElementById('btnToggleFrustums');
       const btnToggleImagePlane = document.getElementById('btnToggleImagePlane');
-      const btnLoadCameras = document.getElementById('btnLoadCameras');
+      const btnQueryMode = document.getElementById('btnQueryMode');
+      const btnClearSelection = document.getElementById('btnClearSelection');
+      
+      let queryModeActive = true; // Start in query mode
+      let selectedCameras = [];
 
-      // Toggle camera frustums
+      // Toggle all camera frustums
       btnToggleFrustums.onclick = () => {
         if (cameraOverlay) {
           const visible = cameraOverlay.toggleCameraFrustums();
-          btnToggleFrustums.textContent = visible ? 'Hide Cameras' : 'Show Cameras';
+          btnToggleFrustums.textContent = visible ? 'Hide All Cameras' : 'Show All Cameras';
           btnToggleFrustums.classList.toggle('active', visible);
+          
+          if (visible) {
+            // Disable query mode when showing all cameras
+            queryModeActive = false;
+            btnQueryMode.classList.remove('active');
+            btnQueryMode.textContent = 'Click to Query';
+          }
         }
       };
 
@@ -262,17 +274,114 @@
         }
       };
 
-      // Reload cameras using default URLs
-      btnLoadCameras.onclick = () => {
-        if (cameraOverlay && cameraSrc) {
-          console.log('Reloading cameras from:', cameraSrc);
-          loadCameraDataFromURL(cameraSrc);
-        } else {
-          console.warn('No camera overlay or camera source URL available');
+      // Toggle query mode
+      btnQueryMode.onclick = () => {
+        queryModeActive = !queryModeActive;
+        btnQueryMode.classList.toggle('active', queryModeActive);
+        btnQueryMode.textContent = queryModeActive ? 'Query Mode ON' : 'Click to Query';
+        
+        if (queryModeActive) {
+          // Hide all cameras and enable click-to-query
+          cameraOverlay.turnCamerasOff();
+          btnToggleFrustums.textContent = 'Show All Cameras';
+          btnToggleFrustums.classList.remove('active');
+          console.log('Query mode enabled - click on point cloud to see relevant cameras');
         }
       };
+
+      // Clear selection and hide selected cameras
+      btnClearSelection.onclick = () => {
+        selectedCameras = [];
+        if (cameraOverlay) {
+          cameraOverlay.clearSelectedCameras();
+        }
+        document.getElementById('selectionInfo').style.display = 'none';
+        updateCameraList(cameraOverlay ? cameraOverlay.cameras : []);
+        console.log('Camera selection cleared');
+      };
+
+      // Setup click-to-query on the point cloud
+      const canvas = viewer.renderer.domElement;
+      canvas.addEventListener('click', (event) => {
+        if (!queryModeActive || !cameraOverlay) return;
+        
+        // Get click position in 3D space
+        const rect = canvas.getBoundingClientRect();
+        const mouse = new THREE.Vector2(
+          ((event.clientX - rect.left) / rect.width) * 2 - 1,
+          -((event.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        
+        // Raycast to find intersection with point cloud
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, viewer.scene.cameraP);
+        
+        // Find nearby cameras to the clicked point
+        const clickedPoint = getClickedPoint(raycaster);
+        if (clickedPoint) {
+          findCamerasNearPoint(clickedPoint);
+        }
+      });
       
-      console.log('Camera panel initialized for OCC-ASC-003 dataset');
+      function getClickedPoint(raycaster) {
+        // This would ideally intersect with the point cloud
+        // For now, we'll use a simple approach with a plane at average height
+        const planeGeometry = new THREE.PlaneGeometry(1000, 1000);
+        const plane = new THREE.Mesh(planeGeometry, new THREE.MeshBasicMaterial());
+        plane.position.y = 0; // Adjust based on your point cloud height
+        plane.rotation.x = -Math.PI / 2;
+        
+        const intersects = raycaster.intersectObject(plane);
+        if (intersects.length > 0) {
+          return intersects[0].point;
+        }
+        return null;
+      }
+      
+      function findCamerasNearPoint(point) {
+        if (!cameraOverlay || !cameraOverlay.cameras) return;
+        
+        console.log('Finding cameras near clicked point:', point);
+        
+        // Find cameras within a certain distance of the clicked point
+        const maxDistance = 50; // Adjust based on your scene scale
+        const nearbyCameras = [];
+        
+        cameraOverlay.cameras.forEach((camera, index) => {
+          const cameraPos = new THREE.Vector3(
+            camera.position[0],
+            camera.position[1], 
+            camera.position[2]
+          );
+          
+          const distance = point.distanceTo(cameraPos);
+          if (distance <= maxDistance) {
+            nearbyCameras.push({ camera, index, distance });
+          }
+        });
+        
+        // Sort by distance and take closest 3-5 cameras
+        nearbyCameras.sort((a, b) => a.distance - b.distance);
+        const selectedCameras = nearbyCameras.slice(0, 5);
+        
+        console.log(`Found ${selectedCameras.length} cameras within ${maxDistance} units`);
+        
+        // Show only these cameras
+        if (cameraOverlay.showSelectedCameras) {
+          const cameraIndices = selectedCameras.map(item => item.index);
+          cameraOverlay.showSelectedCameras(cameraIndices);
+        }
+        
+        // Update UI
+        const selectionInfo = document.getElementById('selectionInfo');
+        selectionInfo.textContent = `Showing ${selectedCameras.length} cameras near clicked point`;
+        selectionInfo.style.display = 'block';
+        
+        // Update camera list to highlight selected
+        updateCameraListWithSelection(selectedCameras.map(item => item.index));
+      }
+      
+      console.log('Camera panel initialized with click-to-query functionality');
     }
 
     /**

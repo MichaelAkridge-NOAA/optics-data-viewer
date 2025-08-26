@@ -29,6 +29,7 @@ class SFMCameraOverlay {
     this.cameras = [];
     this.currentCameraId = null;
     this.cameraObjects = [];
+    this.selectedCameraIndices = [];
     this.imageplane = null;
     this.activeCameraPlane = false;
 
@@ -316,6 +317,66 @@ class SFMCameraOverlay {
    */
   getCameraCount() {
     return this.cameras.length;
+  }
+
+  /**
+   * Show only selected cameras (by indices)
+   */
+  showSelectedCameras(cameraIndices) {
+    console.log('Showing selected cameras:', cameraIndices);
+    
+    // First hide all cameras
+    this.scene.traverse((object) => {
+      if (object.userData?.type === 'imageFrustum') {
+        object.visible = false;
+      }
+    });
+    
+    // Then show only the selected ones
+    cameraIndices.forEach(index => {
+      if (index < this.cameraObjects.length && this.cameraObjects[index]) {
+        this.cameraObjects[index].visible = true;
+      }
+    });
+    
+    this.selectedCameraIndices = cameraIndices;
+  }
+  
+  /**
+   * Clear camera selection and hide all
+   */
+  clearSelectedCameras() {
+    this.selectedCameraIndices = [];
+    this.scene.traverse((object) => {
+      if (object.userData?.type === 'imageFrustum') {
+        object.visible = false;
+      }
+    });
+  }
+  
+  /**
+   * Get cameras within distance of a point
+   */
+  getCamerasNearPoint(point, maxDistance = 50) {
+    if (!this.cameras) return [];
+    
+    const nearbyCameras = [];
+    
+    this.cameras.forEach((camera, index) => {
+      const cameraPos = new THREE.Vector3(
+        camera.position[0],
+        camera.position[1],
+        camera.position[2]
+      );
+      
+      const distance = point.distanceTo(cameraPos);
+      if (distance <= maxDistance) {
+        nearbyCameras.push({ camera, index, distance });
+      }
+    });
+    
+    // Sort by distance
+    return nearbyCameras.sort((a, b) => a.distance - b.distance);
   }
 
   /**
