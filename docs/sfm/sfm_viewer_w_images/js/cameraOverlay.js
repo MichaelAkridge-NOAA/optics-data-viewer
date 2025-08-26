@@ -90,16 +90,8 @@ class SFMCameraOverlay {
       throw new Error('Invalid XML format');
     }
     
-    // Handle different XML formats
-    let cameraElements = xmlDoc.querySelectorAll('camera');
-    
-    // If no cameras found with 'camera' tag, try alternative formats
-    if (cameraElements.length === 0) {
-      // Try camera_1, camera_2, etc. format
-      const cameraNodeList = xmlDoc.querySelectorAll('[id^="camera_"], camera_1, camera_2, camera_3, camera_4, camera_5, camera_6, camera_7, camera_8, camera_9');
-      cameraElements = Array.from(cameraNodeList);
-    }
-
+    // Look for camera elements (Agisoft format)
+    const cameraElements = xmlDoc.querySelectorAll('cameras camera');
     console.log(`Found ${cameraElements.length} camera elements in XML`);
 
     cameraElements.forEach((camera, index) => {
@@ -109,45 +101,23 @@ class SFMCameraOverlay {
         
         console.log(`Processing camera ${index}: id=${id}, label=${label}`);
         
-        // Try different transform element selectors
-        let transform = camera.querySelector('transform');
-        if (!transform && camera.textContent && camera.textContent.includes('transform')) {
-          // Handle case where transform data is in text content
-          const transformMatch = camera.textContent.match(/transform[">]*([^<]+)/i);
-          if (transformMatch) {
-            const transformText = transformMatch[1].trim();
-            const matrix = transformText.split(/\s+/).map(parseFloat).filter(n => !isNaN(n));
-            
-            if (matrix.length >= 16) {
-              cameras.push(this.createCameraFromMatrix(matrix, id, label, index));
-            }
-          }
-        } else if (transform) {
-          const matrix = transform.textContent.trim().split(/\s+/).map(parseFloat);
+        // Get transform matrix from the transform element
+        const transform = camera.querySelector('transform');
+        if (transform) {
+          const matrixText = transform.textContent.trim();
+          const matrix = matrixText.split(/\s+/).map(parseFloat);
+          
           if (matrix.length >= 16) {
-            cameras.push(this.createCameraFromMatrix(matrix, id, label, index));
-          }
-        }
-        
-        // Try alternative format with xfo attribute (your data format)
-        const xfo = camera.getAttribute('xfo');
-        if (xfo && cameras.length <= index) {
-          const matrix = xfo.split(/\s+/).map(parseFloat);
-          if (matrix.length >= 16) {
-            cameras.push(this.createCameraFromMatrix(matrix, id, label, index));
-          }
-        }
-        
-        // Also check for matrix data directly in camera element
-        if (cameras.length <= index) {
-          const matrixText = camera.textContent.trim();
-          if (matrixText) {
-            const matrix = matrixText.split(/\s+/).map(parseFloat).filter(n => !isNaN(n));
-            if (matrix.length >= 16) {
-              console.log(`Found matrix data in camera element ${index}`);
-              cameras.push(this.createCameraFromMatrix(matrix, id, label, index));
+            // This is a 4x4 transformation matrix, we need to extract position and rotation
+            const cameraData = this.createCameraFromTransform4x4(matrix, id, label, index);
+            if (cameraData) {
+              cameras.push(cameraData);
             }
+          } else {
+            console.warn(`Camera ${index}: Transform matrix has ${matrix.length} elements, expected 16`);
           }
+        } else {
+          console.warn(`Camera ${index}: No transform element found`);
         }
         
       } catch (error) {
@@ -162,6 +132,49 @@ class SFMCameraOverlay {
     }
     
     return cameras;
+  }
+
+  /**
+   * Create camera object from 4x4 transformation matrix (Agisoft format)
+   */
+  createCameraFromTransform4x4(matrix, id, label, index) {
+    // 4x4 transformation matrix layout:
+    // [0  1  2  3 ]  [m00 m01 m02 tx]
+    // [4  5  6  7 ]  [m10 m11 m12 ty]
+    // [8  9  10 11]  [m20 m21 m22 tz]
+    // [12 13 14 15]  [0   0   0   1 ]
+    
+    // Extract position (translation) from the matrix
+    const position = [matrix[3], matrix[7], matrix[11]];
+    
+    // Extract 3x3 rotation matrix
+    const rotationMatrix = [
+      matrix[0], matrix[1], matrix[2],
+      matrix[4], matrix[5], matrix[6],
+      matrix[8], matrix[9], matrix[10]
+    ];
+
+    // Convert rotation matrix to Euler angles
+    const euler = this.matrixToEulerAngles(rotationMatrix);
+    
+    // Create standardized image name - add .JPG extension if not present
+    let imageName = label;
+    if (!imageName.match(/\.(jpg|jpeg|png|tiff|tif)$/i)) {
+      imageName = label + '.JPG'; // Use uppercase .JPG to match Google Cloud Storage
+    }
+    
+    console.log(`✅ Created camera ${index}: ${label} -> ${imageName} at position [${position.map(p => p.toFixed(2)).join(', ')}]`);
+
+    return {
+      id: parseInt(id) || index,
+      label: label,
+      imageName: imageName,
+      position: position,
+      rotationMatrix: rotationMatrix,
+      rotation: euler, // [pitch, yaw, roll] in radians
+      transformMatrix: matrix,
+      transform4x4: matrix // Keep the full 4x4 matrix for reference
+    };
   }
 
   /**
@@ -257,9 +270,10 @@ class SFMCameraOverlay {
     this.cameras.forEach((camera, index) => {
       const frustum = this.createImageFrustum(
         this.options.thumbnailDir,
-        camera.label,
+        camera.imageName, // Use imageName instead of label
         camera.rotationMatrix,
-        camera.position
+        camera.position,
+        camera.transform4x4 // Pass the 4x4 matrix for better positioning
       );
       
       if (frustum) {
@@ -268,6 +282,10 @@ class SFMCameraOverlay {
         frustum.visible = this.options.showFrustums;
         this.scene.add(frustum);
         this.cameraObjects.push(frustum);
+        
+        console.log(`✅ Added camera frustum ${index} for ${camera.imageName}`);
+      } else {
+        console.warn(`❌ Failed to create frustum for camera ${index}: ${camera.imageName}`);
       }
     });
 
@@ -275,15 +293,17 @@ class SFMCameraOverlay {
     if (this.cameras.length > 0) {
       this.createImagePlane();
     }
+    
+    console.log(`Created ${this.cameraObjects.length} camera frustums from ${this.cameras.length} cameras`);
   }
 
   /**
    * Create image frustum (pyramid + image plane)
-   * Based on potree-sfm makeImageFrustrum function
+   * Enhanced for Agisoft PhotoScan/Metashape coordinate system
    */
-  createImageFrustum(imageDir, imageName, rotationMatrix, position) {
+  createImageFrustum(imageDir, imageName, rotationMatrix, position, transform4x4) {
     try {
-      // Load thumbnail texture
+      // Load texture with better error handling
       const loader = new THREE.TextureLoader();
       loader.crossOrigin = 'anonymous';
       const imageURL = this.getImageURL(imageDir, imageName);
@@ -295,11 +315,11 @@ class SFMCameraOverlay {
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#333';
       ctx.fillRect(0, 0, 256, 256);
-      ctx.fillStyle = '#666';
-      ctx.font = '16px sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(imageName, 128, 120);
-      ctx.fillText('Image not found', 128, 140);
+      ctx.fillText('Loading...', 128, 140);
       const fallbackTexture = new THREE.CanvasTexture(canvas);
       
       const imageTexture = loader.load(imageURL, 
@@ -314,30 +334,33 @@ class SFMCameraOverlay {
         },
         (error) => {
           console.error(`❌ Failed to load image: ${imageURL}`, error);
-          // Use fallback texture when image fails to load
-          imagePlane.material.map = fallbackTexture;
+          // Fallback texture will be used
         }
       );
 
-      // Camera parameters (you may need to adjust these based on your data)
-      const focal = 1000; // Focal length in pixels
-      const pixX = 1920; // Image width
-      const pixY = 1080; // Image height
+      // Camera parameters based on the sensor data (adjusted for SfM scale)
+      const focalLength = 18; // mm from sensor data
+      const sensorWidth = 22.3; // mm (APS-C sensor)
+      const imageWidth = 6000; // pixels from sensor data
+      const imageHeight = 4000; // pixels from sensor data
       
-      const planeWidth = pixX / focal;
-      const planeHeight = pixY / focal;
+      // Calculate frustum size (smaller for better visibility)
+      const frustumScale = 2.0; // Scale factor for frustum visibility
+      const aspectRatio = imageWidth / imageHeight;
+      const planeWidth = frustumScale * aspectRatio;
+      const planeHeight = frustumScale;
 
       // Create image plane geometry
       const imageGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
       imageGeometry.vertices.forEach(vertex => {
-        vertex.z = -1; // Place image plane at focal distance
+        vertex.z = -frustumScale; // Place image plane at scaled distance
       });
 
       const imageMaterial = new THREE.MeshBasicMaterial({
         map: imageTexture,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.7
       });
       
       const imagePlane = new THREE.Mesh(imageGeometry, imageMaterial);
@@ -352,25 +375,25 @@ class SFMCameraOverlay {
       // Create frustum pyramid geometry
       const pyramidGeometry = new THREE.Geometry();
       pyramidGeometry.vertices = [
-        new THREE.Vector3(-planeWidth/2, -planeHeight/2, -1),
-        new THREE.Vector3(-planeWidth/2, planeHeight/2, -1),
-        new THREE.Vector3(planeWidth/2, planeHeight/2, -1),
-        new THREE.Vector3(planeWidth/2, -planeHeight/2, -1),
+        new THREE.Vector3(-planeWidth/2, -planeHeight/2, -frustumScale), // Bottom left
+        new THREE.Vector3(-planeWidth/2, planeHeight/2, -frustumScale),  // Top left
+        new THREE.Vector3(planeWidth/2, planeHeight/2, -frustumScale),   // Top right
+        new THREE.Vector3(planeWidth/2, -planeHeight/2, -frustumScale),  // Bottom right
         new THREE.Vector3(0, 0, 0) // Camera center
       ];
 
       pyramidGeometry.faces = [
-        new THREE.Face3(1, 0, 4),
-        new THREE.Face3(2, 1, 4),
-        new THREE.Face3(3, 2, 4),
-        new THREE.Face3(0, 3, 4)
+        new THREE.Face3(1, 0, 4), // Left face
+        new THREE.Face3(2, 1, 4), // Top face
+        new THREE.Face3(3, 2, 4), // Right face
+        new THREE.Face3(0, 3, 4)  // Bottom face
       ];
 
       const pyramidMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: 0x00ff00, // Green for better visibility
         wireframe: true,
         transparent: true,
-        opacity: 0.5
+        opacity: 0.6
       });
 
       const pyramid = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
@@ -380,23 +403,38 @@ class SFMCameraOverlay {
       frustumGroup.add(imagePlane);
       frustumGroup.add(pyramid);
 
-      // Set position and rotation
-      frustumGroup.position.set(position[0], position[1], position[2]);
-      
-      // Apply rotation from rotation matrix
-      if (rotationMatrix && rotationMatrix.length >= 9) {
-        const rotMatrix = new THREE.Matrix3();
-        rotMatrix.set(
-          rotationMatrix[0], rotationMatrix[1], rotationMatrix[2],
-          rotationMatrix[3], rotationMatrix[4], rotationMatrix[5],
-          rotationMatrix[6], rotationMatrix[7], rotationMatrix[8]
+      // Apply transformation from the 4x4 matrix if available, otherwise use position and rotation
+      if (transform4x4 && transform4x4.length >= 16) {
+        // Create a THREE.js Matrix4 from the data
+        const matrix4 = new THREE.Matrix4();
+        matrix4.set(
+          transform4x4[0], transform4x4[1], transform4x4[2], transform4x4[3],
+          transform4x4[4], transform4x4[5], transform4x4[6], transform4x4[7],
+          transform4x4[8], transform4x4[9], transform4x4[10], transform4x4[11],
+          transform4x4[12], transform4x4[13], transform4x4[14], transform4x4[15]
         );
         
-        const euler = new THREE.Euler();
-        euler.setFromRotationMatrix(new THREE.Matrix4().setFromMatrix3(rotMatrix));
-        frustumGroup.rotation.copy(euler);
+        frustumGroup.applyMatrix4(matrix4);
+      } else {
+        // Fallback to position and rotation
+        frustumGroup.position.set(position[0], position[1], position[2]);
+        
+        // Apply rotation from rotation matrix
+        if (rotationMatrix && rotationMatrix.length >= 9) {
+          const rotMatrix = new THREE.Matrix3();
+          rotMatrix.set(
+            rotationMatrix[0], rotationMatrix[1], rotationMatrix[2],
+            rotationMatrix[3], rotationMatrix[4], rotationMatrix[5],
+            rotationMatrix[6], rotationMatrix[7], rotationMatrix[8]
+          );
+          
+          const euler = new THREE.Euler();
+          euler.setFromRotationMatrix(new THREE.Matrix4().setFromMatrix3(rotMatrix));
+          frustumGroup.rotation.copy(euler);
+        }
       }
 
+      // Scale the frustum to be visible at the point cloud scale
       frustumGroup.scale.setScalar(this.options.scaleImage);
 
       return frustumGroup;
@@ -415,14 +453,16 @@ class SFMCameraOverlay {
     const firstCamera = this.cameras[0];
     this.imageplane = this.createImageFrustum(
       this.options.imageDir,
-      firstCamera.label,
+      firstCamera.imageName, // Use imageName instead of label
       firstCamera.rotationMatrix,
-      firstCamera.position
+      firstCamera.position,
+      firstCamera.transform4x4
     );
 
     if (this.imageplane) {
       this.imageplane.visible = false;
       this.scene.add(this.imageplane);
+      console.log(`Created image plane for: ${firstCamera.imageName}`);
     }
   }
 
@@ -438,16 +478,16 @@ class SFMCameraOverlay {
     // Update texture
     const loader = new THREE.TextureLoader();
     loader.crossOrigin = 'anonymous';
-    const imageURL = this.getImageURL(this.options.imageDir, camera.label);
+    const imageURL = this.getImageURL(this.options.imageDir, camera.imageName); // Use imageName
     const newTexture = loader.load(imageURL,
       (texture) => {
-        console.log(`Successfully loaded full-size image: ${imageURL}`);
+        console.log(`✅ Successfully loaded full-size image: ${imageURL}`);
       },
       (progress) => {
         console.log(`Loading progress for ${imageURL}:`, progress);
       },
       (error) => {
-        console.error(`Failed to load full-size image: ${imageURL}`, error);
+        console.error(`❌ Failed to load full-size image: ${imageURL}`, error);
       }
     );
     
@@ -457,24 +497,41 @@ class SFMCameraOverlay {
       imagePlane.material.map = newTexture;
     }
 
-    // Update position and rotation
-    imageGroup.position.set(camera.position[0], camera.position[1], camera.position[2]);
-    
-    if (camera.rotationMatrix) {
-      const rotMatrix = new THREE.Matrix3();
-      rotMatrix.set(
-        camera.rotationMatrix[0], camera.rotationMatrix[1], camera.rotationMatrix[2],
-        camera.rotationMatrix[3], camera.rotationMatrix[4], camera.rotationMatrix[5],
-        camera.rotationMatrix[6], camera.rotationMatrix[7], camera.rotationMatrix[8]
+    // Update position and rotation using 4x4 matrix if available
+    if (camera.transform4x4 && camera.transform4x4.length >= 16) {
+      const matrix4 = new THREE.Matrix4();
+      matrix4.set(
+        camera.transform4x4[0], camera.transform4x4[1], camera.transform4x4[2], camera.transform4x4[3],
+        camera.transform4x4[4], camera.transform4x4[5], camera.transform4x4[6], camera.transform4x4[7],
+        camera.transform4x4[8], camera.transform4x4[9], camera.transform4x4[10], camera.transform4x4[11],
+        camera.transform4x4[12], camera.transform4x4[13], camera.transform4x4[14], camera.transform4x4[15]
       );
       
-      const euler = new THREE.Euler();
-      euler.setFromRotationMatrix(new THREE.Matrix4().setFromMatrix3(rotMatrix));
-      imageGroup.rotation.copy(euler);
+      // Reset transform and apply the new matrix
+      imageGroup.matrix.identity();
+      imageGroup.applyMatrix4(matrix4);
+    } else {
+      // Fallback to position and rotation
+      imageGroup.position.set(camera.position[0], camera.position[1], camera.position[2]);
+      
+      if (camera.rotationMatrix) {
+        const rotMatrix = new THREE.Matrix3();
+        rotMatrix.set(
+          camera.rotationMatrix[0], camera.rotationMatrix[1], camera.rotationMatrix[2],
+          camera.rotationMatrix[3], camera.rotationMatrix[4], camera.rotationMatrix[5],
+          camera.rotationMatrix[6], camera.rotationMatrix[7], camera.rotationMatrix[8]
+        );
+        
+        const euler = new THREE.Euler();
+        euler.setFromRotationMatrix(new THREE.Matrix4().setFromMatrix3(rotMatrix));
+        imageGroup.rotation.copy(euler);
+      }
     }
 
     imageGroup.visible = true;
     this.currentCameraId = cameraId;
+    
+    console.log(`Changed image plane to camera ${cameraId}: ${camera.imageName}`);
   }
 
   /**
