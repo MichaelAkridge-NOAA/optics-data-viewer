@@ -31,6 +31,284 @@ class SFMCameraOverlay {
     this.filterImages = false;
 
     this.init();
+    
+    // Enhanced mouse interaction from potree-sfm
+    this.mouse = { x: 0, y: 0, doUse: false };
+    this.raycaster = new THREE.Raycaster();
+    this.INTERSECTED = null;
+    this.camsVisible = true;
+    
+    // Bind event handlers for interactive features
+    this.initInteraction();
+  }
+
+  /**
+   * Initialize mouse interaction system (based on potree-sfm)
+   */
+  initInteraction() {
+    const canvas = this.viewer.renderer.domElement;
+    
+    canvas.addEventListener('mousemove', (event) => {
+      // Update mouse coordinates
+      this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      
+      // Only use raycasting when over canvas
+      const elementType = document.elementFromPoint(event.clientX, event.clientY)?.tagName;
+      this.mouse.doUse = elementType === 'CANVAS';
+      
+      this.checkIntersections();
+    });
+    
+    canvas.addEventListener('click', (event) => {
+      if (this.INTERSECTED && this.INTERSECTED.userData?.type === 'imageFrustum') {
+        const imageName = this.INTERSECTED.userData.imageName;
+        console.log('🎯 Clicked on camera:', imageName);
+        // Could implement camera switching here like potree-sfm
+      }
+    });
+    
+    // Add keyboard shortcuts (like potree-sfm)
+    document.addEventListener('keydown', (event) => {
+      this.onKeyPress(event);
+    });
+  }
+  
+  /**
+   * Handle keyboard shortcuts (from potree-sfm)
+   */
+  onKeyPress(event) {
+    switch(event.code) {
+      case 'KeyI':
+        // Toggle image visibility
+        this.toggleCamerasVisible();
+        break;
+      case 'ArrowLeft':
+        // Previous camera
+        this.navigateCamera(-1);
+        break;
+      case 'ArrowRight':  
+        // Next camera
+        this.navigateCamera(1);
+        break;
+      case 'KeyV':
+        // Toggle camera plane view
+        this.toggleCameraPlane();
+        break;
+    }
+  }
+  
+  /**
+   * Navigate to previous/next camera
+   */
+  navigateCamera(direction) {
+    if (this.cameras.length === 0) return;
+    
+    let newIndex;
+    if (this.currentCameraId === null) {
+      newIndex = direction > 0 ? 0 : this.cameras.length - 1;
+    } else {
+      const currentIndex = this.cameras.findIndex(cam => cam.id === this.currentCameraId);
+      newIndex = (currentIndex + direction + this.cameras.length) % this.cameras.length;
+    }
+    
+    this.flyToCamera(newIndex);
+    this.currentCameraId = this.cameras[newIndex].id;
+    console.log(`📷 Navigated to camera: ${this.cameras[newIndex].label}`);
+  }
+  
+  /**
+   * Toggle camera plane view
+   */
+  toggleCameraPlane() {
+    this.activeCameraPlane = !this.activeCameraPlane;
+    
+    if (this.imageplane) {
+      this.imageplane.visible = this.activeCameraPlane;
+      console.log(`🖼️ Camera plane ${this.activeCameraPlane ? 'visible' : 'hidden'}`);
+    }
+  }
+  
+  /**
+   * Check for mouse intersection with camera frustums (from potree-sfm)
+   */
+  checkIntersections() {
+    if (this.mouse.doUse) {
+      this.raycaster.setFromCamera(this.mouse, this.viewer.scene.cameraP);
+      
+      // Find intersectable objects (camera frustums)
+      const intersectableObjects = [];
+      this.scene.traverse((object) => {
+        if (object.userData?.type === 'imageFrustum') {
+          intersectableObjects.push(object);
+        }
+      });
+      
+      const intersects = this.raycaster.intersectObjects(intersectableObjects, true);
+      
+      if (intersects.length > 0) {
+        let closestFrustum = null;
+        let closestDistance = Infinity;
+        
+        // Find the closest frustum (similar to potree-sfm logic)
+        for (const intersect of intersects) {
+          const frustum = intersect.object.parent;
+          if (frustum.userData?.type === 'imageFrustum' && intersect.distance < closestDistance) {
+            closestDistance = intersect.distance;
+            closestFrustum = frustum;
+          }
+        }
+        
+        if (closestFrustum && this.INTERSECTED !== closestFrustum) {
+          // Reset previous highlight
+          if (this.INTERSECTED) {
+            this.resetFrustumHighlight(this.INTERSECTED);
+          }
+          
+          // Highlight new frustum
+          this.INTERSECTED = closestFrustum;
+          this.highlightFrustum(this.INTERSECTED);
+        }
+      } else {
+        // No intersection - reset highlight
+        if (this.INTERSECTED) {
+          this.resetFrustumHighlight(this.INTERSECTED);
+          this.INTERSECTED = null;
+        }
+      }
+    }
+  }
+  
+  /**
+   * Highlight a camera frustum on hover
+   */
+  highlightFrustum(frustum) {
+    frustum.traverse((child) => {
+      if (child.material) {
+        child.userData.originalColor = child.material.color.clone();
+        child.material.color.set(0xff0000); // Red highlight like potree-sfm
+      }
+    });
+  }
+  
+  /**
+   * Reset frustum highlight
+   */
+  resetFrustumHighlight(frustum) {
+    frustum.traverse((child) => {
+      if (child.material && child.userData.originalColor) {
+        child.material.color.copy(child.userData.originalColor);
+      }
+    });
+  }
+
+  /**
+   * Toggle visibility of all camera frustums (like potree-sfm)
+   */
+  toggleCamerasVisible() {
+    this.camsVisible = !this.camsVisible;
+    console.log(`📷 Camera frustums ${this.camsVisible ? 'visible' : 'hidden'}`);
+    
+    this.scene.traverse((object) => {
+      if (object.userData?.type === 'imageFrustum') {
+        object.visible = this.camsVisible;
+      }
+    });
+    
+    return this.camsVisible;
+  }
+  
+  /**
+   * Turn camera frustums on
+   */
+  turnCamerasOn() {
+    this.camsVisible = true;
+    this.scene.traverse((object) => {
+      if (object.userData?.type === 'imageFrustum') {
+        object.visible = true;
+      }
+    });
+  }
+  
+  /**
+   * Turn camera frustums off  
+   */
+  turnCamerasOff() {
+    this.camsVisible = false;
+    this.scene.traverse((object) => {
+      if (object.userData?.type === 'imageFrustum') {
+        object.visible = false;
+      }
+    });
+  }
+  
+  /**
+   * Get current camera position (like potree-sfm getCurrentPos)
+   */
+  getCurrentPosition() {
+    const pos = this.viewer.scene.view.position;
+    return [
+      Math.round(pos.x * 100) / 100,
+      Math.round(pos.y * 100) / 100, 
+      Math.round(pos.z * 100) / 100
+    ];
+  }
+  
+  /**
+   * Move viewer to specific camera position (like potree-sfm moveCamera)
+   */
+  flyToCamera(cameraIndex) {
+    if (cameraIndex < 0 || cameraIndex >= this.cameras.length) {
+      console.warn('Invalid camera index:', cameraIndex);
+      return;
+    }
+    
+    const camera = this.cameras[cameraIndex];
+    console.log(`🚁 Flying to camera: ${camera.label}`);
+    
+    // Set viewer position
+    this.viewer.scene.view.position.set(
+      camera.position[0],
+      camera.position[1], 
+      camera.position[2]
+    );
+    
+    // Look in camera direction using transform matrix if available
+    if (camera.transform4x4) {
+      const matrix4 = new THREE.Matrix4();
+      matrix4.set(
+        camera.transform4x4[0], camera.transform4x4[4], camera.transform4x4[8],  camera.transform4x4[12],
+        camera.transform4x4[1], camera.transform4x4[5], camera.transform4x4[9],  camera.transform4x4[13], 
+        camera.transform4x4[2], camera.transform4x4[6], camera.transform4x4[10], camera.transform4x4[14],
+        camera.transform4x4[3], camera.transform4x4[7], camera.transform4x4[11], camera.transform4x4[15]
+      );
+      
+      // Extract forward direction from matrix
+      const forward = new THREE.Vector3(0, 0, -1);
+      forward.applyMatrix4(matrix4);
+      forward.normalize();
+      
+      // Set look-at point
+      const lookAt = new THREE.Vector3()
+        .copy(this.viewer.scene.view.position)
+        .add(forward.multiplyScalar(10));
+        
+      this.viewer.scene.view.lookAt(lookAt);
+    }
+  }
+  
+  /**
+   * Get camera by name/label
+   */
+  getCameraByLabel(label) {
+    return this.cameras.find(cam => cam.label === label);
+  }
+  
+  /**
+   * Get total number of loaded cameras  
+   */
+  getCameraCount() {
+    return this.cameras.length;
   }
 
   /**
@@ -298,133 +576,123 @@ class SFMCameraOverlay {
   }
 
   /**
-   * Create image frustum (pyramid + image plane)
-   * Enhanced for Agisoft PhotoScan/Metashape coordinate system
+   * Create image frustum (pyramid + image plane) 
+   * Based on potree-sfm approach for proper 3D visualization
    */
   createImageFrustum(imageDir, imageName, rotationMatrix, position, transform4x4) {
     try {
-      // Load texture with better error handling
+      console.log(`Creating frustum for ${imageName} at position:`, position);
+      
+      // Load texture with cross-origin support
       const loader = new THREE.TextureLoader();
       loader.crossOrigin = 'anonymous';
       const imageURL = this.getImageURL(imageDir, imageName);
       
-      // Create a default/fallback texture in case image fails to load
-      const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 256;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#333';
-      ctx.fillRect(0, 0, 256, 256);
-      ctx.fillStyle = '#fff';
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(imageName, 128, 120);
-      ctx.fillText('Loading...', 128, 140);
-      const fallbackTexture = new THREE.CanvasTexture(canvas);
+      // Camera parameters (adjusted for typical SfM data)
+      const focalLength = 35; // mm - standard focal length
+      const sensorWidth = 36; // mm - full frame equivalent  
+      const sensorHeight = 24; // mm - full frame equivalent
       
-      const imageTexture = loader.load(imageURL, 
-        (texture) => {
-          console.log(`✅ Successfully loaded image: ${imageURL}`);
-        },
-        (progress) => {
-          // Progress is not always available
-          if (progress.lengthComputable) {
-            console.log(`Loading progress for ${imageURL}: ${Math.round(progress.loaded/progress.total*100)}%`);
-          }
-        },
-        (error) => {
-          console.error(`❌ Failed to load image: ${imageURL}`, error);
-          // Fallback texture will be used
-        }
-      );
-
-      // Camera parameters based on the sensor data (adjusted for SfM scale)
-      const focalLength = 18; // mm from sensor data
-      const sensorWidth = 22.3; // mm (APS-C sensor)
-      const imageWidth = 6000; // pixels from sensor data
-      const imageHeight = 4000; // pixels from sensor data
+      // Calculate frustum dimensions based on camera model from potree-sfm
+      const camFocal = 3500; // Effective focal length in pixels (typical for SfM)
+      const camPixW = 6000; // Image width in pixels
+      const camPixH = 4000; // Image height in pixels
       
-      // Calculate frustum size (smaller for better visibility)
-      const frustumScale = 2.0; // Scale factor for frustum visibility
-      const aspectRatio = imageWidth / imageHeight;
-      const planeWidth = frustumScale * aspectRatio;
-      const planeHeight = frustumScale;
-
-      // Create image plane geometry
-      const imageGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-      imageGeometry.vertices.forEach(vertex => {
-        vertex.z = -frustumScale; // Place image plane at scaled distance
-      });
-
-      const imageMaterial = new THREE.MeshBasicMaterial({
-        map: imageTexture,
+      // Scale factors similar to potree-sfm approach
+      const pixx = camPixW / camFocal; // Physical plane width
+      const pixy = camPixH / camFocal; // Physical plane height
+      
+      // Create image plane geometry - following potree-sfm pattern
+      const imageGeometry = new THREE.PlaneGeometry(pixx, pixy, 1, 1);
+      
+      // Set image plane at distance -1 (following potree-sfm convention)
+      imageGeometry.vertices[0].z = -1;
+      imageGeometry.vertices[1].z = -1; 
+      imageGeometry.vertices[2].z = -1;
+      imageGeometry.vertices[3].z = -1;
+      
+      // Create image material
+      const imageMaterial = new THREE.MeshBasicMaterial({ 
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.7
+        opacity: 0.8
       });
       
       const imagePlane = new THREE.Mesh(imageGeometry, imageMaterial);
       
-      // Set up error fallback for the texture
-      imageTexture.onError = () => {
-        console.warn(`Using fallback texture for: ${imageURL}`);
-        imagePlane.material.map = fallbackTexture;
-        imagePlane.material.needsUpdate = true;
-      };
-
-      // Create frustum pyramid geometry
+      // Create pyramid geometry - exact same structure as potree-sfm
       const pyramidGeometry = new THREE.Geometry();
+      
       pyramidGeometry.vertices = [
-        new THREE.Vector3(-planeWidth/2, -planeHeight/2, -frustumScale), // Bottom left
-        new THREE.Vector3(-planeWidth/2, planeHeight/2, -frustumScale),  // Top left
-        new THREE.Vector3(planeWidth/2, planeHeight/2, -frustumScale),   // Top right
-        new THREE.Vector3(planeWidth/2, -planeHeight/2, -frustumScale),  // Bottom right
-        new THREE.Vector3(0, 0, 0) // Camera center
+        // Image plane corners (following potree-sfm vertex order)
+        new THREE.Vector3(-pixx/2, -pixy/2, -1),
+        new THREE.Vector3(-pixx/2,  pixy/2, -1),
+        new THREE.Vector3( pixx/2,  pixy/2, -1),
+        new THREE.Vector3( pixx/2, -pixy/2, -1),
+        new THREE.Vector3(0, 0, 0) // Apex at camera center
       ];
-
+      
       pyramidGeometry.faces = [
         new THREE.Face3(1, 0, 4), // Left face
-        new THREE.Face3(2, 1, 4), // Top face
+        new THREE.Face3(2, 1, 4), // Top face  
         new THREE.Face3(3, 2, 4), // Right face
         new THREE.Face3(0, 3, 4)  // Bottom face
       ];
-
+      
+      // Pyramid material - wireframe like potree-sfm
       const pyramidMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00ff00, // Green for better visibility
+        color: 0xf8f9fa, // Light color similar to potree-sfm
         wireframe: true,
         transparent: true,
-        opacity: 0.6
+        opacity: 0.7
       });
-
+      
       const pyramid = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
-
-      // Create combined object
+      
+      // Create combined group (following potree-sfm pattern)
       const frustumGroup = new THREE.Group();
       frustumGroup.add(imagePlane);
       frustumGroup.add(pyramid);
-
-      // Apply transformation from the 4x4 matrix if available, otherwise use position and rotation
+      
+      // Load texture and apply to image plane
+      loader.load(
+        imageURL,
+        (texture) => {
+          console.log(`✅ Texture loaded: ${imageURL}`);
+          imageMaterial.map = texture;
+          imageMaterial.needsUpdate = true;
+        },
+        undefined,
+        (error) => {
+          console.error(`❌ Failed to load texture: ${imageURL}`, error);
+          // Create fallback color
+          imageMaterial.color = new THREE.Color(0xff6b6b);
+        }
+      );
+      
+      // Apply transformation from 4x4 matrix (Agisoft format)
       if (transform4x4 && transform4x4.length >= 16) {
-        // Create a THREE.js Matrix4 from the data
         const matrix4 = new THREE.Matrix4();
+        // Agisoft uses column-major order
         matrix4.set(
-          transform4x4[0], transform4x4[1], transform4x4[2], transform4x4[3],
-          transform4x4[4], transform4x4[5], transform4x4[6], transform4x4[7],
-          transform4x4[8], transform4x4[9], transform4x4[10], transform4x4[11],
-          transform4x4[12], transform4x4[13], transform4x4[14], transform4x4[15]
+          transform4x4[0], transform4x4[4], transform4x4[8],  transform4x4[12],
+          transform4x4[1], transform4x4[5], transform4x4[9],  transform4x4[13], 
+          transform4x4[2], transform4x4[6], transform4x4[10], transform4x4[14],
+          transform4x4[3], transform4x4[7], transform4x4[11], transform4x4[15]
         );
         
         frustumGroup.applyMatrix4(matrix4);
+        console.log('Applied 4x4 transformation matrix for:', imageName);
       } else {
-        // Fallback to position and rotation
+        // Fallback positioning
+        console.log('Using fallback positioning for:', imageName);
         frustumGroup.position.set(position[0], position[1], position[2]);
         
-        // Apply rotation from rotation matrix
         if (rotationMatrix && rotationMatrix.length >= 9) {
           const rotMatrix = new THREE.Matrix3();
           rotMatrix.set(
             rotationMatrix[0], rotationMatrix[1], rotationMatrix[2],
-            rotationMatrix[3], rotationMatrix[4], rotationMatrix[5],
+            rotationMatrix[3], rotationMatrix[4], rotationMatrix[5], 
             rotationMatrix[6], rotationMatrix[7], rotationMatrix[8]
           );
           
@@ -433,11 +701,21 @@ class SFMCameraOverlay {
           frustumGroup.rotation.copy(euler);
         }
       }
-
-      // Scale the frustum to be visible at the point cloud scale
-      frustumGroup.scale.setScalar(this.options.scaleImage);
-
+      
+      // Apply scale factor - similar to SCALEIMG in potree-sfm
+      const SCALE_FACTOR = 3.0;
+      frustumGroup.scale.setScalar(SCALE_FACTOR);
+      
+      // Store metadata
+      frustumGroup.userData = {
+        imageName: imageName,
+        imageURL: imageURL,
+        type: 'imageFrustum'
+      };
+      
+      console.log(`Image frustum created for: ${imageName}`);
       return frustumGroup;
+      
     } catch (error) {
       console.error('Error creating image frustum:', error);
       return null;
