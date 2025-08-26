@@ -184,7 +184,7 @@
       
       viewer.setEDLEnabled(false);
       viewer.setFOV(60);
-      viewer.setPointBudget(3_000_000);
+      viewer.setPointBudget(10_000_000); // Increase point budget to 10 million
       viewer.loadSettingsFromURL();
       viewer.setDescription(`
       OCC-ASC-003 Enhanced SFM Point Cloud Viewer<br>
@@ -222,6 +222,14 @@
           
           scene.addPointCloud(pointcloud);
           
+          // Debug point cloud info
+          console.log('Point cloud loaded successfully:');
+          console.log('- Geometry:', pointcloud.pcoGeometry);
+          console.log('- Points:', pointcloud.pcoGeometry?.points || 'Unknown');
+          console.log('- Bounds:', pointcloud.boundingBox);
+          console.log('- Material size:', material.size);
+          console.log('- Point budget:', viewer.getPointBudget());
+          
           viewer.fitToScreen();
           loading.style.display = 'none';
           
@@ -238,10 +246,10 @@
               baseURL: imageBase || defaultImageBase,
               imageDir: '', // Images are directly in the base URL path
               thumbnailDir: '', // Use same images for thumbnails for now
-              scaleImage: 0.25, // Reduce to 25% size for better loading performance
+              scaleImage: 0.5, // Back to 50% size for better quality
               showFrustums: false, // Start with cameras hidden due to high count
               showImagePlane: false,
-              positionOffset: [0, 0, -10] // Offset cameras closer to point cloud (Z-axis)
+              positionOffset: [0, 0, -5] // Reduce offset to -5 instead of -10
             });
             
             // Setup camera panel
@@ -569,18 +577,45 @@
         const baseURL = cameraOverlay?.options?.baseURL || '';
         const imageURL = `${baseURL}/${camera.imageName}`;
         
-        // Create image element
+        // Create image element with performance optimization
         const img = document.createElement('img');
-        img.src = imageURL;
         img.alt = camera.label || `Camera ${cameraData.index + 1}`;
         
-        img.onload = () => {
+        // Add loading attributes for better performance
+        img.loading = 'lazy'; // Lazy load images
+        img.style.maxWidth = '60px';
+        img.style.maxHeight = '45px';
+        
+        // Create a smaller version for thumbnail loading
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 60;
+        canvas.height = 45;
+        
+        const tempImg = new Image();
+        tempImg.crossOrigin = 'anonymous';
+        tempImg.src = imageURL;
+        
+        tempImg.onload = () => {
+          // Draw resized image to canvas
+          ctx.drawImage(tempImg, 0, 0, 60, 45);
+          
+          // Use canvas data as thumbnail source
+          img.src = canvas.toDataURL('image/jpeg', 0.7);
           thumbnailItem.innerHTML = '';
           thumbnailItem.appendChild(img);
         };
         
-        img.onerror = () => {
-          thumbnailItem.innerHTML = '<div class="loading">❌</div>';
+        tempImg.onerror = () => {
+          // Fallback to direct loading if canvas fails
+          img.src = imageURL;
+          img.onload = () => {
+            thumbnailItem.innerHTML = '';
+            thumbnailItem.appendChild(img);
+          };
+          img.onerror = () => {
+            thumbnailItem.innerHTML = '<div class="loading">❌</div>';
+          };
         };
         
         // Click to open full size in new window

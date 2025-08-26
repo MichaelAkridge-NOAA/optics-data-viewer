@@ -671,8 +671,8 @@ class SFMCameraOverlay {
       const basePixx = camPixW / camFocal; // Physical plane width
       const basePixy = camPixH / camFocal; // Physical plane height
       
-      // Apply additional scaling to make frustums smaller and more manageable
-      const frustumScale = 0.3; // Reduce frustum size by 70%
+      // Apply much more aggressive scaling to make frustums tiny
+      const frustumScale = 0.05; // Make frustums very small (5% of calculated size)
       const pixx = basePixx * frustumScale;
       const pixy = basePixy * frustumScale;
       
