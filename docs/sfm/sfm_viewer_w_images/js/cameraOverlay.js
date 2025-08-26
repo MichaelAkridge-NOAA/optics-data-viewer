@@ -20,7 +20,6 @@ class SFMCameraOverlay {
       imageDir: options.imageDir || '01_IMAGES',
       thumbnailDir: options.thumbnailDir || '02_THUMBNAILS',
       scaleImage: options.scaleImage || 1.0,
-      positionOffset: options.positionOffset || [0, 0, 0], // XYZ offset for camera positions
       showFrustums: options.showFrustums !== false,
       showImagePlane: options.showImagePlane !== false,
       ...options
@@ -30,7 +29,6 @@ class SFMCameraOverlay {
     this.cameras = [];
     this.currentCameraId = null;
     this.cameraObjects = [];
-    this.selectedCameraIndices = [];
     this.imageplane = null;
     this.activeCameraPlane = false;
 
@@ -321,66 +319,6 @@ class SFMCameraOverlay {
   }
 
   /**
-   * Show only selected cameras (by indices)
-   */
-  showSelectedCameras(cameraIndices) {
-    console.log('Showing selected cameras:', cameraIndices);
-    
-    // First hide all cameras
-    this.scene.traverse((object) => {
-      if (object.userData?.type === 'imageFrustum') {
-        object.visible = false;
-      }
-    });
-    
-    // Then show only the selected ones
-    cameraIndices.forEach(index => {
-      if (index < this.cameraObjects.length && this.cameraObjects[index]) {
-        this.cameraObjects[index].visible = true;
-      }
-    });
-    
-    this.selectedCameraIndices = cameraIndices;
-  }
-  
-  /**
-   * Clear camera selection and hide all
-   */
-  clearSelectedCameras() {
-    this.selectedCameraIndices = [];
-    this.scene.traverse((object) => {
-      if (object.userData?.type === 'imageFrustum') {
-        object.visible = false;
-      }
-    });
-  }
-  
-  /**
-   * Get cameras within distance of a point
-   */
-  getCamerasNearPoint(point, maxDistance = 50) {
-    if (!this.cameras) return [];
-    
-    const nearbyCameras = [];
-    
-    this.cameras.forEach((camera, index) => {
-      const cameraPos = new THREE.Vector3(
-        camera.position[0],
-        camera.position[1],
-        camera.position[2]
-      );
-      
-      const distance = point.distanceTo(cameraPos);
-      if (distance <= maxDistance) {
-        nearbyCameras.push({ camera, index, distance });
-      }
-    });
-    
-    // Sort by distance
-    return nearbyCameras.sort((a, b) => a.distance - b.distance);
-  }
-
-  /**
    * Initialize the camera overlay system
    */
   init() {
@@ -667,14 +605,9 @@ class SFMCameraOverlay {
       const camPixW = 6000; // Image width in pixels
       const camPixH = 4000; // Image height in pixels
       
-      // Scale factors similar to potree-sfm approach with additional size reduction
-      const basePixx = camPixW / camFocal; // Physical plane width
-      const basePixy = camPixH / camFocal; // Physical plane height
-      
-      // Apply much more aggressive scaling to make frustums tiny
-      const frustumScale = 0.01; // Make frustums extremely small (1% of calculated size)
-      const pixx = basePixx * frustumScale;
-      const pixy = basePixy * frustumScale;
+      // Scale factors similar to potree-sfm approach
+      const pixx = camPixW / camFocal; // Physical plane width
+      const pixy = camPixH / camFocal; // Physical plane height
       
       // Create image plane geometry - following potree-sfm pattern
       const imageGeometry = new THREE.PlaneGeometry(pixx, pixy, 1, 1);
@@ -733,12 +666,6 @@ class SFMCameraOverlay {
         imageURL,
         (texture) => {
           console.log(`✅ Texture loaded: ${imageURL}`);
-          
-          // Configure texture for better performance
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-          texture.generateMipmaps = false;
-          
           imageMaterial.map = texture;
           imageMaterial.needsUpdate = true;
         },
@@ -764,7 +691,7 @@ class SFMCameraOverlay {
         frustumGroup.applyMatrix4(matrix4);
         console.log('Applied 4x4 transformation matrix for:', imageName);
       } else {
-        // Fallback positioning without offset for now
+        // Fallback positioning
         console.log('Using fallback positioning for:', imageName);
         frustumGroup.position.set(position[0], position[1], position[2]);
         
@@ -840,11 +767,6 @@ class SFMCameraOverlay {
     const newTexture = loader.load(imageURL,
       (texture) => {
         console.log(`✅ Successfully loaded full-size image: ${imageURL}`);
-        
-        // Configure texture for better performance
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.generateMipmaps = false;
       },
       (progress) => {
         console.log(`Loading progress for ${imageURL}:`, progress);

@@ -58,23 +58,6 @@
     }
     .camera-item:hover { background:rgba(60,60,70,.8); }
     .camera-item.active { border-left-color:#4CAF50; background:rgba(80,180,80,.3); }
-    
-    /* Thumbnail styles */
-    .thumbnail-item {
-      width:60px; height:45px; border-radius:4px; overflow:hidden; cursor:pointer;
-      border:2px solid rgba(255,255,255,0.2); transition:all 0.2s;
-      position:relative; background:rgba(40,40,50,0.8);
-    }
-    .thumbnail-item:hover {
-      border-color:rgba(76,175,80,0.8); transform:scale(1.05);
-    }
-    .thumbnail-item img {
-      width:100%; height:100%; object-fit:cover; display:block;
-    }
-    .thumbnail-item .loading {
-      display:flex; align-items:center; justify-content:center;
-      font-size:10px; color:#999; height:100%;
-    }
   </style>
 </head>
 <body>
@@ -93,24 +76,12 @@
   <div id="cameraPanel">
     <h3>OCC-ASC-003 Cameras</h3>
     <div class="camera-controls">
-      <button id="btnToggleFrustums">Show All Cameras</button>
+      <button id="btnToggleFrustums">Toggle Cameras</button>
       <button id="btnToggleImagePlane">Toggle Images</button>
-      <button id="btnQueryMode" class="active">Click to Query</button>
-      <button id="btnClearSelection">Clear Selection</button>
-    </div>
-    
-    <div style="margin:8px 0;font-size:11px;color:#ccc;">
-      <strong>Click Mode:</strong> Click on point cloud to see cameras that captured that area
+      <button id="btnLoadCameras">Reload Cameras</button>
     </div>
 
     <div id="cameraStats" style="margin:8px 0;font-size:11px;color:#aaa;"></div>
-    <div id="selectionInfo" style="margin:4px 0;font-size:10px;color:#4CAF50;display:none;"></div>
-    
-    <!-- Thumbnail Preview Panel -->
-    <div id="thumbnailPanel" style="margin:8px 0;display:none;">
-      <div style="font-size:12px;font-weight:bold;color:#fff;margin-bottom:8px;">📷 Selected Images</div>
-      <div id="thumbnailGrid" style="display:flex;flex-wrap:wrap;gap:4px;max-height:200px;overflow-y:auto;"></div>
-    </div>
 
     <div class="camera-list" id="cameraList"></div>
   </div>
@@ -184,7 +155,7 @@
       
       viewer.setEDLEnabled(false);
       viewer.setFOV(60);
-      viewer.setPointBudget(10_000_000); // Increase point budget to 10 million
+      viewer.setPointBudget(3_000_000);
       viewer.loadSettingsFromURL();
       viewer.setDescription(`
       OCC-ASC-003 Enhanced SFM Point Cloud Viewer<br>
@@ -222,14 +193,6 @@
           
           scene.addPointCloud(pointcloud);
           
-          // Debug point cloud info
-          console.log('Point cloud loaded successfully:');
-          console.log('- Geometry:', pointcloud.pcoGeometry);
-          console.log('- Points:', pointcloud.pcoGeometry?.points || 'Unknown');
-          console.log('- Bounds:', pointcloud.boundingBox);
-          console.log('- Material size:', material.size);
-          console.log('- Point budget:', viewer.getPointBudget());
-          
           viewer.fitToScreen();
           loading.style.display = 'none';
           
@@ -246,8 +209,8 @@
               baseURL: imageBase || defaultImageBase,
               imageDir: '', // Images are directly in the base URL path
               thumbnailDir: '', // Use same images for thumbnails for now
-              scaleImage: 0.5, // Back to 50% size for better quality
-              showFrustums: false, // Start with cameras hidden due to high count
+              scaleImage: 0.5,
+              showFrustums: true,
               showImagePlane: false
             });
             
@@ -264,6 +227,11 @@
           } catch (error) {
             console.error('Failed to initialize camera overlay:', error);
           }
+          
+          // Start monitoring for camera animations
+          setTimeout(() => {
+            monitorCameraAnimations();
+          }, 1000);
         });
       });
     }
@@ -274,25 +242,14 @@
     function setupCameraPanel() {
       const btnToggleFrustums = document.getElementById('btnToggleFrustums');
       const btnToggleImagePlane = document.getElementById('btnToggleImagePlane');
-      const btnQueryMode = document.getElementById('btnQueryMode');
-      const btnClearSelection = document.getElementById('btnClearSelection');
-      
-      let queryModeActive = true; // Start in query mode
-      let selectedCameras = [];
+      const btnLoadCameras = document.getElementById('btnLoadCameras');
 
-      // Toggle all camera frustums
+      // Toggle camera frustums
       btnToggleFrustums.onclick = () => {
         if (cameraOverlay) {
           const visible = cameraOverlay.toggleCameraFrustums();
-          btnToggleFrustums.textContent = visible ? 'Hide All Cameras' : 'Show All Cameras';
+          btnToggleFrustums.textContent = visible ? 'Hide Cameras' : 'Show Cameras';
           btnToggleFrustums.classList.toggle('active', visible);
-          
-          if (visible) {
-            // Disable query mode when showing all cameras
-            queryModeActive = false;
-            btnQueryMode.classList.remove('active');
-            btnQueryMode.textContent = 'Click to Query';
-          }
         }
       };
 
@@ -305,118 +262,17 @@
         }
       };
 
-      // Toggle query mode
-      btnQueryMode.onclick = () => {
-        queryModeActive = !queryModeActive;
-        btnQueryMode.classList.toggle('active', queryModeActive);
-        btnQueryMode.textContent = queryModeActive ? 'Query Mode ON' : 'Click to Query';
-        
-        if (queryModeActive) {
-          // Hide all cameras and enable click-to-query
-          cameraOverlay.turnCamerasOff();
-          btnToggleFrustums.textContent = 'Show All Cameras';
-          btnToggleFrustums.classList.remove('active');
-          console.log('Query mode enabled - click on point cloud to see relevant cameras');
+      // Reload cameras using default URLs
+      btnLoadCameras.onclick = () => {
+        if (cameraOverlay && cameraSrc) {
+          console.log('Reloading cameras from:', cameraSrc);
+          loadCameraDataFromURL(cameraSrc);
+        } else {
+          console.warn('No camera overlay or camera source URL available');
         }
       };
-
-      // Clear selection and hide selected cameras
-      btnClearSelection.onclick = () => {
-        selectedCameras = [];
-        if (cameraOverlay) {
-          cameraOverlay.clearSelectedCameras();
-        }
-        document.getElementById('selectionInfo').style.display = 'none';
-        document.getElementById('thumbnailPanel').style.display = 'none';
-        updateCameraList(cameraOverlay ? cameraOverlay.cameras : []);
-        console.log('Camera selection cleared');
-      };
-
-      // Setup click-to-query on the point cloud
-      const canvas = viewer.renderer.domElement;
-      canvas.addEventListener('click', (event) => {
-        if (!queryModeActive || !cameraOverlay) return;
-        
-        // Get click position in 3D space
-        const rect = canvas.getBoundingClientRect();
-        const mouse = new THREE.Vector2(
-          ((event.clientX - rect.left) / rect.width) * 2 - 1,
-          -((event.clientY - rect.top) / rect.height) * 2 + 1
-        );
-        
-        // Raycast to find intersection with point cloud
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(mouse, viewer.scene.cameraP);
-        
-        // Find nearby cameras to the clicked point
-        const clickedPoint = getClickedPoint(raycaster);
-        if (clickedPoint) {
-          findCamerasNearPoint(clickedPoint);
-        }
-      });
       
-      function getClickedPoint(raycaster) {
-        // This would ideally intersect with the point cloud
-        // For now, we'll use a simple approach with a plane at average height
-        const planeGeometry = new THREE.PlaneGeometry(1000, 1000);
-        const plane = new THREE.Mesh(planeGeometry, new THREE.MeshBasicMaterial());
-        plane.position.y = 0; // Adjust based on your point cloud height
-        plane.rotation.x = -Math.PI / 2;
-        
-        const intersects = raycaster.intersectObject(plane);
-        if (intersects.length > 0) {
-          return intersects[0].point;
-        }
-        return null;
-      }
-      
-      function findCamerasNearPoint(point) {
-        if (!cameraOverlay || !cameraOverlay.cameras) return;
-        
-        console.log('Finding cameras near clicked point:', point);
-        
-        // Find cameras within a certain distance of the clicked point
-        const maxDistance = 50; // Adjust based on your scene scale
-        const nearbyCameras = [];
-        
-        cameraOverlay.cameras.forEach((camera, index) => {
-          const cameraPos = new THREE.Vector3(
-            camera.position[0],
-            camera.position[1], 
-            camera.position[2]
-          );
-          
-          const distance = point.distanceTo(cameraPos);
-          if (distance <= maxDistance) {
-            nearbyCameras.push({ camera, index, distance });
-          }
-        });
-        
-        // Sort by distance and take closest 3-5 cameras
-        nearbyCameras.sort((a, b) => a.distance - b.distance);
-        const selectedCameras = nearbyCameras.slice(0, 5);
-        
-        console.log(`Found ${selectedCameras.length} cameras within ${maxDistance} units`);
-        
-        // Show only these cameras
-        if (cameraOverlay.showSelectedCameras) {
-          const cameraIndices = selectedCameras.map(item => item.index);
-          cameraOverlay.showSelectedCameras(cameraIndices);
-        }
-        
-        // Update camera list to show only selected cameras
-        updateCameraListWithSelection(selectedCameras);
-        
-        // Show thumbnails for selected cameras
-        showThumbnails(selectedCameras);
-        
-        // Update UI
-        const selectionInfo = document.getElementById('selectionInfo');
-        selectionInfo.textContent = `Showing ${selectedCameras.length} cameras near clicked point`;
-        selectionInfo.style.display = 'block';
-      }
-      
-      console.log('Camera panel initialized with click-to-query functionality');
+      console.log('Camera panel initialized for OCC-ASC-003 dataset');
     }
 
     /**
@@ -502,117 +358,6 @@
         };
         
         cameraList.appendChild(item);
-      });
-    }
-
-    /**
-     * Update camera list to show only selected cameras
-     */
-    function updateCameraListWithSelection(selectedCameras) {
-      const cameraList = document.getElementById('cameraList');
-      cameraList.innerHTML = '';
-
-      selectedCameras.forEach((cameraData, listIndex) => {
-        const camera = cameraData.camera;
-        const originalIndex = cameraData.index;
-        const distance = cameraData.distance;
-        
-        const item = document.createElement('div');
-        item.className = 'camera-item';
-        item.innerHTML = `
-          <div style="font-weight:bold;">${camera.label || `Camera ${originalIndex + 1}`}</div>
-          <div style="font-size:10px;color:#999;margin-top:2px;">
-            Distance: ${distance.toFixed(1)}m | Image: ${camera.imageName || 'N/A'}
-          </div>
-        `;
-        
-        item.onclick = () => {
-          // Remove previous active
-          document.querySelectorAll('.camera-item.active').forEach(el => {
-            el.classList.remove('active');
-          });
-          
-          // Set this as active
-          item.classList.add('active');
-          
-          // Fly to camera
-          cameraOverlay.flyToCamera(originalIndex);
-          
-          console.log(`Selected camera ${originalIndex}: ${camera.label}`);
-        };
-        
-        cameraList.appendChild(item);
-      });
-    }
-
-    /**
-     * Show thumbnail images for selected cameras - OPTIMIZED VERSION
-     */
-    function showThumbnails(selectedCameras) {
-      const thumbnailPanel = document.getElementById('thumbnailPanel');
-      const thumbnailGrid = document.getElementById('thumbnailGrid');
-      
-      // Clear existing thumbnails
-      thumbnailGrid.innerHTML = '';
-      
-      if (selectedCameras.length === 0) {
-        thumbnailPanel.style.display = 'none';
-        return;
-      }
-      
-      // Show the panel
-      thumbnailPanel.style.display = 'block';
-      
-      // Limit to 5 thumbnails maximum for performance
-      const limitedCameras = selectedCameras.slice(0, 5);
-      console.log(`Loading ${limitedCameras.length} thumbnails for performance`);
-
-      limitedCameras.forEach((cameraData, index) => {
-        const camera = cameraData.camera;
-        const thumbnailItem = document.createElement('div');
-        thumbnailItem.className = 'thumbnail-item';
-        thumbnailItem.title = `${camera.label || `Camera ${cameraData.index + 1}`} - Click to view full size`;
-        
-        // Create the image URL
-        const baseURL = cameraOverlay?.options?.baseURL || '';
-        const imageURL = `${baseURL}/${camera.imageName}`;
-        
-        // Simple and fast thumbnail loading
-        const img = document.createElement('img');
-        img.src = imageURL;
-        img.alt = camera.label || `Camera ${cameraData.index + 1}`;
-        img.loading = 'lazy';
-        
-        // Set size constraints via CSS
-        img.style.width = '60px';
-        img.style.height = '45px';
-        img.style.objectFit = 'cover';
-        
-        // Show loading text initially
-        thumbnailItem.innerHTML = '<div class="loading">📷</div>';
-        
-        img.onload = () => {
-          thumbnailItem.innerHTML = '';
-          thumbnailItem.appendChild(img);
-          console.log(`✅ Thumbnail loaded: ${camera.imageName}`);
-        };
-        
-        img.onerror = () => {
-          thumbnailItem.innerHTML = '<div class="loading" style="color:#ff6b6b;">❌</div>';
-          console.log(`❌ Thumbnail failed: ${camera.imageName}`);
-        };
-        
-        // Click to open full size in new window
-        thumbnailItem.onclick = () => {
-          const fullSizeURL = imageURL;
-          const newWindow = window.open(fullSizeURL, '_blank', 
-            'width=1200,height=900,scrollbars=yes,resizable=yes');
-          if (newWindow) {
-            newWindow.focus();
-          }
-        };
-        
-        thumbnailGrid.appendChild(thumbnailItem);
       });
     }
 
