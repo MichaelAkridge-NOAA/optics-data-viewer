@@ -672,7 +672,7 @@ class SFMCameraOverlay {
       const basePixy = camPixH / camFocal; // Physical plane height
       
       // Apply much more aggressive scaling to make frustums tiny
-      const frustumScale = 0.05; // Make frustums very small (5% of calculated size)
+      const frustumScale = 0.01; // Make frustums extremely small (1% of calculated size)
       const pixx = basePixx * frustumScale;
       const pixy = basePixy * frustumScale;
       
@@ -762,24 +762,11 @@ class SFMCameraOverlay {
         );
         
         frustumGroup.applyMatrix4(matrix4);
-        
-        // Apply position offset after matrix transformation
-        frustumGroup.position.add(new THREE.Vector3(
-          this.options.positionOffset[0],
-          this.options.positionOffset[1], 
-          this.options.positionOffset[2]
-        ));
-        
-        console.log('Applied 4x4 transformation matrix with offset for:', imageName);
+        console.log('Applied 4x4 transformation matrix for:', imageName);
       } else {
-        // Fallback positioning with offset applied
+        // Fallback positioning without offset for now
         console.log('Using fallback positioning for:', imageName);
-        const adjustedPosition = [
-          position[0] + this.options.positionOffset[0],
-          position[1] + this.options.positionOffset[1],
-          position[2] + this.options.positionOffset[2]
-        ];
-        frustumGroup.position.set(adjustedPosition[0], adjustedPosition[1], adjustedPosition[2]);
+        frustumGroup.position.set(position[0], position[1], position[2]);
         
         if (rotationMatrix && rotationMatrix.length >= 9) {
           const rotMatrix = new THREE.Matrix3();

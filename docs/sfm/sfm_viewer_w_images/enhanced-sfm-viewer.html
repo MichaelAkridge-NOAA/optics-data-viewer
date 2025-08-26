@@ -248,8 +248,7 @@
               thumbnailDir: '', // Use same images for thumbnails for now
               scaleImage: 0.5, // Back to 50% size for better quality
               showFrustums: false, // Start with cameras hidden due to high count
-              showImagePlane: false,
-              positionOffset: [0, 0, -5] // Reduce offset to -5 instead of -10
+              showImagePlane: false
             });
             
             // Setup camera panel
@@ -547,7 +546,7 @@
     }
 
     /**
-     * Show thumbnail images for selected cameras
+     * Show thumbnail images for selected cameras - OPTIMIZED VERSION
      */
     function showThumbnails(selectedCameras) {
       const thumbnailPanel = document.getElementById('thumbnailPanel');
@@ -564,65 +563,50 @@
       // Show the panel
       thumbnailPanel.style.display = 'block';
       
-      selectedCameras.forEach((cameraData, index) => {
+      // Limit to 5 thumbnails maximum for performance
+      const limitedCameras = selectedCameras.slice(0, 5);
+      console.log(`Loading ${limitedCameras.length} thumbnails for performance`);
+
+      limitedCameras.forEach((cameraData, index) => {
         const camera = cameraData.camera;
         const thumbnailItem = document.createElement('div');
         thumbnailItem.className = 'thumbnail-item';
         thumbnailItem.title = `${camera.label || `Camera ${cameraData.index + 1}`} - Click to view full size`;
         
-        // Show loading initially
-        thumbnailItem.innerHTML = '<div class="loading">Loading...</div>';
-        
         // Create the image URL
         const baseURL = cameraOverlay?.options?.baseURL || '';
         const imageURL = `${baseURL}/${camera.imageName}`;
         
-        // Create image element with performance optimization
+        // Simple and fast thumbnail loading
         const img = document.createElement('img');
+        img.src = imageURL;
         img.alt = camera.label || `Camera ${cameraData.index + 1}`;
+        img.loading = 'lazy';
         
-        // Add loading attributes for better performance
-        img.loading = 'lazy'; // Lazy load images
-        img.style.maxWidth = '60px';
-        img.style.maxHeight = '45px';
+        // Set size constraints via CSS
+        img.style.width = '60px';
+        img.style.height = '45px';
+        img.style.objectFit = 'cover';
         
-        // Create a smaller version for thumbnail loading
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 60;
-        canvas.height = 45;
+        // Show loading text initially
+        thumbnailItem.innerHTML = '<div class="loading">📷</div>';
         
-        const tempImg = new Image();
-        tempImg.crossOrigin = 'anonymous';
-        tempImg.src = imageURL;
-        
-        tempImg.onload = () => {
-          // Draw resized image to canvas
-          ctx.drawImage(tempImg, 0, 0, 60, 45);
-          
-          // Use canvas data as thumbnail source
-          img.src = canvas.toDataURL('image/jpeg', 0.7);
+        img.onload = () => {
           thumbnailItem.innerHTML = '';
           thumbnailItem.appendChild(img);
+          console.log(`✅ Thumbnail loaded: ${camera.imageName}`);
         };
         
-        tempImg.onerror = () => {
-          // Fallback to direct loading if canvas fails
-          img.src = imageURL;
-          img.onload = () => {
-            thumbnailItem.innerHTML = '';
-            thumbnailItem.appendChild(img);
-          };
-          img.onerror = () => {
-            thumbnailItem.innerHTML = '<div class="loading">❌</div>';
-          };
+        img.onerror = () => {
+          thumbnailItem.innerHTML = '<div class="loading" style="color:#ff6b6b;">❌</div>';
+          console.log(`❌ Thumbnail failed: ${camera.imageName}`);
         };
         
         // Click to open full size in new window
         thumbnailItem.onclick = () => {
           const fullSizeURL = imageURL;
           const newWindow = window.open(fullSizeURL, '_blank', 
-            'width=1024,height=768,scrollbars=yes,resizable=yes');
+            'width=1200,height=900,scrollbars=yes,resizable=yes');
           if (newWindow) {
             newWindow.focus();
           }
