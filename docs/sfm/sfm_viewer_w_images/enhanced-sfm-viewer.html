@@ -152,6 +152,7 @@
       <button id="btnToggleImagePlane">Toggle Images</button>
       <button id="btnLoadCameras">Reload Cameras</button>
       <button id="btnShowAllCameras">Show All</button>
+      <button id="btnDebugCoords">Debug Coords</button>
     </div>
     <div style="margin: 8px 0; padding: 6px; background: rgba(40,40,50,.4); border-radius: 4px; font-size: 11px;">
       <strong>💡 Tip:</strong> Click on the point cloud to see nearby camera thumbnails. Click any thumbnail to open the full image!
@@ -368,6 +369,11 @@
           const clickPoint = intersection.point;
           
           console.log('🎯 Point cloud clicked at:', clickPoint.toArray().map(n => n.toFixed(2)));
+          console.log('📊 Point cloud info:', {
+            position: pointcloud.position.toArray(),
+            scale: pointcloud.scale.toArray(),
+            matrixWorld: pointcloud.matrixWorld.elements.slice(0, 16).map(n => n.toFixed(3))
+          });
           
           if (cameraOverlay && cameraOverlay.cameras.length > 0) {
             showNearestCameras(clickPoint);
@@ -388,11 +394,39 @@
      * Show cameras near the clicked point with thumbnail carousel
      */
     function showNearestCameras(clickPoint, maxDistance = 100, maxCameras = 12) {
+      // Debug: Log both point cloud click coordinates and camera positions
+      console.log('🎯 Point cloud click coordinates:', clickPoint.toArray().map(n => n.toFixed(2)));
+      console.log('📷 Sample camera positions (first 3):');
+      cameraOverlay.cameras.slice(0, 3).forEach((cam, i) => {
+        console.log(`  Camera ${i}: [${cam.position.map(p => p.toFixed(2)).join(', ')}]`);
+      });
+      
+      // Get point cloud's transformation matrix for coordinate alignment
+      let transformedClickPoint = clickPoint.clone();
+      
+      // Apply inverse transformation if point cloud has been transformed
+      if (pointcloud.matrixWorld && !pointcloud.matrixWorld.equals(new THREE.Matrix4())) {
+        const inverseMatrix = new THREE.Matrix4().copy(pointcloud.matrixWorld).invert();
+        transformedClickPoint.applyMatrix4(inverseMatrix);
+        console.log('🔄 Transformed click point:', transformedClickPoint.toArray().map(n => n.toFixed(2)));
+      }
+      
+      // Calculate distances using both original and transformed coordinates
       const nearCameras = cameraOverlay.cameras
         .map((camera, index) => {
+          // Try both coordinate systems
           const camPos = new THREE.Vector3(...camera.position);
-          const distance = camPos.distanceTo(clickPoint);
-          return { camera, index, distance };
+          
+          // Distance in original coordinates
+          const distance1 = camPos.distanceTo(clickPoint);
+          
+          // Distance with transformation
+          const distance2 = camPos.distanceTo(transformedClickPoint);
+          
+          // Use the smaller distance (better alignment)
+          const distance = Math.min(distance1, distance2);
+          
+          return { camera, index, distance, rawDistance: distance1, transformedDistance: distance2 };
         })
         .filter(item => item.distance <= maxDistance)
         .sort((a, b) => a.distance - b.distance)
@@ -400,11 +434,45 @@
       
       console.log(`📍 Found ${nearCameras.length} cameras within ${maxDistance} units of clicked point`);
       
+      // Debug: Show distance comparison for nearest cameras
+      nearCameras.slice(0, 3).forEach(item => {
+        console.log(`  ${item.camera.label}: raw=${item.rawDistance.toFixed(1)}, transformed=${item.transformedDistance.toFixed(1)}, used=${item.distance.toFixed(1)}`);
+      });
+      
+      // If still no cameras found, try coordinate system scaling
       if (nearCameras.length === 0) {
-        // Show message in camera panel
-        document.getElementById('cameraStats').innerHTML = 
-          '<span style="color: #ffa726;">No cameras found near clicked point</span>';
-        return;
+        console.log('🔍 No cameras found, trying coordinate system scaling...');
+        
+        // Try different scale factors to account for coordinate system differences
+        const scaleFactors = [0.1, 0.01, 10, 100, 1000];
+        
+        for (const scale of scaleFactors) {
+          const scaledClickPoint = clickPoint.clone().multiplyScalar(scale);
+          console.log(`  Trying scale ${scale}: click point = [${scaledClickPoint.toArray().map(n => n.toFixed(2)).join(', ')}]`);
+          
+          const testCameras = cameraOverlay.cameras
+            .map((camera, index) => {
+              const camPos = new THREE.Vector3(...camera.position);
+              const distance = camPos.distanceTo(scaledClickPoint);
+              return { camera, index, distance, scale, rawDistance: distance, transformedDistance: distance };
+            })
+            .filter(item => item.distance <= maxDistance)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, Math.min(3, maxCameras));
+          
+          if (testCameras.length > 0) {
+            console.log(`  ✅ Found ${testCameras.length} cameras with scale factor ${scale}!`);
+            nearCameras = testCameras.slice(0, maxCameras);
+            break;
+          }
+        }
+        
+        if (nearCameras.length === 0) {
+          // Show message in camera panel
+          document.getElementById('cameraStats').innerHTML = 
+            '<span style="color: #ffa726;">No cameras found near clicked point - coordinate system mismatch?</span>';
+          return;
+        }
       }
       
       // Hide all camera frustums first
@@ -723,6 +791,55 @@
           btnShowAllCameras.classList.add('active');
           setTimeout(() => btnShowAllCameras.classList.remove('active'), 500);
         }
+      };
+      
+      // Debug Coordinates button
+      const btnDebugCoords = document.getElementById('btnDebugCoords');
+      btnDebugCoords.onclick = () => {
+        console.log('\n=== COORDINATE SYSTEM DEBUG ===');
+        
+        if (pointcloud) {
+          const pcBounds = pointcloud.boundingBox;
+          console.log('📊 Point Cloud Info:');
+          console.log('  Position:', pointcloud.position.toArray());
+          console.log('  Scale:', pointcloud.scale.toArray());
+          console.log('  Bounding Box:', pcBounds ? {
+            min: pcBounds.min.toArray(),
+            max: pcBounds.max.toArray(),
+            center: pcBounds.getCenter(new THREE.Vector3()).toArray()
+          } : 'No bounding box');
+          console.log('  Matrix World:', pointcloud.matrixWorld.elements.slice(0, 16));
+        }
+        
+        if (cameraOverlay && cameraOverlay.cameras.length > 0) {
+          console.log('\n📷 Camera Positions (first 5):');
+          cameraOverlay.cameras.slice(0, 5).forEach((cam, i) => {
+            console.log(`  ${i}: ${cam.label} at [${cam.position.map(p => p.toFixed(2)).join(', ')}]`);
+          });
+          
+          // Calculate camera bounds
+          const positions = cameraOverlay.cameras.map(cam => cam.position);
+          const minX = Math.min(...positions.map(p => p[0]));
+          const maxX = Math.max(...positions.map(p => p[0]));
+          const minY = Math.min(...positions.map(p => p[1]));
+          const maxY = Math.max(...positions.map(p => p[1]));
+          const minZ = Math.min(...positions.map(p => p[2]));
+          const maxZ = Math.max(...positions.map(p => p[2]));
+          
+          console.log('\n📐 Camera Coordinate Bounds:');
+          console.log(`  X: ${minX.toFixed(2)} to ${maxX.toFixed(2)} (range: ${(maxX-minX).toFixed(2)})`);
+          console.log(`  Y: ${minY.toFixed(2)} to ${maxY.toFixed(2)} (range: ${(maxY-minY).toFixed(2)})`);
+          console.log(`  Z: ${minZ.toFixed(2)} to ${maxZ.toFixed(2)} (range: ${(maxZ-minZ).toFixed(2)})`);
+          
+          const centerX = (minX + maxX) / 2;
+          const centerY = (minY + maxY) / 2;  
+          const centerZ = (minZ + maxZ) / 2;
+          console.log(`  Camera Center: [${centerX.toFixed(2)}, ${centerY.toFixed(2)}, ${centerZ.toFixed(2)}]`);
+        }
+        
+        console.log('\n💡 Try clicking on the point cloud and compare coordinates!');
+        document.getElementById('cameraStats').innerHTML = 
+          '<span style="color: #4CAF50;">Debug info printed to console - check browser dev tools!</span>';
       };
       
       console.log('Camera panel initialized for OCC-ASC-003 dataset');
