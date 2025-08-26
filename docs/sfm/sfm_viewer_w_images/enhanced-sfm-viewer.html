@@ -585,7 +585,12 @@
         const thumbnailURL = getThumbnailURL(camera.imageName);
         
         thumbnailItem.innerHTML = `
-          <img class="sidebar-thumbnail-img" src="${thumbnailURL}" alt="${camera.label}" loading="lazy">
+          <img class="sidebar-thumbnail-img" 
+               src="${thumbnailURL}" 
+               alt="${camera.label}" 
+               loading="lazy"
+               onerror="console.warn('❌ Failed to load thumbnail:', this.src); this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNmMGYwZjAiLz48dGV4dCB4PSI1MCIgeT0iNTUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';"
+               onload="console.log('✅ Thumbnail loaded:', this.src);">
           <div class="sidebar-thumbnail-label">${camera.label}</div>
           <div class="sidebar-thumbnail-distance">${distance.toFixed(1)}m</div>
         `;
@@ -726,7 +731,9 @@
     function getThumbnailURL(imageName) {
       // Remove extension and add to thumbnail base URL
       const nameWithoutExt = imageName.replace(/\.(jpg|jpeg|png|tiff|tif)$/i, '');
-      return `${thumbnailBase}/${nameWithoutExt}.JPG`;
+      const url = `${thumbnailBase}/${nameWithoutExt}.JPG`;
+      console.log(`📸 Thumbnail URL: ${imageName} -> ${url}`);
+      return url;
     }
 
     /**

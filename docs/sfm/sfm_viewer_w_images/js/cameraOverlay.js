@@ -624,9 +624,9 @@ class SFMCameraOverlay {
       console.log(`Creating optimized frustum for ${imageName} at position:`, position);
       
       // Camera parameters (adjusted for better point cloud alignment)
-      const camFocal = 2000; // Adjusted focal length for better visualization
-      const camPixW = 6000; // Image width in pixels
-      const camPixH = 4000; // Image height in pixels
+      const camFocal = 3000; // Adjusted focal length for better visualization
+      const camPixW = 5472; // More realistic image width in pixels
+      const camPixH = 3648; // More realistic image height in pixels
       
       // Scale factors similar to potree-sfm approach
       const pixx = camPixW / camFocal; // Physical plane width
@@ -701,7 +701,7 @@ class SFMCameraOverlay {
         
         // Adjust position to be closer to the point cloud center
         const currentPos = frustumGroup.position;
-        const adjustmentFactor = 0.8; // Bring cameras 20% closer to origin
+        const adjustmentFactor = 0.95; // Bring cameras slightly closer to origin
         frustumGroup.position.multiplyScalar(adjustmentFactor);
         
         console.log('Applied 4x4 transformation matrix with adjustment for:', imageName);
@@ -725,7 +725,7 @@ class SFMCameraOverlay {
       }
       
       // Apply scale factor - similar to SCALEIMG in potree-sfm
-      const SCALE_FACTOR = 5.0; // Increased scale for better visibility
+      const SCALE_FACTOR = 1.5; // Reduced scale for better proportions
       frustumGroup.scale.setScalar(SCALE_FACTOR);
       
       // Store metadata
@@ -742,8 +742,10 @@ class SFMCameraOverlay {
       
       // Choose thumbnail or full image URL based on useThumbnail parameter
       const imageURL = useThumbnail ? 
-        this.getThumbnailURL(imageDir, imageName) : 
+        (window.getThumbnailURL ? window.getThumbnailURL(imageName) : this.getThumbnailURL(imageDir, imageName)) : 
         this.getImageURL(imageDir, imageName);
+      
+      console.log(`🖼️ Loading texture for ${imageName}: ${imageURL}`);
       
       loader.load(
         imageURL,
@@ -758,9 +760,29 @@ class SFMCameraOverlay {
           // Optional: handle loading progress
         },
         (error) => {
-          console.warn(`⚠️ Failed to load texture: ${imageURL}`, error);
+          console.warn(`⚠️ Failed to load texture for ${imageName}: ${imageURL}`, error);
           // Keep the gray color as fallback
           imageMaterial.color.set(0xff6b6b); // Light red to indicate error
+          
+          // Try fallback to full image URL if thumbnail failed
+          if (useThumbnail) {
+            console.log(`🔄 Trying fallback to full image for ${imageName}`);
+            const fallbackURL = this.getImageURL(imageDir, imageName);
+            loader.load(
+              fallbackURL,
+              (texture) => {
+                console.log(`✅ Fallback texture loaded: ${fallbackURL}`);
+                imageMaterial.map = texture;
+                imageMaterial.color.set(0xffffff);
+                imageMaterial.needsUpdate = true;
+                frustumGroup.userData.loadedTexture = true;
+              },
+              undefined,
+              (fallbackError) => {
+                console.error(`❌ Both thumbnail and full image failed for ${imageName}:`, fallbackError);
+              }
+            );
+          }
         }
       );
       
