@@ -490,7 +490,7 @@ class SFMCameraOverlay {
     let imageName = label;
     if (!imageName.match(/\.(jpg|jpeg|png|tiff|tif)$/i)) {
       // Try common extensions
-      imageName = label + '.jpg'; // Default to .jpg first
+      imageName = label + '.JPG'; // Default to .JPG first
     }
     
     console.log(`Created camera ${index}: ${label} at position [${position.join(', ')}]`);
@@ -567,7 +567,7 @@ class SFMCameraOverlay {
       } else {
         // Remove original extension and add .jpg for thumbnails
         const nameWithoutExt = imageName.replace(/\.(jpg|jpeg|png|tiff|tif)$/i, '');
-        url = `${thumbnailBase}/${nameWithoutExt}.jpg`;
+        url = `${thumbnailBase}/${nameWithoutExt}.JPG`;
       }
     } else {
       url = `${thumbnailDir}/${imageName}`;
