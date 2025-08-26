@@ -269,13 +269,6 @@
           loadCameraDataFromURL(cameraSrc);
         } else {
           console.warn('No camera overlay or camera source URL available');
-      // Reload cameras using default URLs
-      btnLoadCameras.onclick = () => {
-        if (cameraOverlay && cameraSrc) {
-          console.log('Reloading cameras from:', cameraSrc);
-          loadCameraDataFromURL(cameraSrc);
-        } else {
-          console.warn('No camera overlay or camera source URL available');
         }
       };
       
