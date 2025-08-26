@@ -58,6 +58,23 @@
     }
     .camera-item:hover { background:rgba(60,60,70,.8); }
     .camera-item.active { border-left-color:#4CAF50; background:rgba(80,180,80,.3); }
+    
+    /* Thumbnail styles */
+    .thumbnail-item {
+      width:60px; height:45px; border-radius:4px; overflow:hidden; cursor:pointer;
+      border:2px solid rgba(255,255,255,0.2); transition:all 0.2s;
+      position:relative; background:rgba(40,40,50,0.8);
+    }
+    .thumbnail-item:hover {
+      border-color:rgba(76,175,80,0.8); transform:scale(1.05);
+    }
+    .thumbnail-item img {
+      width:100%; height:100%; object-fit:cover; display:block;
+    }
+    .thumbnail-item .loading {
+      display:flex; align-items:center; justify-content:center;
+      font-size:10px; color:#999; height:100%;
+    }
   </style>
 </head>
 <body>
@@ -88,6 +105,12 @@
 
     <div id="cameraStats" style="margin:8px 0;font-size:11px;color:#aaa;"></div>
     <div id="selectionInfo" style="margin:4px 0;font-size:10px;color:#4CAF50;display:none;"></div>
+    
+    <!-- Thumbnail Preview Panel -->
+    <div id="thumbnailPanel" style="margin:8px 0;display:none;">
+      <div style="font-size:12px;font-weight:bold;color:#fff;margin-bottom:8px;">📷 Selected Images</div>
+      <div id="thumbnailGrid" style="display:flex;flex-wrap:wrap;gap:4px;max-height:200px;overflow-y:auto;"></div>
+    </div>
 
     <div class="camera-list" id="cameraList"></div>
   </div>
@@ -297,6 +320,7 @@
           cameraOverlay.clearSelectedCameras();
         }
         document.getElementById('selectionInfo').style.display = 'none';
+        document.getElementById('thumbnailPanel').style.display = 'none';
         updateCameraList(cameraOverlay ? cameraOverlay.cameras : []);
         console.log('Camera selection cleared');
       };
@@ -373,13 +397,16 @@
           cameraOverlay.showSelectedCameras(cameraIndices);
         }
         
+        // Update camera list to show only selected cameras
+        updateCameraListWithSelection(selectedCameras);
+        
+        // Show thumbnails for selected cameras
+        showThumbnails(selectedCameras);
+        
         // Update UI
         const selectionInfo = document.getElementById('selectionInfo');
         selectionInfo.textContent = `Showing ${selectedCameras.length} cameras near clicked point`;
         selectionInfo.style.display = 'block';
-        
-        // Update camera list to highlight selected
-        updateCameraListWithSelection(selectedCameras.map(item => item.index));
       }
       
       console.log('Camera panel initialized with click-to-query functionality');
@@ -468,6 +495,105 @@
         };
         
         cameraList.appendChild(item);
+      });
+    }
+
+    /**
+     * Update camera list to show only selected cameras
+     */
+    function updateCameraListWithSelection(selectedCameras) {
+      const cameraList = document.getElementById('cameraList');
+      cameraList.innerHTML = '';
+
+      selectedCameras.forEach((cameraData, listIndex) => {
+        const camera = cameraData.camera;
+        const originalIndex = cameraData.index;
+        const distance = cameraData.distance;
+        
+        const item = document.createElement('div');
+        item.className = 'camera-item';
+        item.innerHTML = `
+          <div style="font-weight:bold;">${camera.label || `Camera ${originalIndex + 1}`}</div>
+          <div style="font-size:10px;color:#999;margin-top:2px;">
+            Distance: ${distance.toFixed(1)}m | Image: ${camera.imageName || 'N/A'}
+          </div>
+        `;
+        
+        item.onclick = () => {
+          // Remove previous active
+          document.querySelectorAll('.camera-item.active').forEach(el => {
+            el.classList.remove('active');
+          });
+          
+          // Set this as active
+          item.classList.add('active');
+          
+          // Fly to camera
+          cameraOverlay.flyToCamera(originalIndex);
+          
+          console.log(`Selected camera ${originalIndex}: ${camera.label}`);
+        };
+        
+        cameraList.appendChild(item);
+      });
+    }
+
+    /**
+     * Show thumbnail images for selected cameras
+     */
+    function showThumbnails(selectedCameras) {
+      const thumbnailPanel = document.getElementById('thumbnailPanel');
+      const thumbnailGrid = document.getElementById('thumbnailGrid');
+      
+      // Clear existing thumbnails
+      thumbnailGrid.innerHTML = '';
+      
+      if (selectedCameras.length === 0) {
+        thumbnailPanel.style.display = 'none';
+        return;
+      }
+      
+      // Show the panel
+      thumbnailPanel.style.display = 'block';
+      
+      selectedCameras.forEach((cameraData, index) => {
+        const camera = cameraData.camera;
+        const thumbnailItem = document.createElement('div');
+        thumbnailItem.className = 'thumbnail-item';
+        thumbnailItem.title = `${camera.label || `Camera ${cameraData.index + 1}`} - Click to view full size`;
+        
+        // Show loading initially
+        thumbnailItem.innerHTML = '<div class="loading">Loading...</div>';
+        
+        // Create the image URL
+        const baseURL = cameraOverlay?.options?.baseURL || '';
+        const imageURL = `${baseURL}/${camera.imageName}`;
+        
+        // Create image element
+        const img = document.createElement('img');
+        img.src = imageURL;
+        img.alt = camera.label || `Camera ${cameraData.index + 1}`;
+        
+        img.onload = () => {
+          thumbnailItem.innerHTML = '';
+          thumbnailItem.appendChild(img);
+        };
+        
+        img.onerror = () => {
+          thumbnailItem.innerHTML = '<div class="loading">❌</div>';
+        };
+        
+        // Click to open full size in new window
+        thumbnailItem.onclick = () => {
+          const fullSizeURL = imageURL;
+          const newWindow = window.open(fullSizeURL, '_blank', 
+            'width=1024,height=768,scrollbars=yes,resizable=yes');
+          if (newWindow) {
+            newWindow.focus();
+          }
+        };
+        
+        thumbnailGrid.appendChild(thumbnailItem);
       });
     }
 
