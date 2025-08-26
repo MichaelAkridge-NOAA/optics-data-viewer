@@ -17,6 +17,7 @@ class SFMCameraOverlay {
     this.scene = viewer.scene.scene; // Three.js scene
     this.options = {
       baseURL: options.baseURL || '',
+      thumbnailBaseURL: options.thumbnailBaseURL || options.baseURL || '',
       imageDir: options.imageDir || '01_IMAGES',
       thumbnailDir: options.thumbnailDir || '02_THUMBNAILS',
       scaleImage: options.scaleImage || 1.0,
@@ -230,11 +231,18 @@ class SFMCameraOverlay {
    */
   turnCamerasOn() {
     this.camsVisible = true;
-    this.scene.traverse((object) => {
-      if (object.userData?.type === 'imageFrustum') {
-        object.visible = true;
-      }
+    this.cameraObjects.forEach(obj => {
+      obj.visible = true;
+      // Reset any color highlighting
+      obj.traverse(child => {
+        if (child.material && child.userData.originalColor) {
+          child.material.color.copy(child.userData.originalColor);
+        } else if (child.material && !child.userData.originalColor) {
+          child.material.color.set(0xf8f9fa); // Default wireframe color
+        }
+      });
     });
+    console.log('📷 All camera frustums visible');
   }
   
   /**
@@ -242,11 +250,10 @@ class SFMCameraOverlay {
    */
   turnCamerasOff() {
     this.camsVisible = false;
-    this.scene.traverse((object) => {
-      if (object.userData?.type === 'imageFrustum') {
-        object.visible = false;
-      }
+    this.cameraObjects.forEach(obj => {
+      obj.visible = false;
     });
+    console.log('📷 All camera frustums hidden');
   }
   
   /**
@@ -547,6 +554,30 @@ class SFMCameraOverlay {
   }
 
   /**
+   * Construct thumbnail URL with proper encoding
+   */
+  getThumbnailURL(thumbnailDir, imageName) {
+    let url;
+    const thumbnailBase = this.options.thumbnailBaseURL || this.options.baseURL;
+    
+    if (thumbnailBase) {
+      // Handle different directory configurations
+      if (thumbnailDir) {
+        url = `${thumbnailBase}/${thumbnailDir}/${imageName}`;
+      } else {
+        // Remove original extension and add .jpg for thumbnails
+        const nameWithoutExt = imageName.replace(/\.(jpg|jpeg|png|tiff|tif)$/i, '');
+        url = `${thumbnailBase}/${nameWithoutExt}.jpg`;
+      }
+    } else {
+      url = `${thumbnailDir}/${imageName}`;
+    }
+    
+    console.log(`Loading thumbnail: ${url}`);
+    return url;
+  }
+
+  /**
    * Create camera frustum objects in the scene
    */
   createCameraFrustums() {
@@ -558,7 +589,8 @@ class SFMCameraOverlay {
         camera.imageName, // Use imageName instead of label
         camera.rotationMatrix,
         camera.position,
-        camera.transform4x4 // Pass the 4x4 matrix for better positioning
+        camera.transform4x4, // Pass the 4x4 matrix for better positioning
+        true // Use thumbnails for frustums
       );
       
       if (frustum) {
@@ -585,22 +617,13 @@ class SFMCameraOverlay {
   /**
    * Create image frustum (pyramid + image plane) 
    * Based on potree-sfm approach for proper 3D visualization
+   * Optimized version with better error handling and thumbnail support
    */
-  createImageFrustum(imageDir, imageName, rotationMatrix, position, transform4x4) {
+  createImageFrustum(imageDir, imageName, rotationMatrix, position, transform4x4, useThumbnail = false) {
     try {
-      console.log(`Creating frustum for ${imageName} at position:`, position);
-      
-      // Load texture with cross-origin support
-      const loader = new THREE.TextureLoader();
-      loader.crossOrigin = 'anonymous';
-      const imageURL = this.getImageURL(imageDir, imageName);
+      console.log(`Creating optimized frustum for ${imageName} at position:`, position);
       
       // Camera parameters (adjusted for typical SfM data)
-      const focalLength = 35; // mm - standard focal length
-      const sensorWidth = 36; // mm - full frame equivalent  
-      const sensorHeight = 24; // mm - full frame equivalent
-      
-      // Calculate frustum dimensions based on camera model from potree-sfm
       const camFocal = 3500; // Effective focal length in pixels (typical for SfM)
       const camPixW = 6000; // Image width in pixels
       const camPixH = 4000; // Image height in pixels
@@ -613,16 +636,17 @@ class SFMCameraOverlay {
       const imageGeometry = new THREE.PlaneGeometry(pixx, pixy, 1, 1);
       
       // Set image plane at distance -1 (following potree-sfm convention)
-      imageGeometry.vertices[0].z = -1;
-      imageGeometry.vertices[1].z = -1; 
-      imageGeometry.vertices[2].z = -1;
-      imageGeometry.vertices[3].z = -1;
+      const vertices = imageGeometry.vertices;
+      for (let i = 0; i < vertices.length; i++) {
+        vertices[i].z = -1;
+      }
       
-      // Create image material
+      // Create image material (initially without texture for faster loading)
       const imageMaterial = new THREE.MeshBasicMaterial({ 
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.7,
+        color: 0x888888 // Gray color while loading
       });
       
       const imagePlane = new THREE.Mesh(imageGeometry, imageMaterial);
@@ -651,7 +675,7 @@ class SFMCameraOverlay {
         color: 0xf8f9fa, // Light color similar to potree-sfm
         wireframe: true,
         transparent: true,
-        opacity: 0.7
+        opacity: 0.6
       });
       
       const pyramid = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
@@ -660,22 +684,6 @@ class SFMCameraOverlay {
       const frustumGroup = new THREE.Group();
       frustumGroup.add(imagePlane);
       frustumGroup.add(pyramid);
-      
-      // Load texture and apply to image plane
-      loader.load(
-        imageURL,
-        (texture) => {
-          console.log(`✅ Texture loaded: ${imageURL}`);
-          imageMaterial.map = texture;
-          imageMaterial.needsUpdate = true;
-        },
-        undefined,
-        (error) => {
-          console.error(`❌ Failed to load texture: ${imageURL}`, error);
-          // Create fallback color
-          imageMaterial.color = new THREE.Color(0xff6b6b);
-        }
-      );
       
       // Apply transformation from 4x4 matrix (Agisoft format)
       if (transform4x4 && transform4x4.length >= 16) {
@@ -710,15 +718,44 @@ class SFMCameraOverlay {
       }
       
       // Apply scale factor - similar to SCALEIMG in potree-sfm
-      const SCALE_FACTOR = 3.0;
+      const SCALE_FACTOR = 2.0; // Reduced scale for better performance
       frustumGroup.scale.setScalar(SCALE_FACTOR);
       
       // Store metadata
       frustumGroup.userData = {
         imageName: imageName,
-        imageURL: imageURL,
-        type: 'imageFrustum'
+        imageURL: this.getImageURL(imageDir, imageName),
+        type: 'imageFrustum',
+        loadedTexture: false
       };
+      
+      // Load texture asynchronously with better error handling
+      const loader = new THREE.TextureLoader();
+      loader.crossOrigin = 'anonymous';
+      
+      // Choose thumbnail or full image URL based on useThumbnail parameter
+      const imageURL = useThumbnail ? 
+        this.getThumbnailURL(imageDir, imageName) : 
+        this.getImageURL(imageDir, imageName);
+      
+      loader.load(
+        imageURL,
+        (texture) => {
+          console.log(`✅ Texture loaded: ${imageURL}`);
+          imageMaterial.map = texture;
+          imageMaterial.color.set(0xffffff); // Reset to white when texture loads
+          imageMaterial.needsUpdate = true;
+          frustumGroup.userData.loadedTexture = true;
+        },
+        (progress) => {
+          // Optional: handle loading progress
+        },
+        (error) => {
+          console.warn(`⚠️ Failed to load texture: ${imageURL}`, error);
+          // Keep the gray color as fallback
+          imageMaterial.color.set(0xff6b6b); // Light red to indicate error
+        }
+      );
       
       console.log(`Image frustum created for: ${imageName}`);
       return frustumGroup;
