@@ -623,8 +623,8 @@ class SFMCameraOverlay {
     try {
       console.log(`Creating optimized frustum for ${imageName} at position:`, position);
       
-      // Camera parameters (adjusted for typical SfM data)
-      const camFocal = 3500; // Effective focal length in pixels (typical for SfM)
+      // Camera parameters (adjusted for better point cloud alignment)
+      const camFocal = 2000; // Adjusted focal length for better visualization
       const camPixW = 6000; // Image width in pixels
       const camPixH = 4000; // Image height in pixels
       
@@ -696,8 +696,15 @@ class SFMCameraOverlay {
           transform4x4[3], transform4x4[7], transform4x4[11], transform4x4[15]
         );
         
+        // Apply transformation but also bring cameras closer to point cloud
         frustumGroup.applyMatrix4(matrix4);
-        console.log('Applied 4x4 transformation matrix for:', imageName);
+        
+        // Adjust position to be closer to the point cloud center
+        const currentPos = frustumGroup.position;
+        const adjustmentFactor = 0.8; // Bring cameras 20% closer to origin
+        frustumGroup.position.multiplyScalar(adjustmentFactor);
+        
+        console.log('Applied 4x4 transformation matrix with adjustment for:', imageName);
       } else {
         // Fallback positioning
         console.log('Using fallback positioning for:', imageName);
@@ -718,7 +725,7 @@ class SFMCameraOverlay {
       }
       
       // Apply scale factor - similar to SCALEIMG in potree-sfm
-      const SCALE_FACTOR = 2.0; // Reduced scale for better performance
+      const SCALE_FACTOR = 5.0; // Increased scale for better visibility
       frustumGroup.scale.setScalar(SCALE_FACTOR);
       
       // Store metadata

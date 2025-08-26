@@ -154,7 +154,7 @@
       <button id="btnShowAllCameras">Show All</button>
     </div>
     <div style="margin: 8px 0; padding: 6px; background: rgba(40,40,50,.4); border-radius: 4px; font-size: 11px;">
-      <strong>💡 Tip:</strong> Click on the point cloud to see a thumbnail carousel of nearby camera images!
+      <strong>💡 Tip:</strong> Click on the point cloud to see nearby camera thumbnails. Click any thumbnail to open the full image!
     </div>
 
     <!-- Sidebar Thumbnail Carousel -->
@@ -316,7 +316,7 @@
           thumbnailBaseURL: thumbnailBase || defaultThumbnailBase,
           imageDir: '', // Images are directly in the base URL path
           thumbnailDir: '', // Thumbnails are directly in the thumbnail base URL path
-          scaleImage: 0.5,
+          scaleImage: 2.0, // Increased scale for better visibility
           showFrustums: true,
           showImagePlane: false
         });
@@ -387,7 +387,7 @@
     /**
      * Show cameras near the clicked point with thumbnail carousel
      */
-    function showNearestCameras(clickPoint, maxDistance = 50, maxCameras = 8) {
+    function showNearestCameras(clickPoint, maxDistance = 100, maxCameras = 12) {
       const nearCameras = cameraOverlay.cameras
         .map((camera, index) => {
           const camPos = new THREE.Vector3(...camera.position);
@@ -501,7 +501,7 @@
       const title = document.getElementById('sidebarCarouselTitle');
       
       // Set title
-      title.textContent = `${nearCameras.length} Nearby Cameras`;
+      title.textContent = `${nearCameras.length} Nearby Cameras (Click to Open)`;
       
       // Clear previous thumbnails
       grid.innerHTML = '';
@@ -522,8 +522,13 @@
           <div class="sidebar-thumbnail-distance">${distance.toFixed(1)}m</div>
         `;
         
-        // Handle thumbnail selection (multiple selection support)
+        // Handle thumbnail selection and auto-open
         thumbnailItem.onclick = () => {
+          // Get full image URL and open immediately
+          const fullImageURL = getFullImageURL(camera.imageName);
+          window.open(fullImageURL, '_blank');
+          
+          // Also provide visual feedback and allow multiple selection
           const isSelected = thumbnailItem.classList.contains('active');
           
           if (isSelected) {
@@ -538,7 +543,7 @@
           const hasSelection = selectedCameras.size > 0;
           document.getElementById('sidebarFullImageBtn').disabled = !hasSelection;
           
-          console.log(`${isSelected ? 'Deselected' : 'Selected'} camera: ${camera.label}`);
+          console.log(`🖼️ Opened full image for camera: ${camera.label} -> ${fullImageURL}`);
         };
         
         grid.appendChild(thumbnailItem);
