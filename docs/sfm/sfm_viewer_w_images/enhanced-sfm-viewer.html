@@ -190,22 +190,9 @@
         // Initialize export functionality
         initializeSidebarExports();
         
-        // Initialize camera overlay system
-        cameraOverlay = new SFMCameraOverlay(viewer, {
-          baseURL: imageBase || defaultImageBase,
-          imageDir: '', // Images are directly in the base URL path
-          thumbnailDir: '', // Use same images for thumbnails for now
-          scaleImage: 0.5,
-          showFrustums: true,
-          showImagePlane: false
-        });
-        
-        // Setup camera panel
-        setupCameraPanel();
-        
         console.log('Loading point cloud...');
         
-        // Load point cloud
+        // Load point cloud first, then initialize camera overlay
         Potree.loadPointCloud(src, title, e => {
           console.log('Point cloud load callback triggered');
           let scene = viewer.scene;
@@ -224,12 +211,35 @@
           // Show camera panel
           cameraPanel.style.display = 'block';
           
-          console.log('Enhanced SFM viewer loaded successfully');
+          console.log('Point cloud loaded, initializing camera overlay...');
           
-          // Auto-load cameras from default or provided URL
-          if (cameraSrc) {
-            console.log('Auto-loading cameras from:', cameraSrc);
-            loadCameraDataFromURL(cameraSrc);
+          // Initialize camera overlay system after THREE.js is available
+          try {
+            if (typeof THREE !== 'undefined') {
+              cameraOverlay = new SFMCameraOverlay(viewer, {
+                baseURL: imageBase || defaultImageBase,
+                imageDir: '', // Images are directly in the base URL path
+                thumbnailDir: '', // Use same images for thumbnails for now
+                scaleImage: 0.5,
+                showFrustums: true,
+                showImagePlane: false
+              });
+              
+              // Setup camera panel
+              setupCameraPanel();
+              
+              console.log('Enhanced SFM viewer loaded successfully');
+              
+              // Auto-load cameras from default or provided URL
+              if (cameraSrc) {
+                console.log('Auto-loading cameras from:', cameraSrc);
+                loadCameraDataFromURL(cameraSrc);
+              }
+            } else {
+              console.error('THREE.js is not available - camera overlay disabled');
+            }
+          } catch (error) {
+            console.error('Failed to initialize camera overlay:', error);
           }
           
           // Start monitoring for camera animations

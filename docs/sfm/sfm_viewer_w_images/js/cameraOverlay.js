@@ -6,6 +6,11 @@
 
 class SFMCameraOverlay {
   constructor(viewer, options = {}) {
+    // Ensure THREE.js is available
+    if (typeof THREE === 'undefined') {
+      throw new Error('THREE.js is required for SFMCameraOverlay but is not available');
+    }
+    
     this.viewer = viewer;
     this.scene = viewer.scene.scene; // Three.js scene
     this.options = {
