@@ -20,6 +20,7 @@ class SFMCameraOverlay {
       imageDir: options.imageDir || '01_IMAGES',
       thumbnailDir: options.thumbnailDir || '02_THUMBNAILS',
       scaleImage: options.scaleImage || 1.0,
+      positionOffset: options.positionOffset || [0, 0, 0], // XYZ offset for camera positions
       showFrustums: options.showFrustums !== false,
       showImagePlane: options.showImagePlane !== false,
       ...options
@@ -666,9 +667,14 @@ class SFMCameraOverlay {
       const camPixW = 6000; // Image width in pixels
       const camPixH = 4000; // Image height in pixels
       
-      // Scale factors similar to potree-sfm approach
-      const pixx = camPixW / camFocal; // Physical plane width
-      const pixy = camPixH / camFocal; // Physical plane height
+      // Scale factors similar to potree-sfm approach with additional size reduction
+      const basePixx = camPixW / camFocal; // Physical plane width
+      const basePixy = camPixH / camFocal; // Physical plane height
+      
+      // Apply additional scaling to make frustums smaller and more manageable
+      const frustumScale = 0.3; // Reduce frustum size by 70%
+      const pixx = basePixx * frustumScale;
+      const pixy = basePixy * frustumScale;
       
       // Create image plane geometry - following potree-sfm pattern
       const imageGeometry = new THREE.PlaneGeometry(pixx, pixy, 1, 1);
@@ -727,6 +733,12 @@ class SFMCameraOverlay {
         imageURL,
         (texture) => {
           console.log(`✅ Texture loaded: ${imageURL}`);
+          
+          // Configure texture for better performance
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.generateMipmaps = false;
+          
           imageMaterial.map = texture;
           imageMaterial.needsUpdate = true;
         },
@@ -750,11 +762,24 @@ class SFMCameraOverlay {
         );
         
         frustumGroup.applyMatrix4(matrix4);
-        console.log('Applied 4x4 transformation matrix for:', imageName);
+        
+        // Apply position offset after matrix transformation
+        frustumGroup.position.add(new THREE.Vector3(
+          this.options.positionOffset[0],
+          this.options.positionOffset[1], 
+          this.options.positionOffset[2]
+        ));
+        
+        console.log('Applied 4x4 transformation matrix with offset for:', imageName);
       } else {
-        // Fallback positioning
+        // Fallback positioning with offset applied
         console.log('Using fallback positioning for:', imageName);
-        frustumGroup.position.set(position[0], position[1], position[2]);
+        const adjustedPosition = [
+          position[0] + this.options.positionOffset[0],
+          position[1] + this.options.positionOffset[1],
+          position[2] + this.options.positionOffset[2]
+        ];
+        frustumGroup.position.set(adjustedPosition[0], adjustedPosition[1], adjustedPosition[2]);
         
         if (rotationMatrix && rotationMatrix.length >= 9) {
           const rotMatrix = new THREE.Matrix3();
@@ -828,6 +853,11 @@ class SFMCameraOverlay {
     const newTexture = loader.load(imageURL,
       (texture) => {
         console.log(`✅ Successfully loaded full-size image: ${imageURL}`);
+        
+        // Configure texture for better performance
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
       },
       (progress) => {
         console.log(`Loading progress for ${imageURL}:`, progress);

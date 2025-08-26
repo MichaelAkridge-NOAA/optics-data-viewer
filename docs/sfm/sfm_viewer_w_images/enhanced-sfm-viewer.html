@@ -215,9 +215,10 @@
               baseURL: imageBase || defaultImageBase,
               imageDir: '', // Images are directly in the base URL path
               thumbnailDir: '', // Use same images for thumbnails for now
-              scaleImage: 0.5,
+              scaleImage: 0.25, // Reduce to 25% size for better loading performance
               showFrustums: false, // Start with cameras hidden due to high count
-              showImagePlane: false
+              showImagePlane: false,
+              positionOffset: [0, 0, -10] // Offset cameras closer to point cloud (Z-axis)
             });
             
             // Setup camera panel
