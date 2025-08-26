@@ -74,32 +74,17 @@
 
   <!-- Camera Controls Panel -->
   <div id="cameraPanel">
-    <h3>Camera Controls</h3>
+    <h3>OCC-ASC-003 Cameras</h3>
     <div class="camera-controls">
       <button id="btnToggleFrustums">Toggle Cameras</button>
-      <button id="btnToggleImagePlane">Toggle Image</button>
-      <button id="btnLoadCameras">Load Cameras</button>
-    </div>
-    
-    <div>
-      <strong>Camera Data URL:</strong>
-      <input type="text" id="cameraDataURL" placeholder="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_RA2201.cams.xml" 
-             style="width:100%;margin:4px 0;padding:4px;background:rgba(255,255,255,.1);border:1px solid #555;color:#fff;border-radius:3px;">
-    </div>
-
-    <div>
-      <strong>Base URL for Images:</strong>
-      <input type="text" id="imageBaseURL" placeholder="https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/MARI/ASC/OCC-ASC-003/2022/20220724_OCC-ASC-003_RA2201" 
-             style="width:100%;margin:4px 0;padding:4px;background:rgba(255,255,255,.1);border:1px solid #555;color:#fff;border-radius:3px;">
+      <button id="btnToggleImagePlane">Toggle Images</button>
+      <button id="btnLoadCameras">Reload Cameras</button>
     </div>
 
     <div id="cameraStats" style="margin:8px 0;font-size:11px;color:#aaa;"></div>
 
     <div class="camera-list" id="cameraList"></div>
   </div>
-
-  <!-- File input for loading camera data -->
-  <input type="file" id="cameraFileInput" style="display:none" accept=".xml,.json">
 
   <!-- Libraries -->
   <script src="../../libs/jquery/jquery-3.1.1.min.js"></script>
@@ -116,6 +101,9 @@
   <!-- Potree -->
   <script src="../../build/potree/potree.js"></script>
   <script src="../../libs/plasio/js/laslaz.js"></script>
+  
+  <!-- THREE.js library (separate from Potree for camera overlay) -->
+  <script src="../../libs/three.js/build/three.min.js"></script>
 
   <!-- Camera Overlay Module -->
   <script src="js/cameraOverlay.js"></script>
@@ -213,30 +201,28 @@
           
           console.log('Point cloud loaded, initializing camera overlay...');
           
-          // Initialize camera overlay system after THREE.js is available
+          // Initialize camera overlay system
           try {
-            if (typeof THREE !== 'undefined') {
-              cameraOverlay = new SFMCameraOverlay(viewer, {
-                baseURL: imageBase || defaultImageBase,
-                imageDir: '', // Images are directly in the base URL path
-                thumbnailDir: '', // Use same images for thumbnails for now
-                scaleImage: 0.5,
-                showFrustums: true,
-                showImagePlane: false
-              });
-              
-              // Setup camera panel
-              setupCameraPanel();
-              
-              console.log('Enhanced SFM viewer loaded successfully');
-              
-              // Auto-load cameras from default or provided URL
-              if (cameraSrc) {
-                console.log('Auto-loading cameras from:', cameraSrc);
-                loadCameraDataFromURL(cameraSrc);
-              }
-            } else {
-              console.error('THREE.js is not available - camera overlay disabled');
+            console.log('THREE.js available:', typeof THREE !== 'undefined' ? 'Yes (r' + THREE.REVISION + ')' : 'No');
+            
+            cameraOverlay = new SFMCameraOverlay(viewer, {
+              baseURL: imageBase || defaultImageBase,
+              imageDir: '', // Images are directly in the base URL path
+              thumbnailDir: '', // Use same images for thumbnails for now
+              scaleImage: 0.5,
+              showFrustums: true,
+              showImagePlane: false
+            });
+            
+            // Setup camera panel
+            setupCameraPanel();
+            
+            console.log('Enhanced SFM viewer loaded successfully');
+            
+            // Auto-load cameras from default or provided URL
+            if (cameraSrc) {
+              console.log('Auto-loading cameras from:', cameraSrc);
+              loadCameraDataFromURL(cameraSrc);
             }
           } catch (error) {
             console.error('Failed to initialize camera overlay:', error);
@@ -257,9 +243,6 @@
       const btnToggleFrustums = document.getElementById('btnToggleFrustums');
       const btnToggleImagePlane = document.getElementById('btnToggleImagePlane');
       const btnLoadCameras = document.getElementById('btnLoadCameras');
-      const cameraDataURL = document.getElementById('cameraDataURL');
-      const imageBaseURL = document.getElementById('imageBaseURL');
-      const cameraFileInput = document.getElementById('cameraFileInput');
 
       // Toggle camera frustums
       btnToggleFrustums.onclick = () => {
@@ -274,47 +257,29 @@
       btnToggleImagePlane.onclick = () => {
         if (cameraOverlay) {
           const visible = cameraOverlay.toggleImagePlane();
-          btnToggleImagePlane.textContent = visible ? 'Hide Image' : 'Show Image';
+          btnToggleImagePlane.textContent = visible ? 'Hide Images' : 'Show Images';
           btnToggleImagePlane.classList.toggle('active', visible);
         }
       };
 
-      // Load cameras from URL
+      // Reload cameras using default URLs
       btnLoadCameras.onclick = () => {
-        const url = cameraDataURL.value.trim();
-        const baseURL = imageBaseURL.value.trim();
-        
-        if (url) {
-          if (baseURL) {
-            cameraOverlay.options.baseURL = baseURL;
-          }
-          loadCameraDataFromURL(url);
+        if (cameraOverlay && cameraSrc) {
+          console.log('Reloading cameras from:', cameraSrc);
+          loadCameraDataFromURL(cameraSrc);
         } else {
-          // Open file dialog
-          cameraFileInput.click();
+          console.warn('No camera overlay or camera source URL available');
+      // Reload cameras using default URLs
+      btnLoadCameras.onclick = () => {
+        if (cameraOverlay && cameraSrc) {
+          console.log('Reloading cameras from:', cameraSrc);
+          loadCameraDataFromURL(cameraSrc);
+        } else {
+          console.warn('No camera overlay or camera source URL available');
         }
       };
-
-      // Handle file selection
-      cameraFileInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file && cameraOverlay) {
-          loadCameraDataFromFile(file);
-        }
-      };
-
-      // Pre-fill URLs from query parameters or defaults
-      if (cameraSrc) {
-        cameraDataURL.value = cameraSrc;
-      }
-      if (imageBase) {
-        imageBaseURL.value = imageBase;
-      }
       
-      console.log('Camera panel initialized with URLs:', {
-        camera: cameraDataURL.value,
-        images: imageBaseURL.value
-      });
+      console.log('Camera panel initialized for OCC-ASC-003 dataset');
     }
 
     /**

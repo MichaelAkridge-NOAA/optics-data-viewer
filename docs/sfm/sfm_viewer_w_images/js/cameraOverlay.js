@@ -6,10 +6,12 @@
 
 class SFMCameraOverlay {
   constructor(viewer, options = {}) {
-    // Ensure THREE.js is available
+    // THREE.js should now be available globally
     if (typeof THREE === 'undefined') {
       throw new Error('THREE.js is required for SFMCameraOverlay but is not available');
     }
+    
+    console.log('SFMCameraOverlay initializing with THREE.js r' + THREE.REVISION);
     
     this.viewer = viewer;
     this.scene = viewer.scene.scene; // Three.js scene
