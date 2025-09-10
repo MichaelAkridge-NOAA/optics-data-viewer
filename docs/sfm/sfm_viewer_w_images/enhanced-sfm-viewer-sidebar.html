@@ -731,6 +731,13 @@
         const cameras = await cameraOverlay.loadCameraData(url);
         updateCameraList(cameras);
         
+        // Diagnostic logging for camera positions and orientations
+        console.log('=== Camera Diagnostic Dump ===');
+        cameras.slice(0, 10).forEach((cam, i) => {
+          console.log(`Camera ${i}: pos=[${cam.position.map(x => x.toFixed(3)).join(', ')}], rot=[${cam.rotation ? cam.rotation.map(r => r.toFixed(3)).join(', ') : 'N/A'}], label=${cam.label}`);
+        });
+        console.log('=== End Camera Diagnostic Dump ===');
+        
         document.getElementById('cameraStats').textContent = 
           `Loaded ${cameras.length} cameras`;
           
