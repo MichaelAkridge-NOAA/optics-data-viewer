@@ -35,28 +35,51 @@ class CameraDataParser {
           const matrix = matrixText.split(/\s+/).map(parseFloat);
           
           if (matrix.length >= 16) {
-            // 4x4 transformation matrix (row-major)
-            const position = [matrix[3], matrix[7], matrix[11]];
-            
-            // Extract 3x3 rotation matrix
-            const rotationMatrix = [
-              matrix[0], matrix[1], matrix[2],
-              matrix[4], matrix[5], matrix[6],
-              matrix[8], matrix[9], matrix[10]
-            ];
-
-            // Calculate Euler angles from rotation matrix
-            const euler = CameraDataParser.matrixToEulerAngles(rotationMatrix);
-
-            cameras.push({
-              id: parseInt(id) || index,
-              label: label,
-              imageName: label + '.jpg', // Assume JPG extension
-              position: position,
-              rotationMatrix: rotationMatrix,
-              rotation: euler, // [roll, pitch, yaw] in radians
-              transformMatrix: matrix
-            });
+              // Use Three.js to extract position and orientation
+              if (typeof THREE !== 'undefined') {
+                const m = new THREE.Matrix4();
+                m.set(
+                  matrix[0], matrix[1], matrix[2], matrix[3],
+                  matrix[4], matrix[5], matrix[6], matrix[7],
+                  matrix[8], matrix[9], matrix[10], matrix[11],
+                  matrix[12], matrix[13], matrix[14], matrix[15]
+                );
+                const position = [matrix[3], matrix[7], matrix[11]];
+                const rotationMatrix = [
+                  matrix[0], matrix[1], matrix[2],
+                  matrix[4], matrix[5], matrix[6],
+                  matrix[8], matrix[9], matrix[10]
+                ];
+                const euler = new THREE.Euler();
+                euler.setFromRotationMatrix(m, 'XYZ');
+                cameras.push({
+                  id: parseInt(id) || index,
+                  label: label,
+                  imageName: label + '.JPG', 
+                  position: position,
+                  rotationMatrix: rotationMatrix,
+                  rotation: [euler.x, euler.y, euler.z], // [roll, pitch, yaw] in radians
+                  transformMatrix: matrix
+                });
+              } else {
+                // Fallback to previous method if THREE.js is not available
+                const position = [matrix[3], matrix[7], matrix[11]];
+                const rotationMatrix = [
+                  matrix[0], matrix[1], matrix[2],
+                  matrix[4], matrix[5], matrix[6],
+                  matrix[8], matrix[9], matrix[10]
+                ];
+                const euler = CameraDataParser.matrixToEulerAngles(rotationMatrix);
+                cameras.push({
+                  id: parseInt(id) || index,
+                  label: label,
+                  imageName: label + '.JPG',
+                  position: position,
+                  rotationMatrix: rotationMatrix,
+                  rotation: euler,
+                  transformMatrix: matrix
+                });
+              }
           }
         }
       } catch (error) {

@@ -436,37 +436,63 @@ class SFMCameraOverlay {
     // [8  9  10 11]  [m20 m21 m22 tz]
     // [12 13 14 15]  [0   0   0   1 ]
     
-    // Extract position (translation) from the matrix
-    const position = [matrix[3], matrix[7], matrix[11]];
-    
-    // Extract 3x3 rotation matrix
-    const rotationMatrix = [
-      matrix[0], matrix[1], matrix[2],
-      matrix[4], matrix[5], matrix[6],
-      matrix[8], matrix[9], matrix[10]
-    ];
-
-    // Convert rotation matrix to Euler angles
-    const euler = this.matrixToEulerAngles(rotationMatrix);
-    
-    // Create standardized image name - add .JPG extension if not present
-    let imageName = label;
-    if (!imageName.match(/\.(jpg|jpeg|png|tiff|tif)$/i)) {
-      imageName = label + '.JPG'; // Use uppercase .JPG to match Google Cloud Storage
+    // Use Three.js to extract position and orientation
+    if (typeof THREE !== 'undefined') {
+      const m = new THREE.Matrix4();
+      m.set(
+        matrix[0], matrix[1], matrix[2], matrix[3],
+        matrix[4], matrix[5], matrix[6], matrix[7],
+        matrix[8], matrix[9], matrix[10], matrix[11],
+        matrix[12], matrix[13], matrix[14], matrix[15]
+      );
+      const position = [matrix[3], matrix[7], matrix[11]];
+      const rotationMatrix = [
+        matrix[0], matrix[1], matrix[2],
+        matrix[4], matrix[5], matrix[6],
+        matrix[8], matrix[9], matrix[10]
+      ];
+      const euler = new THREE.Euler();
+      euler.setFromRotationMatrix(m, 'XYZ');
+      let imageName = label;
+      if (!imageName.match(/\.(jpg|jpeg|png|tiff|tif)$/i)) {
+        imageName = label + '.JPG'; // Use uppercase .JPG to match Google Cloud Storage
+      }
+      console.log(`✅ Created camera ${index}: ${label} -> ${imageName} at position [${position.map(p => p.toFixed(2)).join(', ')}]`);
+      return {
+        id: parseInt(id) || index,
+        label: label,
+        imageName: imageName,
+        position: position,
+        rotationMatrix: rotationMatrix,
+        rotation: [euler.x, euler.y, euler.z], // [pitch, yaw, roll] in radians
+        transformMatrix: matrix,
+        transform4x4: matrix // Keep the full 4x4 matrix for reference
+      };
+    } else {
+      // Fallback to previous method if THREE.js is not available
+      const position = [matrix[3], matrix[7], matrix[11]];
+      const rotationMatrix = [
+        matrix[0], matrix[1], matrix[2],
+        matrix[4], matrix[5], matrix[6],
+        matrix[8], matrix[9], matrix[10]
+      ];
+      const euler = this.matrixToEulerAngles(rotationMatrix);
+      let imageName = label;
+      if (!imageName.match(/\.(jpg|jpeg|png|tiff|tif)$/i)) {
+        imageName = label + '.JPG'; 
+      }
+      console.log(`✅ Created camera ${index}: ${label} -> ${imageName} at position [${position.map(p => p.toFixed(2)).join(', ')}]`);
+      return {
+        id: parseInt(id) || index,
+        label: label,
+        imageName: imageName,
+        position: position,
+        rotationMatrix: rotationMatrix,
+        rotation: euler, // [pitch, yaw, roll] in radians
+        transformMatrix: matrix,
+        transform4x4: matrix // Keep the full 4x4 matrix for reference
+      };
     }
-    
-    console.log(`✅ Created camera ${index}: ${label} -> ${imageName} at position [${position.map(p => p.toFixed(2)).join(', ')}]`);
-
-    return {
-      id: parseInt(id) || index,
-      label: label,
-      imageName: imageName,
-      position: position,
-      rotationMatrix: rotationMatrix,
-      rotation: euler, // [pitch, yaw, roll] in radians
-      transformMatrix: matrix,
-      transform4x4: matrix // Keep the full 4x4 matrix for reference
-    };
   }
 
   /**
