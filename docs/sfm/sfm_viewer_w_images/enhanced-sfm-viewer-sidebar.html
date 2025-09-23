@@ -152,6 +152,7 @@
       <button id="btnToggleImagePlane">Toggle Images</button>
       <button id="btnLoadCameras">Reload Cameras</button>
       <button id="btnShowAllCameras">Show All</button>
+      <button id="btnDebugCameras">Debug Info</button>
     </div>
     <div style="margin: 8px 0; padding: 6px; background: rgba(40,40,50,.4); border-radius: 4px; font-size: 11px;">
       <strong>💡 Tip:</strong> Click on the point cloud to see a thumbnail carousel of nearby camera images!
@@ -196,6 +197,9 @@
 
   <!-- Camera Overlay Module -->
   <script src="js/cameraOverlay.js"></script>
+  
+  <!-- Debug Utilities -->
+  <script src="js/debugUtils.js"></script>
 
   <script>
     // ---- Complete OCC-ASC-003 Dataset Configuration
@@ -224,6 +228,7 @@
     // Global variables
     let cameraOverlay = null;
     let pointCloudClickHandler = null;
+    let debugUtils = null;
 
     function showError(msg, details) {
       errorBox.style.display = 'block';
@@ -322,6 +327,9 @@
         // Setup camera panel
         setupCameraPanel();
         
+        // Initialize debug utilities
+        debugUtils = new SFMDebugUtils(cameraOverlay, viewer);
+        
         console.log('Enhanced SFM viewer loaded successfully');
         
         // Auto-load cameras from default or provided URL
@@ -338,10 +346,10 @@
     }
 
     /**
-     * Setup point cloud click handler for camera selection
+     * Setup point cloud click handler for camera selection - Improved with napari-style 3D interaction
      */
     function setupPointCloudClickHandler(pointcloud) {
-      console.log('Setting up point cloud click handler...');
+      console.log('Setting up enhanced point cloud click handler...');
       
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
@@ -350,28 +358,78 @@
         // Only handle left clicks
         if (event.button !== 0) return;
         
-        // Calculate mouse position in normalized device coordinates
+        // Calculate mouse position in normalized device coordinates (-1 to +1)
         const rect = viewer.renderer.domElement.getBoundingClientRect();
         mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         
-        // Update raycaster
-        raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
+        console.log('🖱️ Mouse click at NDC:', mouse.x.toFixed(3), mouse.y.toFixed(3));
         
-        // Find intersection with point cloud
+        // Get the active camera
+        const camera = viewer.scene.getActiveCamera();
+        
+        // Update raycaster with proper camera and mouse coordinates
+        raycaster.setFromCamera(mouse, camera);
+        
+        // Get ray information (similar to napari's approach)
+        const rayOrigin = raycaster.ray.origin.clone();
+        const rayDirection = raycaster.ray.direction.clone();
+        
+        console.log('📍 Ray origin:', rayOrigin.toArray().map(n => n.toFixed(2)));
+        console.log('➡️ Ray direction:', rayDirection.toArray().map(n => n.toFixed(3)));
+        
+        // Try intersecting with point cloud using multiple methods
+        let clickPoint = null;
+        
+        // Method 1: Direct raycasting with point cloud
         const intersects = raycaster.intersectObject(pointcloud, true);
-        
         if (intersects.length > 0) {
-          const intersection = intersects[0];
-          const clickPoint = intersection.point;
+          clickPoint = intersects[0].point;
+          console.log('✅ Direct intersection found:', clickPoint.toArray().map(n => n.toFixed(2)));
+        } else {
+          console.log('❌ No direct intersection with point cloud');
           
-          console.log('🎯 Point cloud clicked at:', clickPoint.toArray().map(n => n.toFixed(2)));
+          // Method 2: Ray-bounding box intersection (napari-style approach)
+          const boundingBox = new THREE.Box3();
+          boundingBox.setFromObject(pointcloud);
           
-          if (cameraOverlay && cameraOverlay.cameras.length > 0) {
-            showNearestCameras(clickPoint);
+          console.log('📦 Point cloud bounding box:', {
+            min: boundingBox.min.toArray().map(n => n.toFixed(2)),
+            max: boundingBox.max.toArray().map(n => n.toFixed(2))
+          });
+          
+          // Calculate ray-box intersection
+          const intersectionPoint = new THREE.Vector3();
+          const intersectionResult = raycaster.ray.intersectBox(boundingBox, intersectionPoint);
+          
+          if (intersectionResult) {
+            clickPoint = intersectionResult;
+            console.log('✅ Bounding box intersection found:', clickPoint.toArray().map(n => n.toFixed(2)));
           } else {
-            console.log('No cameras loaded yet');
+            console.log('❌ No bounding box intersection found');
+            
+            // Method 3: Project ray to nearest point cloud plane
+            // Use the center of the bounding box as a fallback
+            const center = boundingBox.getCenter(new THREE.Vector3());
+            const distance = rayOrigin.distanceTo(center);
+            clickPoint = rayOrigin.clone().add(rayDirection.multiplyScalar(distance));
+            console.log('🎯 Using projected center point:', clickPoint.toArray().map(n => n.toFixed(2)));
           }
+        }
+        
+        // If we have a valid click point, find nearby cameras
+        if (clickPoint && cameraOverlay && cameraOverlay.cameras.length > 0) {
+          // Optional: Create debug visualization of the click interaction
+          if (debugUtils && e.shiftKey) {
+            // Hold Shift while clicking for debug visualization
+            console.log('🔍 Debug mode: Creating click ray visualization');
+            debugUtils.analyzeClickRay(event);
+            debugUtils.testCameraVisibility(clickPoint);
+          }
+          
+          showNearestCamerasImproved(clickPoint, rayOrigin, rayDirection);
+        } else {
+          console.log('No valid click point or no cameras loaded');
         }
       }
       
@@ -379,61 +437,126 @@
       pointCloudClickHandler = onPointCloudClick;
       viewer.renderer.domElement.addEventListener('click', pointCloudClickHandler);
       
-      console.log('✅ Point cloud click handler setup complete');
+      console.log('✅ Enhanced point cloud click handler setup complete');
     }
 
     /**
-     * Show cameras near the clicked point with thumbnail carousel
+     * Show cameras near the clicked point with improved spatial analysis
      */
-    function showNearestCameras(clickPoint, maxDistance = 50, maxCameras = 8) {
+    function showNearestCamerasImproved(clickPoint, rayOrigin, rayDirection, maxDistance = 100, maxCameras = 12) {
+      // Enhanced camera selection using multiple criteria inspired by napari's approach
       const nearCameras = cameraOverlay.cameras
         .map((camera, index) => {
           const camPos = new THREE.Vector3(...camera.position);
+          
+          // 1. Basic distance to click point
           const distance = camPos.distanceTo(clickPoint);
-          return { camera, index, distance };
+          
+          // 2. Distance to ray line (how close the camera is to the click ray)
+          const closestPointOnRay = new THREE.Vector3();
+          const rayLine = new THREE.Line3(rayOrigin, rayOrigin.clone().add(rayDirection.clone().multiplyScalar(1000)));
+          rayLine.closestPointToPoint(camPos, true, closestPointOnRay);
+          const distanceToRay = camPos.distanceTo(closestPointOnRay);
+          
+          // 3. Angle from click ray to camera (cameras in front of view direction preferred)
+          const cameraDirection = camPos.clone().sub(rayOrigin).normalize();
+          const angleToCam = rayDirection.angleTo(cameraDirection);
+          
+          // 4. Height difference (prefer cameras at similar elevation)
+          const heightDiff = Math.abs(camPos.y - clickPoint.y);
+          
+          // Combined scoring system (lower is better)
+          const score = distance * 0.4 + distanceToRay * 0.3 + angleToCam * 20 + heightDiff * 0.3;
+          
+          return { 
+            camera, 
+            index, 
+            distance: distance,
+            distanceToRay: distanceToRay,
+            angleToCam: angleToCam,
+            heightDiff: heightDiff,
+            score: score
+          };
         })
-        .filter(item => item.distance <= maxDistance)
-        .sort((a, b) => a.distance - b.distance)
+        .filter(item => item.distance <= maxDistance) // Basic distance filter
+        .sort((a, b) => a.score - b.score) // Sort by combined score
         .slice(0, maxCameras);
       
-      console.log(`📍 Found ${nearCameras.length} cameras within ${maxDistance} units of clicked point`);
+      console.log(`📍 Enhanced analysis found ${nearCameras.length} cameras near clicked point`);
+      console.log('🔍 Camera analysis details:');
+      nearCameras.slice(0, 5).forEach((item, i) => {
+        console.log(`  ${i+1}. ${item.camera.label}: dist=${item.distance.toFixed(1)}, rayDist=${item.distanceToRay.toFixed(1)}, angle=${(item.angleToCam * 180/Math.PI).toFixed(1)}°, score=${item.score.toFixed(1)}`);
+      });
       
       if (nearCameras.length === 0) {
-        // Show message in camera panel
-        document.getElementById('cameraStats').innerHTML = 
-          '<span style="color: #ffa726;">No cameras found near clicked point</span>';
+        // Try with increased search radius
+        const expandedSearch = cameraOverlay.cameras
+          .map((camera, index) => {
+            const camPos = new THREE.Vector3(...camera.position);
+            const distance = camPos.distanceTo(clickPoint);
+            return { camera, index, distance };
+          })
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, 5); // Get closest 5 cameras regardless of distance
+        
+        if (expandedSearch.length > 0) {
+          document.getElementById('cameraStats').innerHTML = 
+            `<span style="color: #ffa726;">Extended search: showing ${expandedSearch.length} closest cameras (${expandedSearch[0].distance.toFixed(1)}+ units away)</span>`;
+          showCameraResults(expandedSearch, clickPoint);
+        } else {
+          document.getElementById('cameraStats').innerHTML = 
+            '<span style="color: #ff6b6b;">No cameras found - check camera data loading</span>';
+        }
         return;
       }
       
+      showCameraResults(nearCameras, clickPoint);
+    }
+    
+    /**
+     * Display the selected cameras (refactored for reuse)
+     */
+    function showCameraResults(nearCameras, clickPoint) {
       // Hide all camera frustums first
       cameraOverlay.turnCamerasOff();
       
-      // Show only nearby cameras
-      nearCameras.forEach(({ camera, index, distance }) => {
+      // Show selected cameras with improved highlighting
+      nearCameras.forEach(({ camera, index, distance, score }, resultIndex) => {
         const frustum = cameraOverlay.cameraObjects[index];
         if (frustum) {
           frustum.visible = true;
-          // Highlight the nearest camera
-          if (index === nearCameras[0].index) {
-            frustum.traverse(child => {
-              if (child.material) {
-                child.material.color = new THREE.Color(0x4CAF50); // Green for nearest
-              }
-            });
+          
+          // Progressive highlighting based on relevance
+          let highlightColor = 0xf8f9fa; // Default light color
+          if (resultIndex === 0) {
+            highlightColor = 0x4CAF50; // Green for best match
+          } else if (resultIndex < 3) {
+            highlightColor = 0x2196F3; // Blue for top 3
+          } else if (resultIndex < 6) {
+            highlightColor = 0xFF9800; // Orange for top 6
           }
+          
+          frustum.traverse(child => {
+            if (child.material) {
+              child.material.color = new THREE.Color(highlightColor);
+            }
+          });
         }
-        console.log(`📷 Camera ${index} (${camera.label}): ${distance.toFixed(1)} units away`);
+        
+        const scoreText = score !== undefined ? `, score=${score.toFixed(1)}` : '';
+        console.log(`📷 Camera ${resultIndex + 1}: ${camera.label} (${distance.toFixed(1)} units${scoreText})`);
       });
       
-      // Update camera list in panel to show only nearby cameras
+      // Update camera list in panel
       updateCameraListWithNearest(nearCameras);
       
-      // Show thumbnail carousel popup
+      // Show thumbnail carousel
       showThumbnailCarousel(nearCameras, clickPoint);
       
-      // Update stats
+      // Update stats with more detailed info
+      const avgDistance = nearCameras.reduce((sum, cam) => sum + cam.distance, 0) / nearCameras.length;
       document.getElementById('cameraStats').innerHTML = 
-        `<span style="color: #4CAF50;">Showing ${nearCameras.length} nearest cameras</span>`;
+        `<span style="color: #4CAF50;">Found ${nearCameras.length} cameras • Avg distance: ${avgDistance.toFixed(1)} units</span>`;
     }
 
     /**
@@ -677,6 +800,7 @@
       const btnToggleImagePlane = document.getElementById('btnToggleImagePlane');
       const btnLoadCameras = document.getElementById('btnLoadCameras');
       const btnShowAllCameras = document.getElementById('btnShowAllCameras');
+      const btnDebugCameras = document.getElementById('btnDebugCameras');
 
       // Toggle camera frustums
       btnToggleFrustums.onclick = () => {
@@ -718,6 +842,42 @@
         }
       };
       
+      // Debug camera information
+      btnDebugCameras.onclick = () => {
+        if (cameraOverlay) {
+          console.clear(); // Clear console for clean debug output
+          console.log('🔍 CAMERA DEBUG INFORMATION');
+          
+          const stats = cameraOverlay.getCameraDistributionStats();
+          if (stats) {
+            console.log('📊 Distribution Stats:', stats);
+            
+            // Create visual debug helpers
+            if (debugUtils) {
+              debugUtils.createDebugHelpers();
+              debugUtils.generateDebugReport();
+            }
+            
+            if (stats.isSphereCluster) {
+              alert('⚠️ SPHERE CLUSTERING DETECTED!\n\nYour cameras appear to be clustered in a sphere pattern, which usually indicates coordinate system issues. Check the browser console for detailed analysis.\n\nDebug visualization has been added to the scene (colored spheres and axes).');
+            } else {
+              alert('✅ Camera distribution appears normal. Check console for detailed information.\n\nDebug visualization added to scene.');
+            }
+          } else {
+            alert('No camera distribution data available. Make sure cameras are loaded first.');
+          }
+          
+          // Log current viewer camera position for reference
+          const viewerPos = viewer.scene.view.position;
+          const viewerCam = viewer.scene.getActiveCamera();
+          console.log('🎥 Current Viewer Position:', viewerPos.toArray().map(n => n.toFixed(2)));
+          console.log('🎥 Current Viewer Camera Direction:', viewerCam.getWorldDirection(new THREE.Vector3()).toArray().map(n => n.toFixed(3)));
+          
+        } else {
+          alert('Camera overlay not initialized yet. Load cameras first.');
+        }
+      };
+      
       console.log('Camera panel initialized for OCC-ASC-003 dataset');
     }
 
@@ -732,11 +892,34 @@
         updateCameraList(cameras);
         
         // Diagnostic logging for camera positions and orientations
-        console.log('=== Camera Diagnostic Dump ===');
+        console.log('=== ENHANCED CAMERA DIAGNOSTIC DUMP ===');
+        console.log(`Total cameras loaded: ${cameras.length}`);
+        
+        // Analyze first 10 cameras in detail
         cameras.slice(0, 10).forEach((cam, i) => {
-          console.log(`Camera ${i}: pos=[${cam.position.map(x => x.toFixed(3)).join(', ')}], rot=[${cam.rotation ? cam.rotation.map(r => r.toFixed(3)).join(', ') : 'N/A'}], label=${cam.label}`);
+          console.log(`Camera ${i}: ${cam.label}`);
+          console.log(`  Position: [${cam.position.map(x => x.toFixed(3)).join(', ')}]`);
+          console.log(`  Rotation: [${cam.rotation ? cam.rotation.map(r => (r * 180/Math.PI).toFixed(1)).join(', ') : 'N/A'}]° (degrees)`);
+          console.log(`  Distance from origin: ${cam.positionMagnitude ? cam.positionMagnitude.toFixed(2) : 'unknown'}`);
+          if (cam.coordinateSystem && cam.coordinateSystem.issues.length > 0) {
+            console.log(`  ⚠️ Issues: ${cam.coordinateSystem.issues.join(', ')}`);
+          }
         });
-        console.log('=== End Camera Diagnostic Dump ===');
+        
+        // Get camera distribution analysis
+        const distStats = cameraOverlay.getCameraDistributionStats();
+        if (distStats) {
+          console.log('\n📊 CAMERA DISTRIBUTION SUMMARY:');
+          console.log(`  Bounding box: ${distStats.boundingBox.size.map(s => s.toFixed(1)).join(' × ')} units`);
+          console.log(`  Average distance from origin: ${distStats.avgDistance.toFixed(2)} units`);
+          console.log(`  Distance range: ${distStats.minDistance.toFixed(2)} - ${distStats.maxDistance.toFixed(2)} units`);
+          
+          if (distStats.isSphereCluster) {
+            console.warn('  🔴 SPHERE CLUSTERING DETECTED - cameras may need coordinate system correction');
+          }
+        }
+        
+        console.log('=== END ENHANCED CAMERA DIAGNOSTIC DUMP ===');
         
         document.getElementById('cameraStats').textContent = 
           `Loaded ${cameras.length} cameras`;
@@ -863,6 +1046,21 @@
       if (e.key.toLowerCase() === 'a' && e.ctrlKey) {
         e.preventDefault();
         document.getElementById('btnShowAllCameras').click();
+      }
+      
+      // 'D' for debug information (inspired by napari's debugging features)
+      if (e.key.toLowerCase() === 'd' && e.ctrlKey) {
+        e.preventDefault();
+        document.getElementById('btnDebugCameras').click();
+      }
+      
+      // 'R' to reset view to point cloud center
+      if (e.key.toLowerCase() === 'r' && e.ctrlKey) {
+        e.preventDefault();
+        if (viewer && viewer.fitToScreen) {
+          viewer.fitToScreen();
+          console.log('🏠 Reset view to point cloud center');
+        }
       }
 
       // Arrow keys for navigation
