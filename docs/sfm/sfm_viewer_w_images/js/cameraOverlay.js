@@ -427,7 +427,7 @@ class SFMCameraOverlay {
   }
 
   /**
-   * Create camera object from 4x4 transformation matrix (Agisoft format)
+   * Create camera object from 4x4 transformation matrix (Agisoft format) - Enhanced version
    */
   createCameraFromTransform4x4(matrix, id, label, index) {
     // 4x4 transformation matrix layout:
@@ -438,41 +438,65 @@ class SFMCameraOverlay {
     
     // Use Three.js to extract position and orientation
     if (typeof THREE !== 'undefined') {
-      // Extract position from translation components
-      const position = [matrix[3], matrix[7], matrix[11]];
+      // Create matrix from the array (column-major order for Agisoft)
+      const matrix4 = new THREE.Matrix4();
+      matrix4.set(
+        matrix[0], matrix[4], matrix[8],  matrix[12],
+        matrix[1], matrix[5], matrix[9],  matrix[13], 
+        matrix[2], matrix[6], matrix[10], matrix[14],
+        matrix[3], matrix[7], matrix[11], matrix[15]
+      );
       
-      // Extract 3x3 rotation matrix (without translation)
+      // Extract position, rotation, and scale
+      const position = new THREE.Vector3();
+      const quaternion = new THREE.Quaternion();
+      const scale = new THREE.Vector3();
+      matrix4.decompose(position, quaternion, scale);
+      
+      // Convert quaternion to Euler angles
+      const euler = new THREE.Euler();
+      euler.setFromQuaternion(quaternion, 'XYZ');
+      
+      // Extract 3x3 rotation matrix for compatibility
       const rotationMatrix = [
         matrix[0], matrix[1], matrix[2],
         matrix[4], matrix[5], matrix[6],
         matrix[8], matrix[9], matrix[10]
       ];
       
-      // Create a rotation-only Matrix4 for Euler extraction
-      const rotMatrix4 = new THREE.Matrix4();
-      rotMatrix4.set(
-        matrix[0], matrix[1], matrix[2], 0,
-        matrix[4], matrix[5], matrix[6], 0,
-        matrix[8], matrix[9], matrix[10], 0,
-        0, 0, 0, 1
-      );
-      
-      const euler = new THREE.Euler();
-      euler.setFromRotationMatrix(rotMatrix4, 'XYZ');
       let imageName = label;
       if (!imageName.match(/\.(jpg|jpeg|png|tiff|tif)$/i)) {
         imageName = label + '.JPG'; // Use uppercase .JPG to match Google Cloud Storage
       }
-      console.log(`✅ Created camera ${index}: ${label} -> ${imageName} at position [${position.map(p => p.toFixed(2)).join(', ')}], rotation [${euler.x.toFixed(3)}, ${euler.y.toFixed(3)}, ${euler.z.toFixed(3)}]`);
+      
+      // Log detailed camera information for debugging
+      console.log(`✅ Enhanced camera ${index}: ${label} -> ${imageName}`);
+      console.log(`   Position: [${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}]`);
+      console.log(`   Rotation (Euler): [${euler.x.toFixed(3)}, ${euler.y.toFixed(3)}, ${euler.z.toFixed(3)}]`);
+      console.log(`   Scale: [${scale.x.toFixed(3)}, ${scale.y.toFixed(3)}, ${scale.z.toFixed(3)}]`);
+      
+      // Check for potential coordinate system issues
+      const positionMagnitude = position.length();
+      if (positionMagnitude < 0.01) {
+        console.warn(`   ⚠️ Camera ${index} very close to origin - may indicate coordinate system issues`);
+      } else if (positionMagnitude > 1000) {
+        console.warn(`   ⚠️ Camera ${index} very far from origin (${positionMagnitude.toFixed(1)} units)`);
+      }
+      
       return {
         id: parseInt(id) || index,
         label: label,
         imageName: imageName,
-        position: position,
+        position: position.toArray(),
         rotationMatrix: rotationMatrix,
         rotation: [euler.x, euler.y, euler.z], // [pitch, yaw, roll] in radians
+        quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w],
         transformMatrix: matrix,
-        transform4x4: matrix // Keep the full 4x4 matrix for reference
+        transform4x4: matrix, // Keep the full 4x4 matrix for reference
+        scale: scale.toArray(),
+        positionMagnitude: positionMagnitude,
+        // Add coordinate system detection
+        coordinateSystem: this.detectCoordinateSystem(position.toArray(), euler)
       };
     } else {
       // Fallback to previous method if THREE.js is not available
@@ -487,7 +511,7 @@ class SFMCameraOverlay {
       if (!imageName.match(/\.(jpg|jpeg|png|tiff|tif)$/i)) {
         imageName = label + '.JPG'; 
       }
-      console.log(`✅ Created camera ${index}: ${label} -> ${imageName} at position [${position.map(p => p.toFixed(2)).join(', ')}]`);
+      console.log(`✅ Fallback camera ${index}: ${label} -> ${imageName} at position [${position.map(p => p.toFixed(2)).join(', ')}]`);
       return {
         id: parseInt(id) || index,
         label: label,
@@ -499,6 +523,39 @@ class SFMCameraOverlay {
         transform4x4: matrix // Keep the full 4x4 matrix for reference
       };
     }
+  }
+  
+  /**
+   * Detect potential coordinate system issues
+   */
+  detectCoordinateSystem(position, euler) {
+    const [x, y, z] = position;
+    const [pitch, yaw, roll] = euler;
+    
+    // Common coordinate system patterns
+    const issues = [];
+    
+    // Check if positions are clustered (sphere problem)
+    const distFromOrigin = Math.sqrt(x*x + y*y + z*z);
+    if (distFromOrigin < 1.0 && Math.abs(x) + Math.abs(y) + Math.abs(z) > 0.01) {
+      issues.push('very_close_to_origin');
+    }
+    
+    // Check for uniform distribution (might indicate transformation issues)
+    if (Math.abs(x) === Math.abs(y) && Math.abs(y) === Math.abs(z)) {
+      issues.push('uniform_coordinates');
+    }
+    
+    // Check for extreme rotations that might indicate axis confusion
+    if (Math.abs(pitch) > Math.PI/2 || Math.abs(roll) > Math.PI/2) {
+      issues.push('extreme_rotations');
+    }
+    
+    return {
+      distanceFromOrigin: distFromOrigin,
+      issues: issues,
+      likely_system: issues.length > 0 ? 'problematic' : 'normal'
+    };
   }
 
   /**
@@ -610,10 +667,13 @@ class SFMCameraOverlay {
   }
 
   /**
-   * Create camera frustum objects in the scene
+   * Create camera frustum objects in the scene - Enhanced version with diagnostics
    */
   createCameraFrustums() {
     this.cameraObjects = [];
+    
+    // Analyze camera distribution before creating frustums
+    this.analyzeCameraDistribution();
     
     this.cameras.forEach((camera, index) => {
       const frustum = this.createImageFrustum(
@@ -644,6 +704,91 @@ class SFMCameraOverlay {
     }
     
     console.log(`Created ${this.cameraObjects.length} camera frustums from ${this.cameras.length} cameras`);
+    
+    // Log distribution analysis results
+    this.logCameraDistributionAnalysis();
+  }
+  
+  /**
+   * Analyze camera position distribution to detect coordinate issues
+   */
+  analyzeCameraDistribution() {
+    if (this.cameras.length === 0) return;
+    
+    // Calculate statistics
+    const positions = this.cameras.map(cam => cam.position);
+    const distances = positions.map(pos => Math.sqrt(pos[0]*pos[0] + pos[1]*pos[1] + pos[2]*pos[2]));
+    
+    this.distributionAnalysis = {
+      count: this.cameras.length,
+      positions: positions,
+      distances: distances,
+      minDistance: Math.min(...distances),
+      maxDistance: Math.max(...distances),
+      avgDistance: distances.reduce((a, b) => a + b, 0) / distances.length,
+      stdDev: 0
+    };
+    
+    // Calculate standard deviation
+    const variance = distances.reduce((sum, d) => sum + Math.pow(d - this.distributionAnalysis.avgDistance, 2), 0) / distances.length;
+    this.distributionAnalysis.stdDev = Math.sqrt(variance);
+    
+    // Detect potential sphere clustering
+    const distanceRange = this.distributionAnalysis.maxDistance - this.distributionAnalysis.minDistance;
+    this.distributionAnalysis.isSphereCluster = distanceRange < (this.distributionAnalysis.avgDistance * 0.1);
+    
+    // Calculate bounding box
+    const xs = positions.map(p => p[0]);
+    const ys = positions.map(p => p[1]);
+    const zs = positions.map(p => p[2]);
+    
+    this.distributionAnalysis.boundingBox = {
+      min: [Math.min(...xs), Math.min(...ys), Math.min(...zs)],
+      max: [Math.max(...xs), Math.max(...ys), Math.max(...zs)],
+      size: [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), Math.max(...zs) - Math.min(...zs)]
+    };
+  }
+  
+  /**
+   * Log detailed camera distribution analysis
+   */
+  logCameraDistributionAnalysis() {
+    if (!this.distributionAnalysis) return;
+    
+    console.log('=== CAMERA DISTRIBUTION ANALYSIS ===');
+    console.log(`📊 Total cameras: ${this.distributionAnalysis.count}`);
+    console.log(`📏 Distance from origin - Min: ${this.distributionAnalysis.minDistance.toFixed(2)}, Max: ${this.distributionAnalysis.maxDistance.toFixed(2)}, Avg: ${this.distributionAnalysis.avgDistance.toFixed(2)}`);
+    console.log(`📐 Standard deviation: ${this.distributionAnalysis.stdDev.toFixed(2)}`);
+    console.log(`📦 Bounding box size: [${this.distributionAnalysis.boundingBox.size.map(s => s.toFixed(2)).join(', ')}]`);
+    
+    if (this.distributionAnalysis.isSphereCluster) {
+      console.warn(`🔴 SPHERE CLUSTERING DETECTED! Cameras are clustered in a sphere pattern.`);
+      console.warn(`   This usually indicates coordinate system or transformation matrix issues.`);
+      console.warn(`   Distance range: ${(this.distributionAnalysis.maxDistance - this.distributionAnalysis.minDistance).toFixed(3)} units`);
+    } else {
+      console.log(`✅ Camera distribution appears normal`);
+    }
+    
+    // Check for coordinate system issues in individual cameras
+    const problematicCameras = this.cameras.filter(cam => 
+      cam.coordinateSystem && cam.coordinateSystem.issues.length > 0
+    );
+    
+    if (problematicCameras.length > 0) {
+      console.warn(`⚠️ Found ${problematicCameras.length} cameras with potential coordinate system issues:`);
+      problematicCameras.slice(0, 5).forEach(cam => {
+        console.warn(`   ${cam.label}: ${cam.coordinateSystem.issues.join(', ')}`);
+      });
+    }
+    
+    console.log('=== END CAMERA ANALYSIS ===');
+  }
+  
+  /**
+   * Get camera distribution statistics for debugging
+   */
+  getCameraDistributionStats() {
+    return this.distributionAnalysis || null;
   }
 
   /**
