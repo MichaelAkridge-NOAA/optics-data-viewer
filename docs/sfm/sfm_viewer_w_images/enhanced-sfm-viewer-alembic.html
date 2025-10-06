@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Enhanced SFM Viewer with Alembic Camera Support - NOAA Optics Data Portal</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Potree CSS -->
+  <link rel="stylesheet" href="../../build/potree/potree.css" />
+  <link rel="stylesheet" href="../../libs/jquery-ui/jquery-ui.min.css" />
+  <link rel="stylesheet" href="../../libs/openlayers3/ol.css" />
+  <link rel="stylesheet" href="../../libs/spectrum/spectrum.css" />
+  <link rel="stylesheet" href="../../libs/jstree/themes/mixed/style.css" />
+
+  <style>
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+    
+    /* Loading + error */
+    #loading {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(10,10,15,.7); color:#e8eefc; font:15px system-ui,Segoe UI,Roboto,Arial;
+      z-index:9999; flex-direction:column; gap:10px
+    }
+    #loading .spinner { width:40px; height:40px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg) } }
+
+    #error {
+      position:absolute; top:12px; left:12px; right:12px;
+      background:rgba(180,30,40,.9); color:#fff; padding:10px 12px; border-radius:8px; display:none; z-index:10000
+    }
+
+    .chip{
+      position:absolute; bottom:12px; left:12px; background:rgba(20,20,30,.55); color:#fff;
+      padding:6px 10px; border-radius:10px; font:13px system-ui; z-index:4
+    }
+
+    /* Enhanced Sidebar Panel */
+    #sidebarPanel {
+      position:absolute; top:12px; right:12px; background:rgba(20,20,30,.9); color:#fff;
+      padding:16px; border-radius:8px; font:13px system-ui; z-index:5; display:none;
+      width:350px; max-height:calc(100vh - 100px); overflow-y:auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    #sidebarPanel h3 { 
+      margin:0 0 12px 0; font-size:16px; color:#4CAF50; 
+      border-bottom: 2px solid rgba(76,175,80,0.3); padding-bottom: 8px;
+    }
+
+    .panel-section {
+      margin: 16px 0; padding: 12px; background: rgba(40,40,50,.4); 
+      border-radius: 6px; border-left: 3px solid #4CAF50;
+    }
+
+    .panel-section h4 {
+      margin: 0 0 8px 0; font-size: 14px; color: #81C784;
+    }
+
+    #sidebarPanel button {
+      background:rgba(60,120,180,.8); color:#fff; border:none; padding:8px 12px;
+      border-radius:4px; cursor:pointer; margin:3px; font-size:12px; transition: all 0.2s ease;
+    }
+    #sidebarPanel button:hover { 
+      background:rgba(80,140,200,.9); transform: translateY(-1px); 
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    }
+    #sidebarPanel button.active { 
+      background:rgba(80,180,80,.8); box-shadow: 0 0 10px rgba(80,180,80,.4);
+    }
+
+    .camera-controls { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+
+    /* File Input Styling */
+    .file-input-wrapper {
+      position: relative; display: inline-block; margin: 4px;
+    }
+    .file-input-wrapper input[type=file] {
+      position: absolute; left: -9999px;
+    }
+    .file-input-label {
+      background: rgba(255,152,0,.8); color: #fff; padding: 8px 12px;
+      border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.2s ease;
+      display: inline-block;
+    }
+    .file-input-label:hover {
+      background: rgba(255,172,20,.9); transform: translateY(-1px);
+    }
+
+    /* Camera List Styling */
+    .camera-list { max-height:250px; overflow-y:auto; margin:12px 0; }
+    .camera-item {
+      background:rgba(40,40,50,.6); padding:8px 10px; margin:3px 0; border-radius:4px;
+      cursor:pointer; border-left:3px solid transparent; transition: all 0.2s ease;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .camera-item:hover { 
+      background:rgba(60,60,70,.8); transform: translateX(3px); 
+      border-left-color: #2196F3;
+    }
+    .camera-item.active { 
+      border-left-color:#4CAF50; background:rgba(80,180,80,.2); 
+      box-shadow: 0 2px 8px rgba(76,175,80,0.3);
+    }
+    
+    .camera-info {
+      flex: 1;
+    }
+    .camera-controls-mini {
+      display: flex; gap: 4px;
+    }
+    .camera-controls-mini button {
+      padding: 4px 6px; margin: 0; font-size: 10px; min-width: auto;
+    }
+
+    /* Timeline Scrubber for Alembic */
+    .timeline-section {
+      margin: 12px 0; padding: 10px; background: rgba(40,40,50,.4); 
+      border-radius: 6px; border-left: 3px solid #FF5722;
+    }
+    .timeline-controls {
+      display: flex; align-items: center; gap: 8px; margin: 8px 0;
+    }
+    .timeline-scrubber {
+      flex: 1; height: 6px; background: rgba(255,255,255,0.2); 
+      border-radius: 3px; position: relative; cursor: pointer;
+    }
+    .timeline-handle {
+      position: absolute; top: -3px; width: 12px; height: 12px; 
+      background: #FF5722; border-radius: 50%; cursor: grab;
+      transform: translateX(-50%);
+    }
+    .timeline-handle:active { cursor: grabbing; }
+
+    /* Stats and Info */
+    .stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0;
+    }
+    .stat-item {
+      background: rgba(60,60,70,0.4); padding: 6px 8px; border-radius: 3px;
+      text-align: center; font-size: 11px;
+    }
+    .stat-value {
+      font-size: 14px; font-weight: bold; color: #4CAF50;
+    }
+
+    /* Image Gallery */
+    .image-gallery {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0;
+    }
+    .gallery-item {
+      position: relative; border: 1px solid transparent; border-radius: 4px; 
+      overflow: hidden; cursor: pointer; transition: all 0.2s ease;
+    }
+    .gallery-item:hover { 
+      border-color: #4CAF50; transform: scale(1.05); 
+      box-shadow: 0 2px 10px rgba(76,175,80,0.4);
+    }
+    .gallery-item img {
+      width: 100%; height: 60px; object-fit: cover; display: block;
+    }
+    .gallery-item .overlay {
+      position: absolute; bottom: 0; left: 0; right: 0; 
+      background: linear-gradient(transparent, rgba(0,0,0,0.8));
+      color: #fff; font-size: 9px; padding: 8px 4px 4px; text-align: center;
+    }
+
+    /* Progress Bar */
+    .progress-bar {
+      width: 100%; height: 4px; background: rgba(255,255,255,0.1); 
+      border-radius: 2px; overflow: hidden; margin: 8px 0;
+    }
+    .progress-fill {
+      height: 100%; background: linear-gradient(90deg, #4CAF50, #81C784); 
+      width: 0%; transition: width 0.3s ease;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      #sidebarPanel { width: 300px; font-size: 12px; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .image-gallery { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+    <div id="potree_render_area"></div>
+    <div id="potree_sidebar_container"></div>
+  </div>
+
+  <div id="error"></div>
+  <div id="loading"><div class="spinner"></div><div>Loading Enhanced SFM Viewer with Alembic support…</div></div>
+  <div class="chip" id="chip"></div>
+
+  <!-- Enhanced Sidebar Panel -->
+  <div id="sidebarPanel">
+    <h3>🎬 Alembic SFM Viewer</h3>
+    
+    <!-- File Loading Section -->
+    <div class="panel-section">
+      <h4>📁 Load Data</h4>
+      <div class="camera-controls">
+        <div class="file-input-wrapper">
+          <input type="file" id="alembicFileInput" accept=".abc" />
+          <label for="alembicFileInput" class="file-input-label">Load Alembic (.abc)</label>
+        </div>
+        <div class="file-input-wrapper">
+          <input type="file" id="imageArchiveInput" accept=".zip,.tar,.gz" />
+          <label for="imageArchiveInput" class="file-input-label">Load Images</label>
+        </div>
+        <button id="btnLoadSample">📋 Sample Data</button>
+        <button id="btnReloadCloud">☁️ Reload Cloud</button>
+      </div>
+      <div class="progress-bar" id="loadingProgress" style="display: none;">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- Camera Controls Section -->
+    <div class="panel-section">
+      <h4>📹 Camera Controls</h4>
+      <div class="camera-controls">
+        <button id="btnToggleFrustums">Show Cameras</button>
+        <button id="btnToggleImagePlane">Show Images</button>
+        <button id="btnFitToView">Fit to View</button>
+        <button id="btnResetView">Reset View</button>
+      </div>
+      
+      <!-- Timeline for animated cameras -->
+      <div class="timeline-section" id="timelineSection" style="display: none;">
+        <h4>⏱️ Animation Timeline</h4>
+        <div class="timeline-controls">
+          <button id="btnPlayPause">⏯️</button>
+          <button id="btnStop">⏹️</button>
+          <div class="timeline-scrubber" id="timelineScrubber">
+            <div class="timeline-handle" id="timelineHandle"></div>
+          </div>
+          <span id="timeDisplay">0.0s</span>
+        </div>
+        <div style="font-size: 11px; color: #aaa; margin-top: 4px;">
+          Frame: <span id="frameDisplay">0</span> / <span id="totalFrames">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistics Section -->
+    <div class="panel-section">
+      <h4>📊 Statistics</h4>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="cameraCount">0</div>
+          <div>Cameras</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="frameCount">0</div>
+          <div>Frames</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="imageCount">0</div>
+          <div>Images</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="pointCount">0</div>
+          <div>Points</div>
+        </div>
+      </div>
+      <div id="alembicInfo" style="margin-top: 8px; font-size: 11px; color: #aaa;"></div>
+    </div>
+
+    <!-- Camera List Section -->
+    <div class="panel-section">
+      <h4>📷 Camera List</h4>
+      <div class="camera-list" id="cameraList">
+        <div style="text-align: center; color: #888; padding: 20px;">
+          Load an Alembic file to see cameras
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Gallery Section -->
+    <div class="panel-section" id="imageGallerySection" style="display: none;">
+      <h4>🖼️ Associated Images</h4>
+      <div class="image-gallery" id="imageGallery"></div>
+    </div>
+
+  </div>
+
+  <!-- Libraries -->
+  <script src="../../libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="../../libs/spectrum/spectrum.js"></script>
+  <script src="../../libs/jquery-ui/jquery-ui.min.js"></script>
+  <script src="../../libs/other/BinaryHeap.js"></script>
+  <script src="../../libs/tween/tween.min.js"></script>
+  <script src="../../libs/d3/d3.js"></script>
+  <script src="../../libs/proj4/proj4.js"></script>
+  <script src="../../libs/openlayers3/ol.js"></script>
+  <script src="../../libs/i18next/i18next.js"></script>
+  <script src="../../libs/jstree/jstree.js"></script>
+
+  <!-- Potree -->
+  <script src="../../build/potree/potree.js"></script>
+  <script src="../../libs/plasio/js/laslaz.js"></script>
+  
+  <!-- THREE.js library -->
+  <script src="../../libs/three.js/build/three.min.js"></script>
+
+  <!-- Alembic Support Module -->
+  <script src="js/alembicLoader.js"></script>
+  <script src="js/alembicCameraOverlay.js"></script>
+
+  <script>
+    // Configuration
+    const qs = new URLSearchParams(location.search);
+    
+    // Default URLs for OCC-ASC-003 dataset from Google Cloud Storage
+    const defaultSrc = qs.get('src') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js';
+    const defaultAlembicSrc = qs.get('alembic') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cameras.abc';
+    const defaultImageBase = qs.get('imageBase') || qs.get('images') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/MARI/ASC/OCC-ASC-003/2022/20220724_OCC-ASC-003_RA2201';
+    const defaultThumbnailBase = qs.get('thumbnailBase') || qs.get('thumbnails') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/thumbnails';
+    
+    const title = qs.get('title') || 'OCC-ASC-003 Enhanced SFM Viewer with Alembic';
+    
+    const chip = document.getElementById('chip'); 
+    chip.textContent = title;
+
+    const errorBox = document.getElementById('error');
+    const loading = document.getElementById('loading');
+    const sidebarPanel = document.getElementById('sidebarPanel');
+
+    // Global variables
+    let alembicCameraOverlay = null;
+    let currentAlembicData = null;
+    let animationTimer = null;
+    let isPlaying = false;
+    let currentFrame = 0;
+    let totalFrames = 0;
+
+    function showError(msg, details) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = `<strong>Error:</strong> ${msg}`
+        + (details ? `<div style="opacity:.9;margin-top:6px;font-size:13px">${details}</div>` : '');
+      console.error('Error:', msg, details);
+      loading.style.display = 'none';
+    }
+
+    function updateProgress(percent) {
+      const progressBar = document.getElementById('loadingProgress');
+      const progressFill = document.getElementById('progressFill');
+      
+      if (percent > 0) {
+        progressBar.style.display = 'block';
+        progressFill.style.width = percent + '%';
+      } else {
+        progressBar.style.display = 'none';
+      }
+    }
+
+    // Initialize viewer
+    console.log('Initializing Enhanced SFM Viewer with Alembic support...');
+    
+    window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+    
+    viewer.setEDLEnabled(false);
+    viewer.setFOV(60);
+    viewer.setPointBudget(3_000_000);
+    viewer.loadSettingsFromURL();
+    viewer.setDescription(`Enhanced SFM Viewer with Alembic Camera Support<br>`);
+    
+    // Load GUI
+    viewer.loadGUI(() => {
+      console.log('GUI loaded, setting up enhanced functionality...');
+      viewer.setLanguage('en');
+      $("#menu_scene").next().show();
+      $("#menu_tools").next().show();
+      viewer.toggleSidebar();
+      
+      console.log('Loading point cloud...');
+      
+      // Load point cloud
+      Potree.loadPointCloud(defaultSrc, title, e => {
+        console.log('Point cloud loaded');
+        let scene = viewer.scene;
+        let pointcloud = e.pointcloud;
+        
+        let material = pointcloud.material;
+        material.size = 1;
+        material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+        material.shape = Potree.PointShape.SQUARE;
+        
+        scene.addPointCloud(pointcloud);
+        
+        // Update point count
+        updateStatistic('pointCount', pointcloud.numPoints || 'Unknown');
+        
+        viewer.fitToScreen();
+        loading.style.display = 'none';
+        
+        // Show sidebar panel
+        sidebarPanel.style.display = 'block';
+        
+        console.log('Initializing Alembic camera overlay...');
+        initializeAlembicOverlay();
+        
+        // Auto-load Alembic cameras if available
+        if (defaultAlembicSrc) {
+          console.log('Auto-loading Alembic cameras from:', defaultAlembicSrc);
+          setTimeout(() => {
+            loadAlembicDataFromURL(defaultAlembicSrc);
+          }, 1000);
+        }
+      });
+    });
+
+    function initializeAlembicOverlay() {
+      try {
+        alembicCameraOverlay = new AlembicCameraOverlay(viewer, {
+          baseURL: defaultImageBase,
+          thumbnailBaseURL: defaultThumbnailBase,
+          showFrustums: true,
+          showImagePlane: false,
+          onCameraUpdate: updateCameraList,
+          onTimelineUpdate: updateTimeline
+        });
+        
+        setupEventHandlers();
+        console.log('Alembic camera overlay initialized');
+        
+      } catch (error) {
+        console.error('Failed to initialize Alembic overlay:', error);
+        showError('Failed to initialize Alembic camera system', error.message);
+      }
+    }
+
+    function setupEventHandlers() {
+      // File inputs
+      document.getElementById('alembicFileInput').addEventListener('change', handleAlembicFileLoad);
+      document.getElementById('imageArchiveInput').addEventListener('change', handleImageArchiveLoad);
+      
+      // Control buttons
+      document.getElementById('btnToggleFrustums').onclick = toggleCameraFrustums;
+      document.getElementById('btnToggleImagePlane').onclick = toggleImagePlane;
+      document.getElementById('btnFitToView').onclick = fitToView;
+      document.getElementById('btnResetView').onclick = resetView;
+      document.getElementById('btnLoadSample').onclick = loadSampleData;
+      document.getElementById('btnReloadCloud').onclick = () => {
+        if (defaultAlembicSrc) {
+          loadAlembicDataFromURL(defaultAlembicSrc);
+        } else {
+          showError('No cloud Alembic URL configured', 'Use URL parameter ?alembic=your_url or upload a file');
+        }
+      };
+      
+      // Timeline controls
+      document.getElementById('btnPlayPause').onclick = togglePlayback;
+      document.getElementById('btnStop').onclick = stopPlayback;
+      
+      // Timeline scrubber
+      setupTimelineScrubber();
+      
+      console.log('Event handlers setup complete');
+    }
+
+    function handleAlembicFileLoad(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      console.log('Loading Alembic file:', file.name);
+      updateProgress(10);
+      
+      alembicCameraOverlay.loadAlembicFile(file)
+        .then(data => {
+          currentAlembicData = data;
+          updateProgress(100);
+          
+          // Update statistics
+          updateStatistic('cameraCount', data.cameras.length);
+          updateStatistic('frameCount', data.frameCount || 1);
+          
+          // Show timeline if animated
+          if (data.isAnimated) {
+            totalFrames = data.frameCount;
+            document.getElementById('timelineSection').style.display = 'block';
+            document.getElementById('totalFrames').textContent = totalFrames;
+          }
+          
+          // Update info
+          document.getElementById('alembicInfo').textContent = 
+            `Loaded: ${file.name} (${data.cameras.length} cameras, ${data.isAnimated ? 'animated' : 'static'})`;
+          
+          updateCameraList(data.cameras);
+          setTimeout(() => updateProgress(0), 1000);
+        })
+        .catch(error => {
+          console.error('Error loading Alembic file:', error);
+          showError('Failed to load Alembic file', error.message);
+          updateProgress(0);
+        });
+    }
+
+    function handleImageArchiveLoad(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      console.log('Loading image archive:', file.name);
+      updateProgress(10);
+      
+      // TODO: Implement image archive loading
+      // This would extract and process images from zip/tar files
+      console.log('Image archive loading not yet implemented');
+      updateProgress(0);
+    }
+
+    function updateStatistic(id, value) {
+      const element = document.getElementById(id);
+      if (element) {
+        element.textContent = typeof value === 'number' ? value.toLocaleString() : value;
+      }
+    }
+
+    function updateCameraList(cameras) {
+      const cameraList = document.getElementById('cameraList');
+      cameraList.innerHTML = '';
+
+      cameras.forEach((camera, index) => {
+        const item = document.createElement('div');
+        item.className = 'camera-item';
+        
+        const info = document.createElement('div');
+        info.className = 'camera-info';
+        info.innerHTML = `
+          <strong>${camera.name || `Camera ${index + 1}`}</strong><br>
+          <small style="color: #aaa;">
+            FOV: ${camera.fov ? camera.fov.toFixed(1) + '°' : 'N/A'} | 
+            ${camera.isAnimated ? 'Animated' : 'Static'}
+          </small>
+        `;
+        
+        const controls = document.createElement('div');
+        controls.className = 'camera-controls-mini';
+        
+        const viewBtn = document.createElement('button');
+        viewBtn.textContent = '👁️';
+        viewBtn.title = 'View from camera';
+        viewBtn.onclick = (e) => {
+          e.stopPropagation();
+          flyToCamera(index);
+        };
+        
+        const toggleBtn = document.createElement('button');
+        toggleBtn.textContent = camera.visible ? '✅' : '❌';
+        toggleBtn.title = 'Toggle visibility';
+        toggleBtn.onclick = (e) => {
+          e.stopPropagation();
+          toggleCameraVisibility(index);
+          toggleBtn.textContent = camera.visible ? '❌' : '✅';
+        };
+        
+        controls.appendChild(viewBtn);
+        controls.appendChild(toggleBtn);
+        
+        item.appendChild(info);
+        item.appendChild(controls);
+        
+        item.onclick = () => {
+          // Remove previous active
+          document.querySelectorAll('.camera-item.active').forEach(el => {
+            el.classList.remove('active');
+          });
+          
+          item.classList.add('active');
+          selectCamera(index);
+        };
+        
+        cameraList.appendChild(item);
+      });
+    }
+
+    function toggleCameraFrustums() {
+      if (!alembicCameraOverlay) return;
+      
+      const visible = alembicCameraOverlay.toggleCameraFrustums();
+      const btn = document.getElementById('btnToggleFrustums');
+      btn.textContent = visible ? 'Hide Cameras' : 'Show Cameras';
+      btn.classList.toggle('active', visible);
+    }
+
+    function toggleImagePlane() {
+      if (!alembicCameraOverlay) return;
+      
+      const visible = alembicCameraOverlay.toggleImagePlane();
+      const btn = document.getElementById('btnToggleImagePlane');
+      btn.textContent = visible ? 'Hide Images' : 'Show Images';
+      btn.classList.toggle('active', visible);
+    }
+
+    function fitToView() {
+      if (alembicCameraOverlay && alembicCameraOverlay.cameras.length > 0) {
+        alembicCameraOverlay.fitCamerasToView();
+      } else {
+        viewer.fitToScreen();
+      }
+    }
+
+    function resetView() {
+      viewer.fitToScreen();
+      // Reset any camera selections
+      document.querySelectorAll('.camera-item.active').forEach(el => {
+        el.classList.remove('active');
+      });
+    }
+
+    function flyToCamera(index) {
+      if (alembicCameraOverlay) {
+        alembicCameraOverlay.flyToCamera(index, currentFrame);
+      }
+    }
+
+    function selectCamera(index) {
+      if (alembicCameraOverlay) {
+        alembicCameraOverlay.selectCamera(index);
+      }
+    }
+
+    function toggleCameraVisibility(index) {
+      if (alembicCameraOverlay) {
+        alembicCameraOverlay.toggleCameraVisibility(index);
+      }
+    }
+
+    /**
+     * Load Alembic data from URL (cloud storage)
+     */
+    async function loadAlembicDataFromURL(url) {
+      try {
+        console.log('Loading Alembic data from URL:', url);
+        updateProgress(10);
+        
+        const data = await alembicCameraOverlay.loadAlembicFromURL(url);
+        currentAlembicData = data;
+        updateProgress(100);
+        
+        // Update statistics
+        updateStatistic('cameraCount', data.cameras.length);
+        updateStatistic('frameCount', data.frameCount || 1);
+        
+        // Show timeline if animated
+        if (data.isAnimated) {
+          totalFrames = data.frameCount;
+          document.getElementById('timelineSection').style.display = 'block';
+          document.getElementById('totalFrames').textContent = totalFrames;
+        }
+        
+        // Update info display
+        const urlParts = url.split('/');
+        const filename = urlParts[urlParts.length - 1];
+        document.getElementById('alembicInfo').innerHTML = 
+          `<span style="color: #4CAF50;">✅ Loaded from cloud:</span> ${filename}<br><small>${data.cameras.length} cameras, ${data.isAnimated ? 'animated' : 'static'}</small>`;
+        
+        updateCameraList(data.cameras);
+        setTimeout(() => updateProgress(0), 1000);
+        
+        console.log(`Successfully loaded ${data.cameras.length} cameras from cloud storage`);
+        
+      } catch (error) {
+        console.error('Error loading Alembic from URL:', error);
+        
+        // Fallback to sample data if cloud loading fails
+        console.log('Cloud Alembic not available, falling back to sample data');
+        loadSampleData();
+      }
+    }
+
+    function loadSampleData() {
+      // Load sample Alembic data for demonstration
+      console.log('Loading sample Alembic data...');
+      
+      updateProgress(10);
+      
+      alembicCameraOverlay.alembicLoader.loadSampleData()
+        .then(data => {
+          currentAlembicData = data;
+          alembicCameraOverlay.cameras = data.cameras;
+          alembicCameraOverlay.createCameraObjects();
+          alembicCameraOverlay.updateCameraPositions(0);
+          
+          updateProgress(100);
+          
+          updateStatistic('cameraCount', data.cameras.length);
+          updateStatistic('frameCount', data.frameCount || 1);
+          
+          if (data.isAnimated) {
+            totalFrames = data.frameCount;
+            document.getElementById('timelineSection').style.display = 'block';
+            document.getElementById('totalFrames').textContent = totalFrames;
+          }
+          
+          document.getElementById('alembicInfo').innerHTML = 
+            `<span style="color: #FF9800;">📋 Sample data loaded</span><br><small>${data.cameras.length} cameras, ${data.isAnimated ? 'animated' : 'static'}</small>`;
+          
+          updateCameraList(data.cameras);
+          setTimeout(() => updateProgress(0), 1000);
+        })
+        .catch(error => {
+          console.error('Error loading sample data:', error);
+          showError('Sample data not available', 'Use the file input to load your own Alembic camera data');
+          updateProgress(0);
+        });
+    }
+
+    // Timeline functionality
+    function setupTimelineScrubber() {
+      const scrubber = document.getElementById('timelineScrubber');
+      const handle = document.getElementById('timelineHandle');
+      
+      let isDragging = false;
+      
+      function updateHandlePosition() {
+        const percent = totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
+        handle.style.left = percent + '%';
+        document.getElementById('frameDisplay').textContent = currentFrame;
+        document.getElementById('timeDisplay').textContent = (currentFrame * 0.04167).toFixed(2) + 's'; // Assuming 24fps
+      }
+      
+      function handleDrag(e) {
+        if (!isDragging) return;
+        
+        const rect = scrubber.getBoundingClientRect();
+        const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        currentFrame = Math.round(percent * totalFrames);
+        
+        updateHandlePosition();
+        seekToFrame(currentFrame);
+      }
+      
+      handle.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        e.preventDefault();
+      });
+      
+      document.addEventListener('mousemove', handleDrag);
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+      
+      scrubber.addEventListener('click', (e) => {
+        const rect = scrubber.getBoundingClientRect();
+        const percent = (e.clientX - rect.left) / rect.width;
+        currentFrame = Math.round(percent * totalFrames);
+        
+        updateHandlePosition();
+        seekToFrame(currentFrame);
+      });
+      
+      // Initialize position
+      updateHandlePosition();
+      
+      // Store update function globally
+      window.updateTimelineHandle = updateHandlePosition;
+    }
+
+    function togglePlayback() {
+      const btn = document.getElementById('btnPlayPause');
+      
+      if (isPlaying) {
+        pauseAnimation();
+        btn.textContent = '▶️';
+      } else {
+        playAnimation();
+        btn.textContent = '⏸️';
+      }
+    }
+
+    function playAnimation() {
+      if (!currentAlembicData || !currentAlembicData.isAnimated) return;
+      
+      isPlaying = true;
+      
+      animationTimer = setInterval(() => {
+        currentFrame++;
+        if (currentFrame >= totalFrames) {
+          currentFrame = 0; // Loop
+        }
+        
+        updateTimelineHandle();
+        seekToFrame(currentFrame);
+      }, 41.67); // ~24fps
+    }
+
+    function pauseAnimation() {
+      isPlaying = false;
+      if (animationTimer) {
+        clearInterval(animationTimer);
+        animationTimer = null;
+      }
+    }
+
+    function stopPlayback() {
+      pauseAnimation();
+      currentFrame = 0;
+      updateTimelineHandle();
+      seekToFrame(currentFrame);
+      document.getElementById('btnPlayPause').textContent = '▶️';
+    }
+
+    function seekToFrame(frame) {
+      if (alembicCameraOverlay && currentAlembicData) {
+        alembicCameraOverlay.setFrame(frame);
+      }
+    }
+
+    function updateTimeline(data) {
+      // This function is called by the camera overlay when timeline data changes
+      if (data.totalFrames) {
+        totalFrames = data.totalFrames;
+        document.getElementById('totalFrames').textContent = totalFrames;
+      }
+      
+      if (data.currentFrame !== undefined) {
+        currentFrame = data.currentFrame;
+        updateTimelineHandle();
+      }
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (!currentAlembicData) return;
+      
+      switch(e.key) {
+        case ' ': // Spacebar - play/pause
+          e.preventDefault();
+          togglePlayback();
+          break;
+        case 'ArrowLeft': // Previous frame
+          if (currentAlembicData.isAnimated) {
+            currentFrame = Math.max(0, currentFrame - 1);
+            updateTimelineHandle();
+            seekToFrame(currentFrame);
+          }
+          break;
+        case 'ArrowRight': // Next frame
+          if (currentAlembicData.isAnimated) {
+            currentFrame = Math.min(totalFrames - 1, currentFrame + 1);
+            updateTimelineHandle();
+            seekToFrame(currentFrame);
+          }
+          break;
+        case 'Home': // First frame
+          currentFrame = 0;
+          updateTimelineHandle();
+          seekToFrame(currentFrame);
+          break;
+        case 'End': // Last frame
+          currentFrame = totalFrames - 1;
+          updateTimelineHandle();
+          seekToFrame(currentFrame);
+          break;
+      }
+    });
+
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+      if (animationTimer) {
+        clearInterval(animationTimer);
+      }
+      if (alembicCameraOverlay) {
+        alembicCameraOverlay.dispose();
+      }
+    });
+
+    console.log('Enhanced SFM Viewer with Alembic support initialized');
+  </script>
+</body>
+</html>
