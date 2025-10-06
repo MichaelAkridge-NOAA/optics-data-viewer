@@ -655,13 +655,28 @@
         // Update info display
         const urlParts = url.split('/');
         const filename = urlParts[urlParts.length - 1];
-        document.getElementById('alembicInfo').innerHTML = 
-          `<span style="color: #4CAF50;">✅ Loaded from cloud:</span> ${filename}<br><small>${data.cameras.length} cameras, ${data.isAnimated ? 'animated' : 'static'}</small>`;
+        const metadata = data.metadata || {};
+        
+        let statusHtml = `<span style="color: #4CAF50;">✅ Loaded from cloud:</span> ${filename}<br>`;
+        statusHtml += `<small>${data.cameras.length} cameras, ${data.isAnimated ? 'animated' : 'static'}</small>`;
+        
+        // Show parsing method info
+        if (metadata.parsed === 'estimated') {
+          statusHtml += `<br><small style="color: #FF9800;">⚠️ Binary Alembic parsed with estimation</small>`;
+        } else if (metadata.format === 'alembic_fallback') {
+          statusHtml += `<br><small style="color: #FF9800;">⚠️ Using fallback SFM camera pattern</small>`;
+        } else if (metadata.source === 'photogrammetry') {
+          statusHtml += `<br><small style="color: #4CAF50;">📷 SFM/Photogrammetry format detected</small>`;
+        }
+        
+        document.getElementById('alembicInfo').innerHTML = statusHtml;
         
         updateCameraList(data.cameras);
         setTimeout(() => updateProgress(0), 1000);
         
         console.log(`Successfully loaded ${data.cameras.length} cameras from cloud storage`);
+        console.log('Alembic metadata:', data.metadata);
+        console.log('Sample camera data:', data.cameras[0]);
         
       } catch (error) {
         console.error('Error loading Alembic from URL:', error);
