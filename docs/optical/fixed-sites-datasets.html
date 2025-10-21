@@ -275,17 +275,33 @@
         async function loadDatasets() {
             try {
                 console.log('Fetching Fixed Sites datasets...');
-                const response = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/Fixed_Sites/summary.json');
+                const summaryResponse = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/Fixed_Sites/summary.json');
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                if (!summaryResponse.ok) {
+                    throw new Error(`HTTP ${summaryResponse.status}: ${summaryResponse.statusText}`);
                 }
                 
-                const data = await response.json();
-                allDatasets = data.all_datasets || [];
-                filteredDatasets = [...allDatasets];
+                const summaryData = await summaryResponse.json();
                 
-                console.log(`Loaded ${allDatasets.length} Fixed Sites datasets`);
+                // Check if all_datasets exists in summary, if not fetch from index.json
+                if (!summaryData.all_datasets) {
+                    console.log('all_datasets not found in summary, fetching from index.json...');
+                    const indexResponse = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/Fixed_Sites/index.json');
+                    
+                    if (!indexResponse.ok) {
+                        throw new Error(`HTTP ${indexResponse.status}: ${indexResponse.statusText} when fetching index.json`);
+                    }
+                    
+                    const indexData = await indexResponse.json();
+                    // index.json is an array of datasets, not an object with a datasets property
+                    allDatasets = Array.isArray(indexData) ? indexData : (indexData.datasets || []);
+                    console.log(`Loaded ${allDatasets.length} datasets from index.json`);
+                } else {
+                    allDatasets = summaryData.all_datasets;
+                    console.log(`Loaded ${allDatasets.length} datasets from summary.json`);
+                }
+                
+                filteredDatasets = [...allDatasets];
                 
                 setupFilters();
                 renderDatasets();
@@ -409,7 +425,7 @@
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             }
             
-            const imageCount = dataset.image_count || 0;
+            const imageCount = dataset.counts?.images || dataset.image_count || 0;
             const dataSize = dataset.size_bytes ? formatBytes(dataset.size_bytes) : 
                            dataset.size_human || 'Unknown';
             
@@ -459,7 +475,7 @@
         function updateStats() {
             const statsDisplay = document.getElementById('statsDisplay');
             const totalDatasets = filteredDatasets.length;
-            const totalImages = filteredDatasets.reduce((sum, dataset) => sum + (dataset.image_count || 0), 0);
+            const totalImages = filteredDatasets.reduce((sum, dataset) => sum + (dataset.counts?.images || dataset.image_count || 0), 0);
             
             statsDisplay.textContent = `Showing ${totalDatasets} dataset${totalDatasets !== 1 ? 's' : ''} with ${totalImages.toLocaleString()} total images`;
         }
