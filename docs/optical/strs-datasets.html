@@ -482,20 +482,19 @@
     }
 
     function extractYear(dataset) {
+      // Look in tags first (most reliable for this dataset)
+      if (dataset.tags && Array.isArray(dataset.tags) && dataset.tags.length > 0) {
+        const firstTag = dataset.tags[0];
+        if (/^\d{4}$/.test(firstTag) && parseInt(firstTag) >= 2000 && parseInt(firstTag) <= 2030) {
+          return parseInt(firstTag);
+        }
+      }
+      
       // Try to extract year from various possible fields
       if (dataset.year) return dataset.year;
       if (dataset.date) return new Date(dataset.date).getFullYear();
       if (dataset.created_date) return new Date(dataset.created_date).getFullYear();
       if (dataset.updated) return new Date(dataset.updated).getFullYear();
-      
-      // Look in tags first (most reliable for this dataset)
-      if (dataset.tags && Array.isArray(dataset.tags)) {
-        for (const tag of dataset.tags) {
-          if (/^\d{4}$/.test(tag) && parseInt(tag) >= 2000 && parseInt(tag) <= 2030) {
-            return parseInt(tag);
-          }
-        }
-      }
       
       // Try to extract from title or id (look for 4-digit year)
       const yearMatch = (dataset.title || dataset.id || '').match(/\b(19|20)\d{2}\b/);
@@ -503,13 +502,10 @@
     }
 
     function extractIsland(dataset) {
-      // Try to extract island from various fields
-      if (dataset.island) return dataset.island;
-      if (dataset.location) return dataset.location;
-      if (dataset.site) return dataset.site;
-      
       // Look in tags for island codes (most reliable for this dataset)
-      if (dataset.tags && Array.isArray(dataset.tags)) {
+      // StRS format: [year, cruise, island_code, site_code]
+      if (dataset.tags && Array.isArray(dataset.tags) && dataset.tags.length >= 3) {
+        const islandCode = dataset.tags[2]; // Third element is island code
         const islandMap = {
           'HAW': 'Hawaii', 'KAH': 'Kahoolawe', 'KAU': 'Kauai', 'LAN': 'Lanai', 
           'MAI': 'Maui', 'MOL': 'Molokai', 'NII': 'Niihau', 'OAH': 'Oahu',
@@ -522,18 +518,33 @@
           'GUG': 'Guguan', 'SAR': 'Sarigan', 'WAK': 'Wake'
         };
         
-        for (const tag of dataset.tags) {
-          if (islandMap[tag]) {
-            return islandMap[tag];
-          }
+        if (islandMap[islandCode]) {
+          return islandMap[islandCode];
         }
+        
+        // If not in map, return the code itself
+        return islandCode;
       }
+      
+      // Try to extract island from various fields (fallback)
+      if (dataset.island) return dataset.island;
+      if (dataset.location) return dataset.location;
+      if (dataset.site) return dataset.site;
       
       // Try to extract from title, id, or gs_prefix
       const searchText = (dataset.title || dataset.id || dataset.gs_prefix || '').toLowerCase();
       const islands = ['oahu', 'maui', 'hawaii', 'kauai', 'molokai', 'lanai', 'niihau', 'big island', 'guam', 'saipan', 'rota'];
       const found = islands.find(island => searchText.includes(island));
       return found ? found.charAt(0).toUpperCase() + found.slice(1) : null;
+    }
+
+    function extractCruise(dataset) {
+      // Look in tags for cruise information
+      // StRS format: [year, cruise, island_code, site_code]
+      if (dataset.tags && Array.isArray(dataset.tags) && dataset.tags.length >= 2) {
+        return dataset.tags[1]; // Second element is cruise
+      }
+      return null;
     }
 
     function renderDatasets() {
@@ -571,12 +582,14 @@
       const size = dataset.size_bytes ? prettySize(dataset.size_bytes) : (dataset.size_human || 'Unknown');
       const year = extractYear(dataset);
       const island = extractIsland(dataset);
+      const cruise = extractCruise(dataset);
       
       // Create tags  
       const tags = [];
       if (year) tags.push(year);
+      if (cruise) tags.push(cruise);
       if (island) tags.push(island);
-      if (dataset.type) tags.push(dataset.type);
+      if (dataset.category) tags.push(dataset.category);
       
       function formatBytes(bytes) {
         if (!bytes || bytes === 0) return 'Unknown';
@@ -603,8 +616,8 @@
             <span class="meta-value">${island || 'Unknown'}</span>
           </div>
           <div class="meta-item">
-            <span class="meta-label">Dataset ID:</span>
-            <span class="meta-value">${id}</span>
+            <span class="meta-label">Cruise:</span>
+            <span class="meta-value">${cruise || 'Unknown'}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Images:</span>
@@ -643,16 +656,17 @@
           (dataset.description || '').toLowerCase().includes(searchTerm);
         
         // Year filter
-        const yearMatch = !selectedYear || extractYear(dataset) == selectedYear;
+        const extractedYear = extractYear(dataset);
+        const yearMatch = !selectedYear || extractedYear == selectedYear;
         
         // Island filter
-        const islandMatch = !selectedIsland || extractIsland(dataset) === selectedIsland;
+        const extractedIsland = extractIsland(dataset);
+        const islandMatch = !selectedIsland || extractedIsland === selectedIsland;
         
         return searchMatch && yearMatch && islandMatch;
       });
       
       renderDatasets();
-      updateStats();
       updateStats();
     }
     
