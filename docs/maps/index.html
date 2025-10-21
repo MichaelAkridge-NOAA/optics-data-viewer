@@ -360,19 +360,12 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Initialize map with Pacific-centered view and no world wrapping
-        const map = L.map('map', {
-            center: [15.0, 150.0], // Centered between Hawaii and Mariana Islands
-            zoom: 4,
-            worldCopyJump: false,
-            maxBounds: [[-30, 100], [60, -100]], // Bounds to cover Pacific region
-            maxBoundsViscosity: 1.0
-        });
+        // Initialize map
+        const map = L.map('map').setView([21.0, -157.0], 6); // Centered on Hawaii
         
         // Add tile layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            noWrap: true // Prevent tile wrapping
+            attribution: '© OpenStreetMap contributors'
         }).addTo(map);
         
         // Data storage
@@ -387,7 +380,6 @@
             'HAW': [19.8968, -155.5828],
             'Maui': [20.7984, -156.3319],
             'MAI': [20.7984, -156.3319],
-            'MAU': [20.7984, -156.3319],
             'Oahu': [21.4389, -158.0001],
             'OAH': [21.4389, -158.0001],
             'Kauai': [22.0964, -159.5261],
@@ -557,7 +549,7 @@
             if (dataset.type === 'strs' && dataset.tags && dataset.tags.length >= 3) {
                 const island = dataset.tags[2];
                 // Map island codes to regions
-                if (['HAW', 'MAI', 'MAU', 'OAH', 'KAU', 'MOL', 'LAN'].includes(island)) return 'MHI';
+                if (['HAW', 'MAI', 'OAH', 'KAU', 'MOL', 'LAN'].includes(island)) return 'MHI';
                 if (['GUA', 'ROT', 'SAI', 'TIN'].includes(island)) return 'MARI';
                 if (['OFU', 'TAU', 'ROS'].includes(island)) return 'AMSM';
                 if (['TUT', 'LIS', 'LAY', 'FFS', 'NEK', 'NIH', 'PHR', 'MID', 'KUR'].includes(island)) return 'NWHI';
@@ -762,7 +754,6 @@
             const islandNames = {
                 'HAW': 'Hawaii',
                 'MAI': 'Maui',
-                'MAU': 'Maui',
                 'OAH': 'Oahu',
                 'KAU': 'Kauai',
                 'MOL': 'Molokai',
