@@ -247,19 +247,21 @@
     
     /* Download Modal */
     .download-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;padding:20px}
-    .download-modal-content{position:relative;max-width:800px;margin:50px auto;background:var(--card);border-radius:12px;border:1px solid var(--ring);max-height:80vh;overflow-y:auto}
-    .download-modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid var(--ring)}
-    .download-modal-title{margin:0;font-size:18px;color:var(--text)}
-    .download-modal-body{padding:20px}
-    .download-section{margin-bottom:24px}
-    .download-section h4{margin:0 0 12px;color:var(--text);font-size:16px}
-    .download-section p{margin:0 0 12px;color:var(--muted);line-height:1.6}
-    .command-block{background:var(--bg);border:1px solid var(--ring);border-radius:8px;padding:16px;font-family:monospace;font-size:14px;position:relative;margin:12px 0}
-    .command-text{color:var(--text);word-break:break-all;margin-bottom:8px}
-    .copy-btn{position:absolute;top:8px;right:8px;background:var(--accent);color:white;border:none;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer}
-    .copy-btn:hover{opacity:0.8}
-    .copy-success{color:#10b981;font-size:12px;margin-top:4px}
-    .dataset-meta{background:rgba(43,121,255,0.1);border:1px solid rgba(43,121,255,0.3);border-radius:8px;padding:16px;margin:16px 0}
+    .download-modal-content{position:relative;max-width:800px;margin:50px auto;background:#1a1a2e;border-radius:15px;border:1px solid #4FC3F7;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+    .download-modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid rgba(255,255,255,0.1);background:rgba(79,195,247,0.1);border-radius:15px 15px 0 0}
+    .download-modal-title{margin:0;font-size:18px;color:white;font-weight:600}
+    .download-modal-body{padding:25px}
+    .download-section{margin-bottom:28px}
+    .download-section h4{margin:0 0 15px;color:white;font-size:16px;font-weight:600}
+    .download-section p{margin:0 0 15px;color:#b0bec5;line-height:1.6}
+    .command-block{background:#0f0f23;border:1px solid #4FC3F7;border-radius:8px;padding:16px;font-family:monospace;font-size:14px;position:relative;margin:12px 0}
+    .command-text{color:white;word-break:break-all;margin-bottom:8px}
+    .copy-btn{position:absolute;top:8px;right:8px;background:#4FC3F7;color:#1a1a2e;border:none;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;font-weight:bold}
+    .copy-btn:hover{background:#29B6F6}
+    .copy-success{color:#4caf50;font-size:12px;margin-top:4px}
+    .dataset-meta{background:rgba(79,195,247,0.1);border:1px solid rgba(79,195,247,0.3);border-radius:8px;padding:16px;margin:16px 0}
+    .close-btn{background:none;border:none;color:white;font-size:24px;cursor:pointer;padding:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px}
+    .close-btn:hover{background:rgba(255,255,255,0.1)}
     .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px}
     .meta-item{display:flex;justify-content:space-between}
     .meta-label{color:var(--muted);font-weight:500}
