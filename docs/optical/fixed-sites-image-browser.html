@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixed Sites Image Browser - NOAA Optical Data Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #4FC3F7, #29B6F6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            color: #b0bec5;
+        }
+        
+        .nav-links {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .nav-links a {
+            color: #4FC3F7;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-links a:hover {
+            background: rgba(79, 195, 247, 0.2);
+        }
+        
+        .dataset-info {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .dataset-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #4FC3F7;
+        }
+        
+        .dataset-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .meta-item {
+            text-align: center;
+        }
+        
+        .meta-label {
+            color: #b0bec5;
+            font-size: 0.9em;
+        }
+        
+        .meta-value {
+            color: white;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .left-controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .search-box {
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-width: 200px;
+        }
+        
+        .search-box::placeholder {
+            color: #b0bec5;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #4FC3F7;
+            color: #1a1a2e;
+            font-weight: bold;
+        }
+        
+        .btn-primary:hover {
+            background: #29B6F6;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .page-btn {
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .page-btn:hover:not(.disabled) {
+            background: rgba(79, 195, 247, 0.3);
+        }
+        
+        .page-btn.active {
+            background: #4FC3F7;
+            color: #1a1a2e;
+            font-weight: bold;
+        }
+        
+        .page-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .page-info {
+            color: #b0bec5;
+            margin: 0 15px;
+        }
+        
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .image-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 10px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .image-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .image-thumbnail {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .image-name {
+            font-size: 0.9em;
+            text-align: center;
+            word-break: break-word;
+        }
+        
+        .loading, .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #b0bec5;
+        }
+        
+        .error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            color: #ffcdd2;
+            margin: 20px 0;
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+        
+        .modal-content {
+            position: relative;
+            margin: auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 800px;
+            top: 50%;
+            transform: translateY(-50%);
+            text-align: center;
+        }
+        
+        .modal-image {
+            max-width: 100%;
+            max-height: 70vh;
+            border-radius: 10px;
+        }
+        
+        .close {
+            position: absolute;
+            top: 10px;
+            right: 25px;
+            font-size: 35px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #4FC3F7;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .left-controls {
+                justify-content: center;
+            }
+            
+            .search-box {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .image-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+            
+            .pagination {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Fixed Sites Image Browser</h1>
+            <p>Browse images from Fixed Site monitoring datasets</p>
+        </div>
+        
+        <div class="nav-links">
+            <a href="../index.html">← Back to Optical Portal</a>
+            <a href="fixed-sites-datasets.html">← Back to Datasets</a>
+            <a href="fixed-sites-dashboard.html">Dashboard</a>
+        </div>
+        
+        <div id="datasetInfo" class="dataset-info" style="display: none;">
+            <div class="dataset-title" id="datasetTitle"></div>
+            <div class="dataset-meta" id="datasetMeta"></div>
+        </div>
+        
+        <div class="controls">
+            <div class="left-controls">
+                <input type="text" id="searchBox" class="search-box" placeholder="Search images...">
+            </div>
+            <button id="downloadBtn" class="btn btn-primary" style="display: none;">Download Image List (COCO JSON)</button>
+        </div>
+        
+        <div class="pagination" id="topPagination" style="display: none;"></div>
+        
+        <div id="content">
+            <div class="loading">
+                <h3>Loading dataset images...</h3>
+                <p>Please wait while we fetch the image data.</p>
+            </div>
+        </div>
+        
+        <div class="pagination" id="bottomPagination" style="display: none;"></div>
+    </div>
+    
+    <!-- Image Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <img id="modalImage" class="modal-image" src="" alt="">
+            <p id="modalImageName"></p>
+        </div>
+    </div>
+
+    <script>
+        let datasetData = null;
+        let allImages = [];
+        let filteredImages = [];
+        let currentPage = 1;
+        const imagesPerPage = 20;
+        
+        function getDatasetFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('dataset');
+        }
+        
+        async function loadDataset() {
+            const datasetName = getDatasetFromUrl();
+            
+            if (!datasetName) {
+                document.getElementById('content').innerHTML = `
+                    <div class="error">
+                        <h3>No Dataset Selected</h3>
+                        <p>Please select a dataset from the datasets page.</p>
+                        <a href="fixed-sites-datasets.html" class="btn btn-primary">Browse Datasets</a>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                console.log('Loading dataset:', datasetName);
+                const response = await fetch(`https://storage.googleapis.com/nmfs_odp_pifsc/OpenData_GCS_info/OpenData_PIFSC/Fixed_Sites/${datasetName}.json`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                datasetData = await response.json();
+                allImages = datasetData.images || [];
+                filteredImages = [...allImages];
+                
+                console.log(`Loaded ${allImages.length} images for dataset ${datasetName}`);
+                
+                displayDatasetInfo();
+                renderImages();
+                setupEventListeners();
+                
+            } catch (error) {
+                console.error('Error loading dataset:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="error">
+                        <h3>Error Loading Dataset</h3>
+                        <p>Unable to load dataset "${datasetName}". Please try again later.</p>
+                        <p><small>Error: ${error.message}</small></p>
+                        <a href="fixed-sites-datasets.html" class="btn btn-primary">← Back to Datasets</a>
+                    </div>
+                `;
+            }
+        }
+        
+        function displayDatasetInfo() {
+            if (!datasetData || !datasetData.info) return;
+            
+            const info = datasetData.info;
+            const tags = info.tags || [];
+            
+            document.getElementById('datasetTitle').textContent = info.title || info.name || 'Unknown Dataset';
+            
+            const region = tags[0] || 'Unknown';
+            const site = tags[1] || 'Unknown';
+            const location = tags[2] || 'Unknown';
+            const year = tags[3] || 'Unknown';
+            
+            function formatBytes(bytes) {
+                if (!bytes || bytes === 0) return 'Unknown';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            const imageCount = allImages.length;
+            const dataSize = info.size_bytes ? formatBytes(info.size_bytes) : 
+                           info.size_human || 'Unknown';
+            
+            document.getElementById('datasetMeta').innerHTML = `
+                <div class="meta-item">
+                    <div class="meta-label">Region</div>
+                    <div class="meta-value">${region}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Site</div>
+                    <div class="meta-value">${site}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Location</div>
+                    <div class="meta-value">${location}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Year</div>
+                    <div class="meta-value">${year}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Images</div>
+                    <div class="meta-value">${imageCount.toLocaleString()}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Size</div>
+                    <div class="meta-value">${dataSize}</div>
+                </div>
+            `;
+            
+            document.getElementById('datasetInfo').style.display = 'block';
+            document.getElementById('downloadBtn').style.display = 'inline-block';
+        }
+        
+        function setupEventListeners() {
+            // Search functionality
+            document.getElementById('searchBox').addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                filteredImages = allImages.filter(image => 
+                    image.filename.toLowerCase().includes(searchTerm)
+                );
+                currentPage = 1;
+                renderImages();
+            });
+            
+            // Download functionality
+            document.getElementById('downloadBtn').addEventListener('click', downloadImageList);
+            
+            // Modal functionality
+            const modal = document.getElementById('imageModal');
+            const closeBtn = document.querySelector('.close');
+            
+            closeBtn.addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+            
+            window.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+        
+        function renderImages() {
+            const content = document.getElementById('content');
+            
+            if (filteredImages.length === 0) {
+                content.innerHTML = `
+                    <div class="no-results">
+                        <h3>No images found</h3>
+                        <p>Try adjusting your search terms.</p>
+                    </div>
+                `;
+                document.getElementById('topPagination').style.display = 'none';
+                document.getElementById('bottomPagination').style.display = 'none';
+                return;
+            }
+            
+            // Calculate pagination
+            const totalPages = Math.ceil(filteredImages.length / imagesPerPage);
+            const startIndex = (currentPage - 1) * imagesPerPage;
+            const endIndex = Math.min(startIndex + imagesPerPage, filteredImages.length);
+            const pageImages = filteredImages.slice(startIndex, endIndex);
+            
+            // Create image grid
+            const grid = document.createElement('div');
+            grid.className = 'image-grid';
+            
+            pageImages.forEach(image => {
+                const imageItem = document.createElement('div');
+                imageItem.className = 'image-item';
+                
+                const img = document.createElement('img');
+                img.className = 'image-thumbnail';
+                img.src = image.gcs_public_url;
+                img.alt = image.filename;
+                img.loading = 'lazy';
+                
+                const name = document.createElement('div');
+                name.className = 'image-name';
+                name.textContent = image.filename;
+                
+                imageItem.appendChild(img);
+                imageItem.appendChild(name);
+                
+                // Add click handler for modal
+                imageItem.addEventListener('click', () => {
+                    showModal(image);
+                });
+                
+                grid.appendChild(imageItem);
+            });
+            
+            content.innerHTML = '';
+            content.appendChild(grid);
+            
+            // Update pagination
+            renderPagination();
+        }
+        
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredImages.length / imagesPerPage);
+            
+            if (totalPages <= 1) {
+                document.getElementById('topPagination').style.display = 'none';
+                document.getElementById('bottomPagination').style.display = 'none';
+                return;
+            }
+            
+            const paginationHTML = createPaginationHTML(totalPages);
+            document.getElementById('topPagination').innerHTML = paginationHTML;
+            document.getElementById('bottomPagination').innerHTML = paginationHTML;
+            document.getElementById('topPagination').style.display = 'flex';
+            document.getElementById('bottomPagination').style.display = 'flex';
+            
+            // Add event listeners to pagination buttons
+            document.querySelectorAll('.page-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const page = parseInt(e.target.dataset.page);
+                    if (page && page !== currentPage) {
+                        currentPage = page;
+                        renderImages();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                });
+            });
+        }
+        
+        function createPaginationHTML(totalPages) {
+            const startIndex = (currentPage - 1) * imagesPerPage + 1;
+            const endIndex = Math.min(currentPage * imagesPerPage, filteredImages.length);
+            
+            let html = '';
+            
+            // Previous button
+            html += `<button class="page-btn ${currentPage === 1 ? 'disabled' : ''}" 
+                            data-page="${currentPage - 1}" 
+                            ${currentPage === 1 ? 'disabled' : ''}>← Previous</button>`;
+            
+            // Page numbers (show first, last, and pages around current)
+            const maxVisible = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+            
+            if (endPage - startPage < maxVisible - 1) {
+                startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+            
+            if (startPage > 1) {
+                html += `<button class="page-btn" data-page="1">1</button>`;
+                if (startPage > 2) {
+                    html += `<span class="page-info">...</span>`;
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" 
+                                data-page="${i}">${i}</button>`;
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    html += `<span class="page-info">...</span>`;
+                }
+                html += `<button class="page-btn" data-page="${totalPages}">${totalPages}</button>`;
+            }
+            
+            // Next button
+            html += `<button class="page-btn ${currentPage === totalPages ? 'disabled' : ''}" 
+                            data-page="${currentPage + 1}" 
+                            ${currentPage === totalPages ? 'disabled' : ''}>Next →</button>`;
+            
+            // Page info
+            html += `<span class="page-info">Showing ${startIndex}-${endIndex} of ${filteredImages.length} images</span>`;
+            
+            return html;
+        }
+        
+        function showModal(image) {
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            const modalImageName = document.getElementById('modalImageName');
+            
+            modalImage.src = image.gcs_public_url;
+            modalImageName.textContent = image.filename;
+            modal.style.display = 'block';
+        }
+        
+        function downloadImageList() {
+            if (!datasetData || !allImages.length) return;
+            
+            // Create COCO-style JSON structure
+            const cocoData = {
+                info: {
+                    description: `Fixed Sites Dataset - ${datasetData.info?.title || datasetData.info?.name || 'Unknown'}`,
+                    version: "1.0",
+                    year: new Date().getFullYear(),
+                    contributor: "NOAA PIFSC",
+                    date_created: new Date().toISOString()
+                },
+                licenses: [{
+                    id: 1,
+                    name: "Public Domain",
+                    url: "https://www.noaa.gov/"
+                }],
+                images: filteredImages.map((image, index) => ({
+                    id: index + 1,
+                    width: image.width || null,
+                    height: image.height || null,
+                    file_name: image.filename,
+                    license: 1,
+                    flickr_url: null,
+                    coco_url: image.gcs_public_url,
+                    date_captured: image.date_time || null
+                })),
+                annotations: [],
+                categories: []
+            };
+            
+            const dataStr = JSON.stringify(cocoData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `fixed_sites_${datasetData.info?.name || 'dataset'}_images.json`;
+            link.click();
+        }
+        
+        // Load dataset on page load
+        loadDataset();
+    </script>
+</body>
+</html>

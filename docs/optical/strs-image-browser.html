@@ -354,30 +354,88 @@
         return;
       }
       
-      // Create CSV content
-      const csvHeaders = ['Filename', 'URL', 'Size', 'Updated', 'GS URI'];
-      const csvRows = allImages.map(img => [
-        img.filename,
-        img.url,
-        img.size,
-        img.updated || '',
-        img.gsUri || ''
-      ]);
+      // Create COCO-style JSON format
+      const cocoData = {
+        info: {
+          description: `NOAA StRS Optical Imagery Dataset - ${datasetTitle}`,
+          url: window.location.href,
+          version: "1.0",
+          year: new Date().getFullYear(),
+          contributor: "NOAA Pacific Islands Fisheries Science Center",
+          date_created: new Date().toISOString(),
+          dataset_id: datasetId,
+          source: gsPrefix
+        },
+        licenses: [
+          {
+            id: 1,
+            name: "Public Domain",
+            url: "https://www.noaa.gov/"
+          }
+        ],
+        images: allImages.map((img, index) => ({
+          id: index + 1,
+          width: null, // Would need to load image to get dimensions
+          height: null,
+          file_name: img.filename,
+          license: 1,
+          flickr_url: null,
+          coco_url: img.url,
+          date_captured: img.updated || null,
+          gs_uri: img.gsUri || null,
+          file_size_bytes: parseFileSize(img.size),
+          file_size_human: img.size
+        })),
+        annotations: [], // No annotations for raw imagery datasets
+        categories: [
+          {
+            id: 1,
+            name: "benthic_habitat",
+            supercategory: "marine_environment"
+          }
+        ],
+        dataset_metadata: {
+          total_images: allImages.length,
+          images_shown: allImages.length,
+          note: allImages.length >= 200 ? 
+            "This dataset may contain more images. The index builder limits to 200 files per dataset JSON. Contact data provider for complete dataset." : 
+            "Complete image list for this dataset.",
+          gs_prefix: gsPrefix,
+          acquisition_method: "photogrammetric_survey",
+          sampling_method: "stratified_random_sampling"
+        }
+      };
       
-      const csvContent = [csvHeaders, ...csvRows]
-        .map(row => row.map(field => `"${field}"`).join(','))
-        .join('\n');
-      
-      // Download the file
-      const blob = new Blob([csvContent], { type: 'text/csv' });
+      // Download JSON file
+      const jsonContent = JSON.stringify(cocoData, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${datasetId}_images_list.csv`;
+      a.download = `${datasetId}_coco_format.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+    }
+
+    function parseFileSize(sizeStr) {
+      // Convert human readable size back to bytes for COCO format
+      if (!sizeStr || sizeStr === 'Unknown') return null;
+      
+      const match = sizeStr.match(/^([\d.]+)\s*(\w+)$/);
+      if (!match) return null;
+      
+      const [, value, unit] = match;
+      const bytes = parseFloat(value);
+      
+      switch (unit.toUpperCase()) {
+        case 'B': return Math.round(bytes);
+        case 'KB': return Math.round(bytes * 1024);
+        case 'MB': return Math.round(bytes * 1024 * 1024);
+        case 'GB': return Math.round(bytes * 1024 * 1024 * 1024);
+        default: return null;
+      }
     }
 
     // Modal functions

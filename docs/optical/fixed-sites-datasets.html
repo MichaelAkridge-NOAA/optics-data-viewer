@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixed Sites Datasets - NOAA Optical Data Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #4FC3F7, #29B6F6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            color: #b0bec5;
+        }
+        
+        .nav-links {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .nav-links a {
+            color: #4FC3F7;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-links a:hover {
+            background: rgba(79, 195, 247, 0.2);
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 30px;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .search-box, .filter-select {
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .search-box::placeholder {
+            color: #b0bec5;
+        }
+        
+        .filter-select option {
+            background: #1a1a2e;
+            color: white;
+        }
+        
+        .dataset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .dataset-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .dataset-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .dataset-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #4FC3F7;
+        }
+        
+        .dataset-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        
+        .meta-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .meta-label {
+            color: #b0bec5;
+        }
+        
+        .meta-value {
+            color: white;
+            font-weight: bold;
+        }
+        
+        .dataset-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .tag {
+            background: rgba(79, 195, 247, 0.3);
+            color: #4FC3F7;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            border: 1px solid rgba(79, 195, 247, 0.5);
+        }
+        
+        .dataset-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #4FC3F7;
+            color: #1a1a2e;
+            font-weight: bold;
+        }
+        
+        .btn-primary:hover {
+            background: #29B6F6;
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .loading, .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #b0bec5;
+        }
+        
+        .error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            color: #ffcdd2;
+            margin: 20px 0;
+        }
+        
+        .stats-summary {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #b0bec5;
+        }
+        
+        @media (max-width: 768px) {
+            .dataset-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .search-box, .filter-select {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Fixed Sites Datasets</h1>
+            <p>Browse and explore Fixed Site monitoring datasets</p>
+        </div>
+        
+        <div class="nav-links">
+            <a href="../index.html">← Back to Optical Portal</a>
+            <a href="fixed-sites-dashboard.html">Dashboard</a>
+        </div>
+        
+        <div class="controls">
+            <input type="text" id="searchBox" class="search-box" placeholder="Search datasets...">
+            <select id="regionFilter" class="filter-select">
+                <option value="">All Regions</option>
+            </select>
+            <select id="siteFilter" class="filter-select">
+                <option value="">All Sites</option>
+            </select>
+        </div>
+        
+        <div id="statsDisplay" class="stats-summary"></div>
+        
+        <div id="content">
+            <div class="loading">
+                <h3>Loading Fixed Sites datasets...</h3>
+                <p>Please wait while we fetch the dataset information.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allDatasets = [];
+        let filteredDatasets = [];
+        
+        async function loadDatasets() {
+            try {
+                console.log('Fetching Fixed Sites datasets...');
+                const response = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/OpenData_GCS_info/OpenData_PIFSC/Fixed_Sites/summary.json');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                allDatasets = data.all_datasets || [];
+                filteredDatasets = [...allDatasets];
+                
+                console.log(`Loaded ${allDatasets.length} Fixed Sites datasets`);
+                
+                setupFilters();
+                renderDatasets();
+                updateStats();
+                
+            } catch (error) {
+                console.error('Error loading datasets:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="error">
+                        <h3>Error Loading Datasets</h3>
+                        <p>Unable to load Fixed Sites datasets. Please try again later.</p>
+                        <p><small>Error: ${error.message}</small></p>
+                    </div>
+                `;
+            }
+        }
+        
+        function setupFilters() {
+            const regions = new Set();
+            const sites = new Set();
+            
+            allDatasets.forEach(dataset => {
+                const tags = dataset.tags || [];
+                if (tags.length >= 1) regions.add(tags[0]); // Region
+                if (tags.length >= 2) sites.add(tags[1]); // Site
+            });
+            
+            // Populate region filter
+            const regionFilter = document.getElementById('regionFilter');
+            regionFilter.innerHTML = '<option value="">All Regions</option>';
+            Array.from(regions).sort().forEach(region => {
+                const option = document.createElement('option');
+                option.value = region;
+                option.textContent = region;
+                regionFilter.appendChild(option);
+            });
+            
+            // Populate site filter
+            const siteFilter = document.getElementById('siteFilter');
+            siteFilter.innerHTML = '<option value="">All Sites</option>';
+            Array.from(sites).sort().forEach(site => {
+                const option = document.createElement('option');
+                option.value = site;
+                option.textContent = site;
+                siteFilter.appendChild(option);
+            });
+            
+            // Add event listeners
+            document.getElementById('searchBox').addEventListener('input', applyFilters);
+            document.getElementById('regionFilter').addEventListener('change', applyFilters);
+            document.getElementById('siteFilter').addEventListener('change', applyFilters);
+        }
+        
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const regionFilter = document.getElementById('regionFilter').value;
+            const siteFilter = document.getElementById('siteFilter').value;
+            
+            filteredDatasets = allDatasets.filter(dataset => {
+                // Search filter
+                const searchMatch = !searchTerm || 
+                    dataset.name?.toLowerCase().includes(searchTerm) ||
+                    dataset.title?.toLowerCase().includes(searchTerm) ||
+                    (dataset.tags && dataset.tags.some(tag => tag.toLowerCase().includes(searchTerm)));
+                
+                // Region filter
+                const regionMatch = !regionFilter || 
+                    (dataset.tags && dataset.tags.length >= 1 && dataset.tags[0] === regionFilter);
+                
+                // Site filter  
+                const siteMatch = !siteFilter || 
+                    (dataset.tags && dataset.tags.length >= 2 && dataset.tags[1] === siteFilter);
+                
+                return searchMatch && regionMatch && siteMatch;
+            });
+            
+            renderDatasets();
+            updateStats();
+        }
+        
+        function renderDatasets() {
+            const content = document.getElementById('content');
+            
+            if (filteredDatasets.length === 0) {
+                content.innerHTML = `
+                    <div class="no-results">
+                        <h3>No datasets found</h3>
+                        <p>Try adjusting your search criteria or filters.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const grid = document.createElement('div');
+            grid.className = 'dataset-grid';
+            
+            filteredDatasets.forEach(dataset => {
+                const card = createDatasetCard(dataset);
+                grid.appendChild(card);
+            });
+            
+            content.innerHTML = '';
+            content.appendChild(grid);
+        }
+        
+        function createDatasetCard(dataset) {
+            const card = document.createElement('div');
+            card.className = 'dataset-card';
+            
+            const tags = dataset.tags || [];
+            const region = tags[0] || 'Unknown';
+            const site = tags[1] || 'Unknown';
+            const location = tags[2] || 'Unknown';
+            const year = tags[3] || 'Unknown';
+            
+            function formatBytes(bytes) {
+                if (!bytes || bytes === 0) return 'Unknown';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            const imageCount = dataset.image_count || 0;
+            const dataSize = dataset.size_bytes ? formatBytes(dataset.size_bytes) : 
+                           dataset.size_human || 'Unknown';
+            
+            card.innerHTML = `
+                <div class="dataset-title">${dataset.title || dataset.name}</div>
+                
+                <div class="dataset-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Region:</span>
+                        <span class="meta-value">${region}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Site:</span>
+                        <span class="meta-value">${site}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Location:</span>
+                        <span class="meta-value">${location}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Year:</span>
+                        <span class="meta-value">${year}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Images:</span>
+                        <span class="meta-value">${imageCount.toLocaleString()}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span>
+                        <span class="meta-value">${dataSize}</span>
+                    </div>
+                </div>
+                
+                <div class="dataset-tags">
+                    ${tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+                
+                <div class="dataset-actions">
+                    <a href="fixed-sites-image-browser.html?dataset=${encodeURIComponent(dataset.name)}" 
+                       class="btn btn-primary">Browse Images</a>
+                </div>
+            `;
+            
+            return card;
+        }
+        
+        function updateStats() {
+            const statsDisplay = document.getElementById('statsDisplay');
+            const totalDatasets = filteredDatasets.length;
+            const totalImages = filteredDatasets.reduce((sum, dataset) => sum + (dataset.image_count || 0), 0);
+            
+            statsDisplay.textContent = `Showing ${totalDatasets} dataset${totalDatasets !== 1 ? 's' : ''} with ${totalImages.toLocaleString()} total images`;
+        }
+        
+        // Load datasets on page load
+        loadDatasets();
+    </script>
+</body>
+</html>

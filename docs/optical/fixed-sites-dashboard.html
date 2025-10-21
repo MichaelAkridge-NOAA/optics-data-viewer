@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixed Sites Dashboard - NOAA Optical Data Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #4FC3F7, #29B6F6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            color: #b0bec5;
+        }
+        
+        .nav-links {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .nav-links a {
+            color: #4FC3F7;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-links a:hover {
+            background: rgba(79, 195, 247, 0.2);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #4FC3F7;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            font-size: 1em;
+            color: #b0bec5;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .chart-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .chart-title {
+            font-size: 1.3em;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #4FC3F7;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #b0bec5;
+        }
+        
+        .error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            color: #ffcdd2;
+        }
+        
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Fixed Sites Dashboard</h1>
+            <p>NOAA Optical Data Collection - Fixed Site Monitoring</p>
+        </div>
+        
+        <div class="nav-links">
+            <a href="../index.html">← Back to Optical Portal</a>
+            <a href="fixed-sites-datasets.html">Browse Datasets</a>
+        </div>
+        
+        <div id="content">
+            <div class="loading">
+                <h3>Loading Fixed Sites data...</h3>
+                <p>Please wait while we fetch the latest information.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.min.js"></script>
+    <script>
+        let summaryData = null;
+        
+        async function loadDashboard() {
+            try {
+                console.log('Fetching Fixed Sites summary data...');
+                const response = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/OpenData_GCS_info/OpenData_PIFSC/Fixed_Sites/summary.json');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                summaryData = await response.json();
+                console.log('Fixed Sites data loaded:', summaryData);
+                
+                renderDashboard();
+            } catch (error) {
+                console.error('Error loading Fixed Sites data:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="error">
+                        <h3>Error Loading Data</h3>
+                        <p>Unable to load Fixed Sites summary data. Please try again later.</p>
+                        <p><small>Error: ${error.message}</small></p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderDashboard() {
+            const content = document.getElementById('content');
+            
+            // Calculate statistics
+            const totalDatasets = summaryData.all_datasets?.length || 0;
+            const totalImages = summaryData.all_datasets?.reduce((sum, dataset) => sum + (dataset.image_count || 0), 0) || 0;
+            const totalSize = summaryData.all_datasets?.reduce((sum, dataset) => sum + (dataset.size_bytes || 0), 0) || 0;
+            
+            // Get unique regions and sites
+            const regions = new Set();
+            const sites = new Set();
+            
+            if (summaryData.all_datasets) {
+                summaryData.all_datasets.forEach(dataset => {
+                    const tags = dataset.tags || [];
+                    if (tags.length >= 2) {
+                        regions.add(tags[0]); // Region
+                        sites.add(tags[1]); // Island/Site
+                    }
+                });
+            }
+            
+            function formatBytes(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            content.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">${totalDatasets.toLocaleString()}</div>
+                        <div class="stat-label">Total Datasets</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${regions.size}</div>
+                        <div class="stat-label">Regions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${sites.size}</div>
+                        <div class="stat-label">Sites</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${totalImages.toLocaleString()}</div>
+                        <div class="stat-label">Total Images</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${formatBytes(totalSize)}</div>
+                        <div class="stat-label">Total Data Size</div>
+                    </div>
+                </div>
+                
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-title">Datasets by Region</div>
+                        <div class="chart-container">
+                            <canvas id="regionChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-title">Datasets by Site</div>
+                        <div class="chart-container">
+                            <canvas id="siteChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Create region distribution chart
+            createRegionChart();
+            
+            // Create site distribution chart  
+            createSiteChart();
+        }
+        
+        function createRegionChart() {
+            const regionCounts = {};
+            
+            if (summaryData.all_datasets) {
+                summaryData.all_datasets.forEach(dataset => {
+                    const tags = dataset.tags || [];
+                    if (tags.length >= 1) {
+                        const region = tags[0];
+                        regionCounts[region] = (regionCounts[region] || 0) + 1;
+                    }
+                });
+            }
+            
+            const ctx = document.getElementById('regionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(regionCounts),
+                    datasets: [{
+                        data: Object.values(regionCounts),
+                        backgroundColor: [
+                            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
+                            '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+                        ],
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.2)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#ffffff',
+                                padding: 15
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createSiteChart() {
+            const siteCounts = {};
+            
+            if (summaryData.all_datasets) {
+                summaryData.all_datasets.forEach(dataset => {
+                    const tags = dataset.tags || [];
+                    if (tags.length >= 2) {
+                        const site = tags[1];
+                        siteCounts[site] = (siteCounts[site] || 0) + 1;
+                    }
+                });
+            }
+            
+            // Get top 10 sites for better readability
+            const sortedSites = Object.entries(siteCounts)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 10);
+            
+            const ctx = document.getElementById('siteChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedSites.map(([site]) => site),
+                    datasets: [{
+                        label: 'Datasets',
+                        data: sortedSites.map(([,count]) => count),
+                        backgroundColor: 'rgba(79, 195, 247, 0.6)',
+                        borderColor: '#4FC3F7',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#ffffff',
+                                maxRotation: 45
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Load dashboard on page load
+        loadDashboard();
+    </script>
+</body>
+</html>
