@@ -187,7 +187,7 @@
         .stats {
             position: absolute;
             top: 10px;
-            left: 10px;
+            right: 10px;
             z-index: 1000;
             background: rgba(26, 26, 46, 0.9);
             padding: 10px 12px;
@@ -449,12 +449,13 @@
         async function loadDatasets() {
             try {
                 // Load datasets from different sources
-                const [fixedSites, strsData] = await Promise.all([
+                const [fixedSites, strsData, sfmData] = await Promise.all([
                     loadFixedSitesData(),
-                    loadStRSData()
+                    loadStRSData(),
+                    loadSfMData()
                 ]);
                 
-                allDatasets = [...fixedSites, ...strsData];
+                allDatasets = [...fixedSites, ...strsData, ...sfmData];
                 
                 // Populate filters
                 populateFilters();
@@ -514,6 +515,44 @@
             }
         }
         
+        async function loadSfMData() {
+            // Static SfM datasets based on known locations from the SfM viewers
+            return [
+                {
+                    name: 'OCC-TUT-017 Timeseries',
+                    tags: ['2023', 'RA2302', 'TUT', 'TUT-017'],
+                    type: 'sfm',
+                    typeName: 'SfM Data',
+                    description: 'Structure-from-Motion 3D reconstructions from OCC-TUT-017 site',
+                    url: '../sfm/timeseries-viewer.html'
+                },
+                {
+                    name: 'OCC-ASC-003 Enhanced Viewer',
+                    tags: ['2022', 'RA2201', 'ASC', 'ASC-003'],
+                    type: 'sfm',
+                    typeName: 'SfM Data',
+                    description: 'Enhanced SfM viewer with camera tracks and imagery',
+                    url: '../sfm/sfm_viewer_w_images/enhanced-sfm-viewer-sidebar.html'
+                },
+                {
+                    name: 'OCC-WAKE-008 SfM Viewer',
+                    tags: ['2023', 'RA2302', 'WAKE', 'WAKE-008'],
+                    type: 'sfm',
+                    typeName: 'SfM Data',
+                    description: 'Structure-from-Motion point cloud viewer',
+                    url: '../sfm/sfm-viewer.html?src=https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/occ-wake-008/cloud.js'
+                },
+                {
+                    name: 'Substrate Stabilization SfM',
+                    tags: ['2023', 'RA2302', 'SUBSTRATE', 'STABILIZATION'],
+                    type: 'sfm',
+                    typeName: 'SfM Data',
+                    description: 'Post-installation substrate stabilization monitoring',
+                    url: '../sfm/substrate-viewer.html'
+                }
+            ];
+        }
+        
         function extractLocation(dataset) {
             // For StRS data, extract from tags
             if (dataset.type === 'strs' && dataset.tags && dataset.tags.length >= 3) {
@@ -523,6 +562,11 @@
             // For Fixed Sites, extract from tags
             if (dataset.type === 'fixed-sites' && dataset.tags && dataset.tags.length >= 1) {
                 return dataset.tags[0]; // Region/island is first element
+            }
+            
+            // For SfM data, extract from tags
+            if (dataset.type === 'sfm' && dataset.tags && dataset.tags.length >= 3) {
+                return dataset.tags[2]; // Island code is third element (same as StRS)
             }
             
             // Fallback to other fields
