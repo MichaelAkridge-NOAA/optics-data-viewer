@@ -275,7 +275,7 @@
         async function loadDatasets() {
             try {
                 console.log('Fetching Fixed Sites datasets...');
-                const response = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/OpenData_GCS_info/OpenData_PIFSC/Fixed_Sites/summary.json');
+                const response = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/Fixed_Sites/summary.json');
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);

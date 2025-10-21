@@ -254,7 +254,47 @@ def main():
     df["dataset_rel"] = rel_parts.apply(lambda parts: "/".join(parts[:args.group_depth]))
     df["dataset_gs"]  = df["dataset_rel"].apply(lambda rel: f"{root_norm}{rel}/")
 
-    # 2) Aggregate to dataset cards
+    # 2) Validate and filter datasets before aggregation
+    def is_valid_strs_dataset(rel: str) -> bool:
+        """
+        Validate StRS dataset structure: year/cruise/island/site
+        Skip malformed datasets that don't follow expected hierarchy
+        """
+        parts = rel.split("/")
+        
+        # Must have at least 4 parts for a valid dataset (year/cruise/island/site)
+        if len(parts) < 4:
+            logging.warning(f"Skipping dataset with too few path components: {rel}")
+            return False
+        
+        # Check if 1st component (year) is valid
+        year_part = parts[0]
+        
+        # Valid year formats: 4-digit year (2022)
+        if not re.fullmatch(r"\d{4}", year_part):
+            logging.warning(f"Skipping dataset with invalid year format '{year_part}': {rel}")
+            return False
+        
+        # Check for spaces in path components (causes URL encoding issues)
+        for i, part in enumerate(parts[:4]):
+            if ' ' in part:
+                level_names = ['year', 'cruise', 'island', 'site']
+                level_name = level_names[i] if i < len(level_names) else f"level_{i}"
+                logging.warning(f"Skipping dataset with space in {level_name} '{part}': {rel}")
+                return False
+        
+        return True
+
+    # Filter out invalid datasets
+    initial_count = len(df["dataset_rel"].unique())
+    valid_rels = [rel for rel in df["dataset_rel"].unique() if is_valid_strs_dataset(rel)]
+    df = df[df["dataset_rel"].isin(valid_rels)]
+    
+    skipped_count = initial_count - len(valid_rels)
+    if skipped_count > 0:
+        logging.info(f"Skipped {skipped_count} malformed datasets, processing {len(valid_rels)} valid datasets")
+
+    # 3) Aggregate to dataset cards
     groups = df.groupby("dataset_rel", as_index=False)
     agg = groups.agg(
         images=("modality", lambda s: int((s=="image").sum())),
@@ -264,7 +304,7 @@ def main():
         last_updated=("updated", "max"),
     )
 
-    # 3) Pick a thumbnail (prefer jpeg/png/webp)
+    # 4) Pick a thumbnail (prefer jpeg/png/webp)
     thumb_map = {}
     for rel, g in groups:
         sub = g[g["modality"]=="image"]
@@ -278,7 +318,7 @@ def main():
                 thumb_uri = sub.iloc[0]["uri"]
         thumb_map[rel] = thumb_uri
 
-    # 4) Build cards
+    # 5) Build cards
     def tags_from_rel(rel: str):
         parts = rel.split("/")
         tags = []

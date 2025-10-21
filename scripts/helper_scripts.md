@@ -19,5 +19,3 @@ python ./build_index_fixed_sites.py --root "gs://nmfs_odp_pifsc/PIFSC/ESD/ARP/Ph
 gsutil -m rsync -r "./docs/optical/fixed_sites" "gs://nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric Imagery/Fixed_Sites"
 ```
 
-
-
