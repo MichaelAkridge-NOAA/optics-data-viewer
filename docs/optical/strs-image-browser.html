@@ -25,6 +25,10 @@
     .btn:hover{background:var(--accent);border-color:var(--accent);color:white}
     .info{color:var(--muted);font-size:13px;margin-left:auto}
     
+    /* Pagination */
+    .pagination{display:flex;gap:12px;align-items:center;justify-content:center;margin:20px 0;padding:16px;background:var(--card);border-radius:8px;border:1px solid var(--ring)}
+    .page-info{color:var(--muted);font-size:14px;margin:0 8px}
+    
     /* Image Grid */
     .image-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-top:20px}
     .image-card{background:var(--card);border-radius:12px;border:1px solid var(--ring);overflow:hidden;transition:all 0.2s;cursor:pointer}
@@ -83,6 +87,12 @@
         <div class="info" id="imageCount">0 images</div>
       </div>
 
+      <div class="pagination" id="pagination" style="display:none;">
+        <button class="btn" id="prevPage" onclick="changePage(-1)">‹ Previous</button>
+        <span class="page-info" id="pageInfo">Page 1 of 1</span>
+        <button class="btn" id="nextPage" onclick="changePage(1)">Next ›</button>
+      </div>
+
       <div class="image-grid" id="imageGrid">
         <!-- Images will be loaded here -->
       </div>
@@ -125,6 +135,8 @@
     let allImages = [];
     let filteredImages = [];
     let currentImageIndex = 0;
+    let currentPage = 1;
+    const imagesPerPage = 20;
 
     // Initialize page
     document.getElementById('datasetTitle').textContent = `${datasetTitle} - Images`;
@@ -195,6 +207,7 @@
       allImages.sort((a, b) => a.filename.localeCompare(b.filename));
       
       filteredImages = allImages;
+      currentPage = 1; // Reset to first page
       renderImages();
       showContent();
     }
@@ -247,24 +260,42 @@
     function renderImages() {
       const grid = document.getElementById('imageGrid');
       const emptyState = document.getElementById('emptyState');
+      const pagination = document.getElementById('pagination');
       
       if (filteredImages.length === 0) {
         grid.style.display = 'none';
         emptyState.style.display = 'block';
+        pagination.style.display = 'none';
         document.getElementById('imageCount').textContent = '0 images';
         return;
       }
       
+      // Calculate pagination
+      const totalPages = Math.ceil(filteredImages.length / imagesPerPage);
+      const startIndex = (currentPage - 1) * imagesPerPage;
+      const endIndex = Math.min(startIndex + imagesPerPage, filteredImages.length);
+      const pageImages = filteredImages.slice(startIndex, endIndex);
+      
       grid.style.display = 'grid';
       emptyState.style.display = 'none';
-      document.getElementById('imageCount').textContent = `${filteredImages.length} images`;
+      
+      // Show pagination if more than one page
+      if (totalPages > 1) {
+        pagination.style.display = 'flex';
+        updatePaginationControls(totalPages);
+      } else {
+        pagination.style.display = 'none';
+      }
+      
+      document.getElementById('imageCount').textContent = `${filteredImages.length} images (showing ${pageImages.length})`;
       
       grid.innerHTML = '';
       
-      filteredImages.forEach((image, index) => {
+      pageImages.forEach((image, pageIndex) => {
+        const actualIndex = startIndex + pageIndex;
         const card = document.createElement('div');
         card.className = 'image-card';
-        card.onclick = () => openModal(index);
+        card.onclick = () => openModal(actualIndex);
         
         card.innerHTML = `
           <img class="image-thumb" src="${image.url}" alt="${image.name}" 
@@ -280,12 +311,34 @@
       });
     }
 
+    function updatePaginationControls(totalPages) {
+      document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('prevPage').disabled = currentPage <= 1;
+      document.getElementById('nextPage').disabled = currentPage >= totalPages;
+    }
+
+    function changePage(direction) {
+      const totalPages = Math.ceil(filteredImages.length / imagesPerPage);
+      const newPage = currentPage + direction;
+      
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        renderImages();
+        
+        // Scroll to top of image grid
+        document.getElementById('imageGrid').scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
     function filterImages() {
       const searchTerm = document.getElementById('searchBox').value.toLowerCase();
       filteredImages = allImages.filter(image => 
         image.name.toLowerCase().includes(searchTerm) ||
         image.filename.toLowerCase().includes(searchTerm)
       );
+      
+      // Reset to first page when filtering
+      currentPage = 1;
       renderImages();
     }
 
