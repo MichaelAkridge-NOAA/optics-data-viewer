@@ -114,7 +114,8 @@
         }
         const data = await resp.json();
         
-        allDatasets = data.datasets || [];
+        // Handle both formats: direct array or object with datasets property
+        allDatasets = Array.isArray(data) ? data : (data.datasets || []);
         filteredDatasets = [...allDatasets];
         
         // Hide loading, show content
@@ -162,6 +163,17 @@
       if (dataset.year) return dataset.year;
       if (dataset.date) return new Date(dataset.date).getFullYear();
       if (dataset.created_date) return new Date(dataset.created_date).getFullYear();
+      if (dataset.updated) return new Date(dataset.updated).getFullYear();
+      
+      // Look in tags first (most reliable for this dataset)
+      if (dataset.tags && Array.isArray(dataset.tags)) {
+        for (const tag of dataset.tags) {
+          if (/^\d{4}$/.test(tag) && parseInt(tag) >= 2000 && parseInt(tag) <= 2030) {
+            return parseInt(tag);
+          }
+        }
+      }
+      
       // Try to extract from title or id (look for 4-digit year)
       const yearMatch = (dataset.title || dataset.id || '').match(/\b(19|20)\d{2}\b/);
       return yearMatch ? parseInt(yearMatch[0]) : null;
@@ -172,10 +184,32 @@
       if (dataset.island) return dataset.island;
       if (dataset.location) return dataset.location;
       if (dataset.site) return dataset.site;
-      // Try to extract from title or path
-      const title = (dataset.title || dataset.id || '').toLowerCase();
-      const islands = ['oahu', 'maui', 'hawaii', 'kauai', 'molokai', 'lanai', 'niihau', 'big island'];
-      const found = islands.find(island => title.includes(island));
+      
+      // Look in tags for island codes (most reliable for this dataset)
+      if (dataset.tags && Array.isArray(dataset.tags)) {
+        const islandMap = {
+          'HAW': 'Hawaii', 'KAH': 'Kahoolawe', 'KAU': 'Kauai', 'LAN': 'Lanai', 
+          'MAI': 'Maui', 'MOL': 'Molokai', 'NII': 'Niihau', 'OAH': 'Oahu',
+          'ASC': 'Ascension', 'GUA': 'Guam', 'MAU': 'Mau', 'PAG': 'Pagan',
+          'ROT': 'Rota', 'SAI': 'Saipan', 'TIN': 'Tinian', 'BAK': 'Baker',
+          'HOW': 'Howland', 'OFU': 'Ofu', 'ROS': 'Rose', 'SWA': 'Swains',
+          'TAU': 'Tau', 'TUT': 'Tutuila', 'FFS': 'French Frigate Shoals',
+          'KUR': 'Kure', 'LIS': 'Lisianski', 'PHR': 'Pearl and Hermes',
+          'AGR': 'Agrihan', 'ALA': 'Alamagan', 'FDP': 'Farallon de Pajaros',
+          'GUG': 'Guguan', 'SAR': 'Sarigan', 'WAK': 'Wake'
+        };
+        
+        for (const tag of dataset.tags) {
+          if (islandMap[tag]) {
+            return islandMap[tag];
+          }
+        }
+      }
+      
+      // Try to extract from title, id, or gs_prefix
+      const searchText = (dataset.title || dataset.id || dataset.gs_prefix || '').toLowerCase();
+      const islands = ['oahu', 'maui', 'hawaii', 'kauai', 'molokai', 'lanai', 'niihau', 'big island', 'guam', 'saipan', 'rota'];
+      const found = islands.find(island => searchText.includes(island));
       return found ? found.charAt(0).toUpperCase() + found.slice(1) : null;
     }
 
@@ -208,8 +242,8 @@
       
       const title = dataset.title || dataset.id || 'Untitled Dataset';
       const id = dataset.id || 'unknown';
-      const images = dataset.images || dataset.image_count || 0;
-      const videos = dataset.videos || dataset.video_count || 0;
+      const images = dataset.counts?.images || dataset.images || dataset.image_count || 0;
+      const videos = dataset.counts?.videos || dataset.videos || dataset.video_count || 0;
       const size = dataset.size_bytes ? prettySize(dataset.size_bytes) : (dataset.size_human || 'Unknown');
       const year = extractYear(dataset);
       const island = extractIsland(dataset);
