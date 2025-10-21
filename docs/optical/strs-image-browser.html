@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>StRS Image Browser - NOAA Optics SI Data Portal</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); --accent:#2b79ff; }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1200px;margin:0 auto;padding:20px}
+    
+    /* Header */
+    .header{margin-bottom:24px;border-bottom:1px solid var(--ring);padding-bottom:16px}
+    .breadcrumb{margin:0 0 12px;font-size:14px}
+    .breadcrumb a{color:var(--accent);text-decoration:none}
+    .breadcrumb a:hover{text-decoration:underline}
+    h1{margin:0 0 8px;font-weight:700;font-size:24px}
+    .dataset-info{color:var(--muted);font-size:14px}
+    
+    /* Controls */
+    .controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+    .search-box{background:var(--card);border:1px solid var(--ring);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;width:200px}
+    .btn{padding:6px 12px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--ring);background:var(--card);color:var(--text);transition:all 0.2s}
+    .btn:hover{background:var(--accent);border-color:var(--accent);color:white}
+    .info{color:var(--muted);font-size:13px;margin-left:auto}
+    
+    /* Image Grid */
+    .image-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-top:20px}
+    .image-card{background:var(--card);border-radius:12px;border:1px solid var(--ring);overflow:hidden;transition:all 0.2s;cursor:pointer}
+    .image-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,0.3)}
+    .image-thumb{width:100%;height:150px;object-fit:cover;background:var(--bg)}
+    .image-info{padding:12px}
+    .image-name{font-size:12px;font-weight:600;margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .image-meta{font-size:11px;color:var(--muted)}
+    
+    /* Loading/Error States */
+    .loading{text-align:center;padding:60px 20px;color:var(--muted)}
+    .spinner{display:inline-block;width:32px;height:32px;border:3px solid rgba(255,255,255,0.1);border-top:3px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:16px;margin:20px 0;color:#fca5a5}
+    .empty{text-align:center;padding:60px 20px;color:var(--muted)}
+    
+    /* Modal */
+    .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:1000;padding:20px}
+    .modal-content{position:relative;max-width:90vw;max-height:90vh;margin:auto;background:var(--card);border-radius:12px;overflow:hidden}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid var(--ring)}
+    .modal-title{margin:0;font-size:16px}
+    .close-btn{background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px}
+    .close-btn:hover{background:rgba(255,255,255,0.1)}
+    .modal-body{padding:20px;text-align:center}
+    .modal-image{max-width:100%;max-height:70vh;object-fit:contain}
+    .modal-nav{display:flex;justify-content:space-between;align-items:center;padding:16px;border-top:1px solid var(--ring)}
+    .nav-btn{background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px}
+    .nav-btn:disabled{background:var(--ring);cursor:not-allowed}
+    .nav-info{color:var(--muted);font-size:14px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="breadcrumb">
+        <a href="../">← Portal</a> / <a href="index.html">Optical Datasets</a> / <a href="strs-datasets.html">StRS Sites</a>
+      </div>
+      <h1 id="datasetTitle">Dataset Image Browser</h1>
+      <div class="dataset-info" id="datasetInfo">Loading dataset information...</div>
+    </div>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <div>Loading images from Google Cloud Storage...</div>
+    </div>
+
+    <div id="error" class="error" style="display:none;">
+      <strong>Error loading images:</strong> <span id="errorMessage"></span>
+    </div>
+
+    <div id="content" style="display:none;">
+      <div class="controls">
+        <input type="text" id="searchBox" class="search-box" placeholder="Search images...">
+        <button class="btn" onclick="refreshImages()">Refresh</button>
+        <button class="btn" onclick="downloadImageList()">Download List</button>
+        <div class="info" id="imageCount">0 images</div>
+      </div>
+
+      <div class="image-grid" id="imageGrid">
+        <!-- Images will be loaded here -->
+      </div>
+
+      <div id="emptyState" class="empty" style="display:none;">
+        <h3>No images found</h3>
+        <p>This dataset may not have directly accessible images, or they may be in a private storage bucket.</p>
+        <p><strong>Dataset Path:</strong> <span id="gsPrefix"></span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for full-size image viewing -->
+  <div class="modal" id="imageModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalTitle">Image Viewer</h3>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <img class="modal-image" id="modalImage" alt="Full size image">
+      </div>
+      <div class="modal-nav">
+        <button class="nav-btn" id="prevBtn" onclick="navigateImage(-1)">‹ Previous</button>
+        <div class="nav-info" id="navInfo">1 of 1</div>
+        <button class="nav-btn" id="nextBtn" onclick="navigateImage(1)">Next ›</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Get URL parameters
+    const params = new URLSearchParams(location.search);
+    const datasetId = params.get('dataset');
+    const datasetTitle = params.get('title') || datasetId || 'Unknown Dataset';
+    const gsPrefix = params.get('gs_prefix') || '';
+    const imageCount = parseInt(params.get('images')) || 0;
+    const thumbnail = params.get('thumbnail') || '';
+
+    let allImages = [];
+    let filteredImages = [];
+    let currentImageIndex = 0;
+
+    // Initialize page
+    document.getElementById('datasetTitle').textContent = `${datasetTitle} - Images`;
+    document.getElementById('datasetInfo').textContent = `Dataset: ${datasetId} • Expected images: ${imageCount.toLocaleString()} • Path: ${gsPrefix}`;
+    document.getElementById('gsPrefix').textContent = gsPrefix;
+
+    function showError(message) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('errorMessage').textContent = message;
+    }
+
+    function showContent() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+    }
+
+    async function loadImages() {
+      try {
+        // Load the dataset-specific JSON file which contains all file metadata
+        await loadFromDatasetJson();
+        
+      } catch (error) {
+        console.error('Error loading images:', error);
+        showError(`Failed to load images: ${error.message}`);
+      }
+    }
+
+    async function loadFromDatasetJson() {
+      if (!datasetId) {
+        throw new Error('No dataset ID provided');
+      }
+
+      // Construct the JSON URL for this specific dataset
+      const jsonUrl = `https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/StRS_Sites/items/${datasetId}.json`;
+      
+      console.log('Loading dataset JSON from:', jsonUrl);
+      
+      const response = await fetch(jsonUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to load dataset JSON: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Dataset JSON loaded:', data);
+      
+      // Extract image files from the files array (StRS datasets contain only images)
+      allImages = data.files
+        .filter(file => file.modality === 'image')
+        .map(file => ({
+          name: file.uri.split('/').pop(),
+          url: file.url,
+          filename: file.uri.split('/').pop(),
+          size: formatFileSize(file.size),
+          updated: file.updated,
+          gsUri: file.uri
+        }));
+      
+      console.log(`Loaded ${allImages.length} images from dataset JSON`);
+      
+      if (allImages.length === 0) {
+        throw new Error('No images found in dataset');
+      }
+      
+      // Sort images by filename for consistent ordering
+      allImages.sort((a, b) => a.filename.localeCompare(b.filename));
+      
+      filteredImages = allImages;
+      renderImages();
+      showContent();
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function loadSampleImages() {
+      // Create sample/placeholder images for demonstration
+      allImages = [
+        {
+          name: 'Sample Image 1',
+          url: 'https://via.placeholder.com/400x300/2b79ff/ffffff?text=Sample+Image+1',
+          filename: 'sample_001.jpg',
+          size: '2.4 MB'
+        },
+        {
+          name: 'Sample Image 2', 
+          url: 'https://via.placeholder.com/400x300/059669/ffffff?text=Sample+Image+2',
+          filename: 'sample_002.jpg',
+          size: '1.8 MB'
+        },
+        {
+          name: 'Sample Image 3',
+          url: 'https://via.placeholder.com/400x300/ea580c/ffffff?text=Sample+Image+3', 
+          filename: 'sample_003.jpg',
+          size: '3.1 MB'
+        }
+      ];
+      
+      if (thumbnail) {
+        // Add the actual thumbnail if available
+        allImages.unshift({
+          name: 'Dataset Thumbnail',
+          url: thumbnail.replace('gs://nmfs_odp_pifsc/', 'https://storage.googleapis.com/nmfs_odp_pifsc/'),
+          filename: thumbnail.split('/').pop(),
+          size: 'Unknown'
+        });
+      }
+      
+      renderImages();
+      showContent();
+    }
+
+    function renderImages() {
+      const grid = document.getElementById('imageGrid');
+      const emptyState = document.getElementById('emptyState');
+      
+      if (filteredImages.length === 0) {
+        grid.style.display = 'none';
+        emptyState.style.display = 'block';
+        document.getElementById('imageCount').textContent = '0 images';
+        return;
+      }
+      
+      grid.style.display = 'grid';
+      emptyState.style.display = 'none';
+      document.getElementById('imageCount').textContent = `${filteredImages.length} images`;
+      
+      grid.innerHTML = '';
+      
+      filteredImages.forEach((image, index) => {
+        const card = document.createElement('div');
+        card.className = 'image-card';
+        card.onclick = () => openModal(index);
+        
+        card.innerHTML = `
+          <img class="image-thumb" src="${image.url}" alt="${image.name}" 
+               onerror="this.src='https://via.placeholder.com/200x150/333/999?text=Image+Not+Found'"
+               loading="lazy">
+          <div class="image-info">
+            <div class="image-name">${image.name}</div>
+            <div class="image-meta">${image.size} • ${image.updated ? new Date(image.updated).toLocaleDateString() : 'Unknown date'}</div>
+          </div>
+        `;
+        
+        grid.appendChild(card);
+      });
+    }
+
+    function filterImages() {
+      const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+      filteredImages = allImages.filter(image => 
+        image.name.toLowerCase().includes(searchTerm) ||
+        image.filename.toLowerCase().includes(searchTerm)
+      );
+      renderImages();
+    }
+
+    function refreshImages() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('content').style.display = 'none';
+      loadImages();
+    }
+
+    function downloadImageList() {
+      if (!allImages || allImages.length === 0) {
+        alert('No images to export');
+        return;
+      }
+      
+      // Create CSV content
+      const csvHeaders = ['Filename', 'URL', 'Size', 'Updated', 'GS URI'];
+      const csvRows = allImages.map(img => [
+        img.filename,
+        img.url,
+        img.size,
+        img.updated || '',
+        img.gsUri || ''
+      ]);
+      
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+      
+      // Download the file
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${datasetId}_images_list.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+
+    // Modal functions
+    function openModal(index) {
+      currentImageIndex = index;
+      const image = filteredImages[index];
+      
+      document.getElementById('modalTitle').textContent = image.name;
+      document.getElementById('modalImage').src = image.url;
+      document.getElementById('navInfo').textContent = `${index + 1} of ${filteredImages.length}`;
+      
+      document.getElementById('prevBtn').disabled = index === 0;
+      document.getElementById('nextBtn').disabled = index === filteredImages.length - 1;
+      
+      document.getElementById('imageModal').style.display = 'block';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      document.getElementById('imageModal').style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    function navigateImage(direction) {
+      const newIndex = currentImageIndex + direction;
+      if (newIndex >= 0 && newIndex < filteredImages.length) {
+        openModal(newIndex);
+      }
+    }
+
+    // Event listeners
+    document.getElementById('searchBox').addEventListener('input', filterImages);
+    document.addEventListener('keydown', function(e) {
+      const modal = document.getElementById('imageModal');
+      if (modal.style.display === 'block') {
+        if (e.key === 'Escape') closeModal();
+        if (e.key === 'ArrowLeft') navigateImage(-1);
+        if (e.key === 'ArrowRight') navigateImage(1);
+      }
+    });
+
+    // Initialize
+    filteredImages = allImages;
+    loadImages();
+  </script>
+</body>
+</html>

@@ -243,7 +243,6 @@
       const title = dataset.title || dataset.id || 'Untitled Dataset';
       const id = dataset.id || 'unknown';
       const images = dataset.counts?.images || dataset.images || dataset.image_count || 0;
-      const videos = dataset.counts?.videos || dataset.videos || dataset.video_count || 0;
       const size = dataset.size_bytes ? prettySize(dataset.size_bytes) : (dataset.size_human || 'Unknown');
       const year = extractYear(dataset);
       const island = extractIsland(dataset);
@@ -263,10 +262,6 @@
           <div class="meta-row">
             <span class="meta-label">Images:</span>
             <span class="meta-value">${prettyInt(images)}</span>
-          </div>
-          <div class="meta-row">
-            <span class="meta-label">Videos:</span>
-            <span class="meta-value">${prettyInt(videos)}</span>
           </div>
           <div class="meta-row">
             <span class="meta-label">Size:</span>
@@ -318,8 +313,24 @@
     };
 
     window.browseImages = function(id) {
-      // Open image browser for this dataset
-      alert(`Browse source imagery for dataset: ${id}\n\nThis will open an image gallery viewer showing the curated photogrammetric images that were used to build the 3D model for this site.`);
+      // Find the dataset
+      const dataset = allDatasets.find(d => d.id === id);
+      if (!dataset) {
+        alert('Dataset not found');
+        return;
+      }
+      
+      // For now, open a simple image browser page
+      const params = new URLSearchParams({
+        dataset: id,
+        title: dataset.title || id,
+        gs_prefix: dataset.gs_prefix || '',
+        images: dataset.counts?.images || 0,
+        thumbnail: dataset.thumbnail || ''
+      });
+      
+      const url = `strs-image-browser.html?${params.toString()}`;
+      window.open(url, '_blank');
     };
 
     // Event listeners

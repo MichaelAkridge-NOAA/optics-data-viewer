@@ -15,7 +15,7 @@
     h1 { margin:0 0 6px; font-size:22px; }
     .path { color:var(--muted); font-size:13px; }
     .wrap { padding:0 20px 40px; max-width:1200px; margin:auto; }
-    .tiles { display:grid; gap:16px; grid-template-columns: repeat(4, minmax(0,1fr)); margin-top:20px; }
+    .tiles { display:grid; gap:16px; grid-template-columns: repeat(3, minmax(0,1fr)); margin-top:20px; }
     .tile { background:var(--card); border-radius:16px; padding:16px; box-shadow:0 4px 16px rgba(0,0,0,.2); }
     .tile h3 { margin:0 0 8px; font-size:14px; color:var(--muted); font-weight:600; letter-spacing:.02em; }
     .tile .big { font-size:28px; font-weight:700; }
@@ -106,7 +106,6 @@
         const tiles = [
           { label:'Datasets', value: S.totals?.datasets || 0 },
           { label:'Images', value: S.totals?.images || 0 },
-          { label:'Videos', value: S.totals?.videos || 0 },
           { label:'Total Size', value: S.totals?.size_human || 'Unknown' },
         ];
         const tilesWrap = el('#tiles');
