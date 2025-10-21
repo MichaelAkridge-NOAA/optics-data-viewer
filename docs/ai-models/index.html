@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AI Models - NOAA Optics SI Data Portal</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); --accent:#2b79ff; }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1000px;margin:0 auto;padding:40px 20px}
+    header{margin-bottom:32px;text-align:center}
+    .breadcrumb{margin:0 0 16px;font-size:14px}
+    .breadcrumb a{color:var(--accent);text-decoration:none}
+    .breadcrumb a:hover{text-decoration:underline}
+    h1{margin:0 0 8px;font-weight:800;letter-spacing:.2px;font-size:36px}
+    p.lead{margin:0;color:var(--muted);font-size:18px;line-height:1.6}
+    .hero{background:var(--card);border:1px solid var(--ring);border-radius:16px;padding:40px;margin:32px 0;text-align:center}
+    .hero-icon{font-size:80px;margin-bottom:24px}
+    .hero h2{margin:0 0 16px;color:var(--text);font-size:28px}
+    .hero p{margin:0 0 24px;color:var(--muted);font-size:16px;line-height:1.6}
+    .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin:32px 0}
+    .feature{background:var(--card);border:1px solid var(--ring);border-radius:12px;padding:24px;text-align:center}
+    .feature-icon{font-size:48px;margin-bottom:16px}
+    .feature h3{margin:0 0 12px;color:var(--text);font-size:18px}
+    .feature p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+    .timeline{background:var(--card);border:1px solid var(--ring);border-radius:12px;padding:32px;margin:32px 0}
+    .timeline h3{margin:0 0 20px;color:var(--text);font-size:20px;text-align:center}
+    .timeline-item{display:flex;gap:16px;margin:16px 0;padding:16px 0;border-bottom:1px solid var(--ring)}
+    .timeline-item:last-child{border-bottom:none}
+    .timeline-date{color:var(--accent);font-weight:600;min-width:100px;font-size:14px}
+    .timeline-content h4{margin:0 0 4px;color:var(--text);font-size:16px}
+    .timeline-content p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+    .badge{display:inline-block;font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(251,191,36,0.2);color:#fbbf24;font-weight:600;margin-left:8px}
+    .contact{background:rgba(43,121,255,0.1);border:1px solid rgba(43,121,255,0.3);border-radius:12px;padding:24px;margin:32px 0;text-align:center}
+    .contact h3{margin:0 0 12px;color:var(--text)}
+    .contact p{margin:0;color:var(--muted);line-height:1.6}
+    footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="breadcrumb">
+        <a href="../">← Portal</a>
+      </div>
+      <h1>AI Models<span class="badge">Coming Soon</span></h1>
+      <p class="lead">Pre-trained machine learning models for marine optics research and applications.</p>
+    </header>
+
+    <div class="hero">
+      <div class="hero-icon">🧠</div>
+      <h2>Intelligent Marine Optics</h2>
+      <p>
+        Our AI model repository will host state-of-the-art machine learning models trained on NOAA's extensive 
+        marine optics datasets. These models will enable automated analysis of underwater imagery for research, 
+        monitoring, and conservation efforts.
+      </p>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🐠</div>
+        <h3>Species Detection</h3>
+        <p>Pre-trained models for identifying and counting fish species in underwater imagery with bounding box annotations.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🪸</div>
+        <h3>Coral Classification</h3>
+        <p>Models trained to classify coral species, health status, and morphological characteristics from photogrammetric data.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🗺️</div>
+        <h3>Habitat Mapping</h3>
+        <p>Segmentation models for pixel-level classification of benthic habitats and detailed ecosystem mapping.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <h3>Coverage Analysis</h3>
+        <p>Automated tools for calculating benthic cover percentages and monitoring ecosystem changes over time.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🔍</div>
+        <h3>Quality Assessment</h3>
+        <p>Models for evaluating image quality, clarity, and suitability for scientific analysis and annotation.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        <h3>Real-time Processing</h3>
+        <p>Optimized models for deployment in field conditions and real-time analysis of underwater survey data.</p>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <h3>🚀 Development Roadmap</h3>
+      
+      <div class="timeline-item">
+        <div class="timeline-date">Q1 2026</div>
+        <div class="timeline-content">
+          <h4>Coral Species Classifier v1.0</h4>
+          <p>First release of pre-trained coral identification model trained on Pacific reef systems.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Q2 2026</div>
+        <div class="timeline-content">
+          <h4>Fish Detection Model</h4>
+          <p>YOLO-based model for real-time fish detection and counting in underwater video streams.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Q3 2026</div>
+        <div class="timeline-content">
+          <h4>Benthic Habitat Segmentation</h4>
+          <p>Semantic segmentation model for detailed habitat mapping and benthic cover analysis.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Q4 2026</div>
+        <div class="timeline-content">
+          <h4>Model Hub & API</h4>
+          <p>Centralized model repository with REST API for integration into research workflows.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="contact">
+      <h3>📧 Stay Updated</h3>
+      <p>
+        Interested in early access to our AI models? Contact the NOAA Optics SI team to learn about 
+        collaboration opportunities and beta testing programs.
+      </p>
+    </div>
+
+    <footer>
+      2025 | NOAA Fisheries - Optics SI - PIFSC | AI Models Portal
+    </footer>
+  </div>
+</body>
+</html>

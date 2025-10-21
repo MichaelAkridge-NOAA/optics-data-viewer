@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>StRS Image Browser - NOAA Optics SI Data Portal</title>
+  <title>StRS Dataset Preview - NOAA Optics SI Data Portal</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); --accent:#2b79ff; }
@@ -58,6 +58,26 @@
     .nav-btn{background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px}
     .nav-btn:disabled{background:var(--ring);cursor:not-allowed}
     .nav-info{color:var(--muted);font-size:14px}
+    
+    /* Download Modal */
+    .download-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;padding:20px}
+    .download-modal-content{position:relative;max-width:800px;margin:50px auto;background:var(--card);border-radius:12px;border:1px solid var(--ring);max-height:80vh;overflow-y:auto}
+    .download-modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid var(--ring)}
+    .download-modal-title{margin:0;font-size:18px;color:var(--text)}
+    .download-modal-body{padding:20px}
+    .download-section{margin-bottom:24px}
+    .download-section h4{margin:0 0 12px;color:var(--text);font-size:16px}
+    .download-section p{margin:0 0 12px;color:var(--muted);line-height:1.6}
+    .command-block{background:var(--bg);border:1px solid var(--ring);border-radius:8px;padding:16px;font-family:monospace;font-size:14px;position:relative;margin:12px 0}
+    .command-text{color:var(--text);word-break:break-all;margin-bottom:8px}
+    .copy-btn{position:absolute;top:8px;right:8px;background:var(--accent);color:white;border:none;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer}
+    .copy-btn:hover{opacity:0.8}
+    .copy-success{color:#10b981;font-size:12px;margin-top:4px}
+    .dataset-meta{background:rgba(43,121,255,0.1);border:1px solid rgba(43,121,255,0.3);border-radius:8px;padding:16px;margin:16px 0}
+    .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px}
+    .meta-item{display:flex;justify-content:space-between}
+    .meta-label{color:var(--muted);font-weight:500}
+    .meta-value{color:var(--text);font-weight:600}
   </style>
 </head>
 <body>
@@ -66,7 +86,7 @@
       <div class="breadcrumb">
         <a href="../">← Portal</a> / <a href="index.html">Optical Datasets</a> / <a href="strs-datasets.html">StRS Sites</a>
       </div>
-      <h1 id="datasetTitle">Dataset Image Browser</h1>
+      <h1 id="datasetTitle">Dataset Preview</h1>
       <div class="dataset-info" id="datasetInfo">Loading dataset information...</div>
     </div>
 
@@ -83,7 +103,7 @@
       <div class="controls">
         <input type="text" id="searchBox" class="search-box" placeholder="Search images...">
         <button class="btn" onclick="refreshImages()">Refresh</button>
-        <button class="btn" onclick="downloadImageList()">Download List</button>
+        <button class="btn" onclick="showDownloadModal()">Download Dataset</button>
         <div class="info" id="imageCount">0 images</div>
       </div>
 
@@ -123,6 +143,51 @@
     </div>
   </div>
 
+  <!-- Download Modal -->
+  <div class="download-modal" id="downloadModal">
+    <div class="download-modal-content">
+      <div class="download-modal-header">
+        <h3 class="download-modal-title">Download Complete Dataset</h3>
+        <button class="close-btn" onclick="closeDownloadModal()">&times;</button>
+      </div>
+      <div class="download-modal-body">
+        
+        <div class="download-section">
+          <h4>📋 Dataset Information</h4>
+          <div class="dataset-meta" id="datasetMeta">
+            <!-- Dataset metadata will be populated here -->
+          </div>
+          <p><strong>Note:</strong> This preview shows a limited sample of images. Use the command below to download the complete dataset.</p>
+        </div>
+
+        <div class="download-section">
+          <h4>🔧 Prerequisites</h4>
+          <p>Before downloading, ensure you have:</p>
+          <ul style="color: var(--muted); margin: 8px 0 16px 20px; line-height: 1.6;">
+            <li><strong>gsutil installed:</strong> <code style="background: var(--bg); padding: 2px 6px; border-radius: 4px;">pip install gsutil</code> or <a href="https://cloud.google.com/storage/docs/gsutil_install" style="color: var(--accent);">Cloud SDK</a></li>
+            <li><strong>Authentication:</strong> <code style="background: var(--bg); padding: 2px 6px; border-radius: 4px;">gcloud auth login</code></li>
+            <li><strong>Sufficient storage space</strong> for the complete dataset</li>
+          </ul>
+        </div>
+
+        <div class="download-section">
+          <h4>💾 Download Command</h4>
+          <p>Copy and run this command in your terminal to download the complete dataset:</p>
+          <div class="command-block">
+            <div class="command-text" id="gsutilCommand">gsutil -m rsync -r gs://bucket/path ./local-folder</div>
+            <button class="copy-btn" onclick="copyGsutilCommand()">Copy</button>
+            <div class="copy-success" id="copySuccess" style="display:none;">✓ Copied to clipboard!</div>
+          </div>
+          <p style="font-size: 13px; color: var(--muted); margin-top: 8px;">
+            This will download all files from the dataset to your local <code>./local-folder</code> directory. 
+            The <code>-m</code> flag enables parallel downloads for faster transfer.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <script>
     // Get URL parameters
     const params = new URLSearchParams(location.search);
@@ -139,7 +204,7 @@
     const imagesPerPage = 20;
 
     // Initialize page
-    document.getElementById('datasetTitle').textContent = `${datasetTitle} - Images`;
+    document.getElementById('datasetTitle').textContent = `${datasetTitle} - Preview`;
     document.getElementById('datasetInfo').textContent = `Dataset: ${datasetId} • Expected images: ${imageCount.toLocaleString()} • Path: ${gsPrefix}`;
     document.getElementById('gsPrefix').textContent = gsPrefix;
 
@@ -348,75 +413,86 @@
       loadImages();
     }
 
-    function downloadImageList() {
-      if (!allImages || allImages.length === 0) {
-        alert('No images to export');
-        return;
-      }
+    function showDownloadModal() {
+      // Populate dataset metadata
+      const totalSize = calculateTotalSize();
+      const dataSize = formatBytes(totalSize);
       
-      // Create COCO-style JSON format
-      const cocoData = {
-        info: {
-          description: `NOAA StRS Optical Imagery Dataset - ${datasetTitle}`,
-          url: window.location.href,
-          version: "1.0",
-          year: new Date().getFullYear(),
-          contributor: "NOAA Pacific Islands Fisheries Science Center",
-          date_created: new Date().toISOString(),
-          dataset_id: datasetId,
-          source: gsPrefix
-        },
-        licenses: [
-          {
-            id: 1,
-            name: "Public Domain",
-            url: "https://www.noaa.gov/"
-          }
-        ],
-        images: allImages.map((img, index) => ({
-          id: index + 1,
-          width: null, // Would need to load image to get dimensions
-          height: null,
-          file_name: img.filename,
-          license: 1,
-          flickr_url: null,
-          coco_url: img.url,
-          date_captured: img.updated || null,
-          gs_uri: img.gsUri || null,
-          file_size_bytes: parseFileSize(img.size),
-          file_size_human: img.size
-        })),
-        annotations: [], // No annotations for raw imagery datasets
-        categories: [
-          {
-            id: 1,
-            name: "benthic_habitat",
-            supercategory: "marine_environment"
-          }
-        ],
-        dataset_metadata: {
-          total_images: allImages.length,
-          images_shown: allImages.length,
-          note: allImages.length >= 200 ? 
-            "This dataset may contain more images. The index builder limits to 200 files per dataset JSON. Contact data provider for complete dataset." : 
-            "Complete image list for this dataset.",
-          gs_prefix: gsPrefix,
-          acquisition_method: "photogrammetric_survey",
-          sampling_method: "stratified_random_sampling"
-        }
-      };
+      document.getElementById('datasetMeta').innerHTML = `
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Dataset ID:</span>
+            <span class="meta-value">${datasetId}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Preview Images:</span>
+            <span class="meta-value">${allImages.length.toLocaleString()}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Expected Total:</span>
+            <span class="meta-value">${imageCount.toLocaleString()} images</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Estimated Size:</span>
+            <span class="meta-value">${dataSize}</span>
+          </div>
+        </div>
+      `;
       
-      // Download JSON file
-      const jsonContent = JSON.stringify(cocoData, null, 2);
-      const blob = new Blob([jsonContent], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${datasetId}_coco_format.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Generate gsutil command
+      const gsPath = gsPrefix.replace('gs://', '');
+      const command = `gsutil -m rsync -r gs://${gsPath} ./strs-${datasetId}`;
+      document.getElementById('gsutilCommand').textContent = command;
+      
+      // Show modal
+      document.getElementById('downloadModal').style.display = 'block';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeDownloadModal() {
+      document.getElementById('downloadModal').style.display = 'none';
+      document.body.style.overflow = '';
+      // Hide copy success message
+      document.getElementById('copySuccess').style.display = 'none';
+    }
+
+    function copyGsutilCommand() {
+      const command = document.getElementById('gsutilCommand').textContent;
+      navigator.clipboard.writeText(command).then(() => {
+        const successMsg = document.getElementById('copySuccess');
+        successMsg.style.display = 'block';
+        setTimeout(() => {
+          successMsg.style.display = 'none';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy command:', err);
+        // Fallback: select the text
+        const range = document.createRange();
+        range.selectNode(document.getElementById('gsutilCommand'));
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      });
+    }
+
+    function calculateTotalSize() {
+      // Estimate total size based on average file size from preview images
+      if (allImages.length === 0 || imageCount === 0) return 0;
+      
+      const totalPreviewSize = allImages.reduce((sum, img) => {
+        const size = parseFileSize(img.size) || 0;
+        return sum + size;
+      }, 0);
+      
+      const avgSize = totalPreviewSize / allImages.length;
+      return avgSize * imageCount;
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
     function parseFileSize(sizeStr) {
@@ -470,10 +546,14 @@
     document.getElementById('searchBox').addEventListener('input', filterImages);
     document.addEventListener('keydown', function(e) {
       const modal = document.getElementById('imageModal');
+      const downloadModal = document.getElementById('downloadModal');
+      
       if (modal.style.display === 'block') {
         if (e.key === 'Escape') closeModal();
         if (e.key === 'ArrowLeft') navigateImage(-1);
         if (e.key === 'ArrowRight') navigateImage(1);
+      } else if (downloadModal.style.display === 'block') {
+        if (e.key === 'Escape') closeDownloadModal();
       }
     });
 

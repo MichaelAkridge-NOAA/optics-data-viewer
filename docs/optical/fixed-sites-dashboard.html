@@ -166,7 +166,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         let summaryData = null;
         
@@ -211,6 +211,13 @@
         }
         
         function renderDashboard() {
+            // Check if Chart.js is loaded
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is not loaded. Retrying in 1 second...');
+                setTimeout(renderDashboard, 1000);
+                return;
+            }
+            
             const content = document.getElementById('content');
             
             // Calculate statistics
@@ -397,7 +404,10 @@
         }
         
         // Load dashboard on page load
-        loadDashboard();
+        window.addEventListener('load', function() {
+            // Give a small delay to ensure Chart.js is fully loaded
+            setTimeout(loadDashboard, 100);
+        });
     </script>
 </body>
 </html>
