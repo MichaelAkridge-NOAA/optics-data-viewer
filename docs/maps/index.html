@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Locations - NOAA Optics SI Data Portal</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #4FC3F7, #29B6F6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            color: #b0bec5;
+            margin-bottom: 15px;
+        }
+        
+        .nav-links {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .nav-links a {
+            color: #4FC3F7;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .nav-links a:hover {
+            background: rgba(79, 195, 247, 0.2);
+        }
+        
+        .map-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+            min-height: 600px;
+        }
+        
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(26, 26, 46, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(79, 195, 247, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        .control-group {
+            margin-bottom: 12px;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .control-group label {
+            display: block;
+            font-size: 12px;
+            color: #b0bec5;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        
+        .control-group select, .control-group input {
+            width: 150px;
+            padding: 6px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 12px;
+        }
+        
+        .control-group select option {
+            background: #1a1a2e;
+            color: white;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(26, 26, 46, 0.9);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(79, 195, 247, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        .legend h4 {
+            margin: 0 0 8px;
+            font-size: 13px;
+            color: white;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 11px;
+            color: #b0bec5;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #4FC3F7;
+            z-index: 1001;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(79, 195, 247, 0.2);
+            border-top: 3px solid #4FC3F7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(26, 26, 46, 0.9);
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(79, 195, 247, 0.3);
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+            color: #b0bec5;
+        }
+        
+        /* Custom popup styling */
+        .leaflet-popup-content-wrapper {
+            background: #1a1a2e;
+            border: 1px solid #4FC3F7;
+            border-radius: 8px;
+        }
+        
+        .leaflet-popup-content {
+            color: white;
+            margin: 12px;
+            line-height: 1.4;
+        }
+        
+        .leaflet-popup-tip {
+            background: #1a1a2e;
+            border: 1px solid #4FC3F7;
+        }
+        
+        .popup-title {
+            font-weight: bold;
+            color: #4FC3F7;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        
+        .popup-info {
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        
+        .popup-actions {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .popup-btn {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #4FC3F7;
+            color: #1a1a2e;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-right: 6px;
+        }
+        
+        .popup-btn:hover {
+            background: #29B6F6;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .map-controls {
+                position: static;
+                margin-bottom: 10px;
+                display: flex;
+                gap: 10px;
+                overflow-x: auto;
+            }
+            
+            .control-group {
+                flex-shrink: 0;
+                margin-bottom: 0;
+                margin-right: 10px;
+            }
+            
+            .control-group select, .control-group input {
+                width: 120px;
+            }
+            
+            .legend {
+                position: static;
+                margin-top: 10px;
+            }
+            
+            .stats {
+                position: static;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ Dataset Locations</h1>
+            <p>Interactive map showing locations of optical datasets across NOAA's collection sites</p>
+        </div>
+        
+        <div class="nav-links">
+            <a href="../index.html">← Back to Portal</a>
+            <a href="../optical/">Optical Datasets</a>
+            <a href="../sfm/">SfM Data</a>
+            <a href="../ai-ready/">AI Ready Data</a>
+        </div>
+        
+        <div class="map-container">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>Loading dataset locations...</div>
+            </div>
+            
+            <div class="stats" id="stats" style="display:none;">
+                <div id="statsText">Loading...</div>
+            </div>
+            
+            <div class="map-controls" id="controls" style="display:none;">
+                <div class="control-group">
+                    <label>Data Type:</label>
+                    <select id="dataTypeFilter">
+                        <option value="all">All Types</option>
+                        <option value="fixed-sites">Fixed Sites</option>
+                        <option value="strs">StRS Sites</option>
+                        <option value="sfm">SfM Data</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Year:</label>
+                    <select id="yearFilter">
+                        <option value="all">All Years</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Region:</label>
+                    <select id="regionFilter">
+                        <option value="all">All Regions</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="legend" id="legend" style="display:none;">
+                <h4>Dataset Types</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4FC3F7;"></div>
+                    Fixed Sites
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #29B6F6;"></div>
+                    StRS Sites
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #0ea5e9;"></div>
+                    SfM Data
+                </div>
+            </div>
+            
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([21.0, -157.0], 6); // Centered on Hawaii
+        
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Data storage
+        let allDatasets = [];
+        let markers = L.layerGroup().addTo(map);
+        
+        // Island coordinates (approximate centers)
+        const islandCoordinates = {
+            // Hawaiian Islands
+            'Hawaii': [19.8968, -155.5828],
+            'Big Island': [19.8968, -155.5828],
+            'HAW': [19.8968, -155.5828],
+            'Maui': [20.7984, -156.3319],
+            'MAI': [20.7984, -156.3319],
+            'Oahu': [21.4389, -158.0001],
+            'OAH': [21.4389, -158.0001],
+            'Kauai': [22.0964, -159.5261],
+            'KAU': [22.0964, -159.5261],
+            'Molokai': [21.1444, -157.0226],
+            'MOL': [21.1444, -157.0226],
+            'Lanai': [20.8283, -156.9197],
+            'LAN': [20.8283, -156.9197],
+            'Niihau': [21.9044, -160.1660],
+            'NII': [21.9044, -160.1660],
+            'Kahoolawe': [20.5547, -156.6025],
+            'KAH': [20.5547, -156.6025],
+            
+            // Mariana Islands
+            'Guam': [13.4443, 144.7937],
+            'GUA': [13.4443, 144.7937],
+            'Saipan': [15.1979, 145.7208],
+            'SAI': [15.1979, 145.7208],
+            'Tinian': [15.0030, 145.6344],
+            'TIN': [15.0030, 145.6344],
+            'Rota': [14.1434, 145.1739],
+            'ROT': [14.1434, 145.1739],
+            'Sarigan': [16.7081, 145.7786],
+            'SAR': [16.7081, 145.7786],
+            'Pagan': [18.1426, 145.7975],
+            'PAG': [18.1426, 145.7975],
+            'Agrihan': [18.7719, 145.6697],
+            'AGR': [18.7719, 145.6697],
+            'Alamagan': [17.5950, 145.8319],
+            'ALA': [17.5950, 145.8319],
+            'Guguan': [17.3069, 145.8458],
+            'GUG': [17.3069, 145.8458],
+            
+            // Pacific Remote Islands
+            'Wake': [19.2823, 166.6470],
+            'WAK': [19.2823, 166.6470],
+            'Baker': [0.1936, -176.4769],
+            'BAK': [0.1936, -176.4769],
+            'Howland': [0.8113, -176.6183],
+            'HOW': [0.8113, -176.6183],
+            
+            // American Samoa
+            'Tutuila': [-14.2846, -170.7002],
+            'TUT': [-14.2846, -170.7002],
+            'Ofu': [-14.1753, -169.6672],
+            'OFU': [-14.1753, -169.6672],
+            'Tau': [-14.2344, -169.5156],
+            'TAU': [-14.2344, -169.5156],
+            'Rose': [-14.5434, -168.1520],
+            'ROS': [-14.5434, -168.1520],
+            'Swains': [-11.0581, -171.0536],
+            'SWA': [-11.0581, -171.0536],
+            
+            // Northwestern Hawaiian Islands
+            'French Frigate Shoals': [23.8707, -166.2816],
+            'FFS': [23.8707, -166.2816],
+            'Kure': [28.3967, -178.2925],
+            'KUR': [28.3967, -178.2925],
+            'Lisianski': [26.0628, -173.9639],
+            'LIS': [26.0628, -173.9639],
+            'Pearl and Hermes': [27.8333, -175.8333],
+            'PHR': [27.8333, -175.8333]
+        };
+        
+        // Color scheme for different data types
+        const typeColors = {
+            'fixed-sites': '#4FC3F7',
+            'strs': '#29B6F6',
+            'sfm': '#0ea5e9'
+        };
+        
+        async function loadDatasets() {
+            try {
+                // Load datasets from different sources
+                const [fixedSites, strsData] = await Promise.all([
+                    loadFixedSitesData(),
+                    loadStRSData()
+                ]);
+                
+                allDatasets = [...fixedSites, ...strsData];
+                
+                // Populate filters
+                populateFilters();
+                
+                // Create markers
+                createMarkers();
+                
+                // Update stats
+                updateStats();
+                
+                // Hide loading, show controls
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('controls').style.display = 'block';
+                document.getElementById('legend').style.display = 'block';
+                document.getElementById('stats').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading datasets:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #f44336;">
+                        <strong>Error Loading Data</strong><br>
+                        Unable to load dataset locations. Please try again later.
+                    </div>
+                `;
+            }
+        }
+        
+        async function loadFixedSitesData() {
+            try {
+                const response = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/Fixed_Sites/summary.json');
+                const data = await response.json();
+                
+                return (data.all_datasets || []).map(dataset => ({
+                    ...dataset,
+                    type: 'fixed-sites',
+                    typeName: 'Fixed Sites'
+                }));
+            } catch (error) {
+                console.error('Error loading Fixed Sites data:', error);
+                return [];
+            }
+        }
+        
+        async function loadStRSData() {
+            try {
+                const response = await fetch('https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/StRS_Sites/index.json');
+                const data = await response.json();
+                
+                return (Array.isArray(data) ? data : []).map(dataset => ({
+                    ...dataset,
+                    type: 'strs',
+                    typeName: 'StRS Sites'
+                }));
+            } catch (error) {
+                console.error('Error loading StRS data:', error);
+                return [];
+            }
+        }
+        
+        function extractLocation(dataset) {
+            // For StRS data, extract from tags
+            if (dataset.type === 'strs' && dataset.tags && dataset.tags.length >= 3) {
+                return dataset.tags[2]; // Island code is third element
+            }
+            
+            // For Fixed Sites, extract from tags
+            if (dataset.type === 'fixed-sites' && dataset.tags && dataset.tags.length >= 1) {
+                return dataset.tags[0]; // Region/island is first element
+            }
+            
+            // Fallback to other fields
+            return dataset.location || dataset.island || dataset.site || null;
+        }
+        
+        function extractYear(dataset) {
+            // For StRS data, extract from tags
+            if (dataset.type === 'strs' && dataset.tags && dataset.tags.length >= 1) {
+                const year = parseInt(dataset.tags[0]);
+                if (year >= 2000 && year <= 2030) return year;
+            }
+            
+            // For Fixed Sites, extract from tags or other fields
+            if (dataset.tags && Array.isArray(dataset.tags)) {
+                for (const tag of dataset.tags) {
+                    if (/^\d{4}$/.test(tag)) {
+                        const year = parseInt(tag);
+                        if (year >= 2000 && year <= 2030) return year;
+                    }
+                }
+            }
+            
+            // Try other date fields
+            if (dataset.year) return dataset.year;
+            if (dataset.date) return new Date(dataset.date).getFullYear();
+            if (dataset.updated) return new Date(dataset.updated).getFullYear();
+            
+            return null;
+        }
+        
+        function getCoordinates(locationCode) {
+            // Try exact match first
+            if (islandCoordinates[locationCode]) {
+                return islandCoordinates[locationCode];
+            }
+            
+            // Try case-insensitive match
+            const lowerCode = locationCode.toLowerCase();
+            for (const [key, coords] of Object.entries(islandCoordinates)) {
+                if (key.toLowerCase() === lowerCode) {
+                    return coords;
+                }
+            }
+            
+            // Try partial match
+            for (const [key, coords] of Object.entries(islandCoordinates)) {
+                if (key.toLowerCase().includes(lowerCode) || lowerCode.includes(key.toLowerCase())) {
+                    return coords;
+                }
+            }
+            
+            return null;
+        }
+        
+        function createMarkers() {
+            markers.clearLayers();
+            
+            // Group datasets by location
+            const locationGroups = {};
+            
+            allDatasets.forEach(dataset => {
+                const location = extractLocation(dataset);
+                if (!location) return;
+                
+                const coords = getCoordinates(location);
+                if (!coords) return;
+                
+                const key = `${coords[0]},${coords[1]}`;
+                if (!locationGroups[key]) {
+                    locationGroups[key] = {
+                        coords: coords,
+                        location: location,
+                        datasets: []
+                    };
+                }
+                locationGroups[key].datasets.push(dataset);
+            });
+            
+            // Create markers for each location group
+            Object.values(locationGroups).forEach(group => {
+                createLocationMarker(group);
+            });
+        }
+        
+        function createLocationMarker(group) {
+            const datasets = group.datasets;
+            const location = group.location;
+            const coords = group.coords;
+            
+            // Determine primary type (most common)
+            const typeCounts = {};
+            datasets.forEach(d => {
+                typeCounts[d.type] = (typeCounts[d.type] || 0) + 1;
+            });
+            const primaryType = Object.keys(typeCounts).reduce((a, b) => 
+                typeCounts[a] > typeCounts[b] ? a : b
+            );
+            
+            // Create marker
+            const marker = L.circleMarker(coords, {
+                radius: Math.min(8 + datasets.length * 0.5, 20),
+                fillColor: typeColors[primaryType],
+                color: 'white',
+                weight: 2,
+                opacity: 0.9,
+                fillOpacity: 0.7
+            });
+            
+            // Create popup content
+            const typeBreakdown = Object.entries(typeCounts)
+                .map(([type, count]) => `${type.replace('-', ' ')}: ${count}`)
+                .join('<br>');
+            
+            const totalImages = datasets.reduce((sum, d) => 
+                sum + (d.counts?.images || d.image_count || 0), 0
+            );
+            
+            const popupContent = `
+                <div class="popup-title">${location}</div>
+                <div class="popup-info"><strong>Total Datasets:</strong> ${datasets.length}</div>
+                <div class="popup-info"><strong>Total Images:</strong> ${totalImages.toLocaleString()}</div>
+                <div class="popup-info"><strong>Data Types:</strong><br>${typeBreakdown}</div>
+                <div class="popup-actions">
+                    <a href="../optical/" class="popup-btn">View Datasets</a>
+                    <a href="#" class="popup-btn" onclick="filterByLocation('${location}')">Filter Map</a>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+            markers.addLayer(marker);
+        }
+        
+        function populateFilters() {
+            // Populate year filter
+            const years = [...new Set(allDatasets.map(d => extractYear(d)).filter(Boolean))].sort();
+            const yearFilter = document.getElementById('yearFilter');
+            years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearFilter.appendChild(option);
+            });
+            
+            // Populate region filter
+            const regions = [...new Set(allDatasets.map(d => extractLocation(d)).filter(Boolean))].sort();
+            const regionFilter = document.getElementById('regionFilter');
+            regions.forEach(region => {
+                const option = document.createElement('option');
+                option.value = region;
+                option.textContent = region;
+                regionFilter.appendChild(option);
+            });
+        }
+        
+        function updateStats() {
+            const totalDatasets = allDatasets.length;
+            const totalImages = allDatasets.reduce((sum, d) => 
+                sum + (d.counts?.images || d.image_count || 0), 0
+            );
+            const uniqueLocations = new Set(allDatasets.map(d => extractLocation(d)).filter(Boolean)).size;
+            
+            document.getElementById('statsText').innerHTML = `
+                <strong>${totalDatasets}</strong> datasets<br>
+                <strong>${totalImages.toLocaleString()}</strong> images<br>
+                <strong>${uniqueLocations}</strong> locations
+            `;
+        }
+        
+        function filterByLocation(location) {
+            document.getElementById('regionFilter').value = location;
+            applyFilters();
+        }
+        
+        function applyFilters() {
+            const dataType = document.getElementById('dataTypeFilter').value;
+            const year = document.getElementById('yearFilter').value;
+            const region = document.getElementById('regionFilter').value;
+            
+            const filteredDatasets = allDatasets.filter(dataset => {
+                const typeMatch = dataType === 'all' || dataset.type === dataType;
+                const yearMatch = year === 'all' || extractYear(dataset) == year;
+                const regionMatch = region === 'all' || extractLocation(dataset) === region;
+                
+                return typeMatch && yearMatch && regionMatch;
+            });
+            
+            // Update markers with filtered data
+            markers.clearLayers();
+            
+            const locationGroups = {};
+            filteredDatasets.forEach(dataset => {
+                const location = extractLocation(dataset);
+                if (!location) return;
+                
+                const coords = getCoordinates(location);
+                if (!coords) return;
+                
+                const key = `${coords[0]},${coords[1]}`;
+                if (!locationGroups[key]) {
+                    locationGroups[key] = {
+                        coords: coords,
+                        location: location,
+                        datasets: []
+                    };
+                }
+                locationGroups[key].datasets.push(dataset);
+            });
+            
+            Object.values(locationGroups).forEach(group => {
+                createLocationMarker(group);
+            });
+            
+            // Update stats
+            const totalDatasets = filteredDatasets.length;
+            const totalImages = filteredDatasets.reduce((sum, d) => 
+                sum + (d.counts?.images || d.image_count || 0), 0
+            );
+            const uniqueLocations = new Set(filteredDatasets.map(d => extractLocation(d)).filter(Boolean)).size;
+            
+            document.getElementById('statsText').innerHTML = `
+                <strong>${totalDatasets}</strong> datasets<br>
+                <strong>${totalImages.toLocaleString()}</strong> images<br>
+                <strong>${uniqueLocations}</strong> locations
+            `;
+        }
+        
+        // Event listeners
+        document.getElementById('dataTypeFilter').addEventListener('change', applyFilters);
+        document.getElementById('yearFilter').addEventListener('change', applyFilters);
+        document.getElementById('regionFilter').addEventListener('change', applyFilters);
+        
+        // Initialize
+        loadDatasets();
+    </script>
+</body>
+</html>
