@@ -10,6 +10,8 @@
     html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
     .wrap{max-width:1100px;margin:0 auto;padding:40px 20px}
     header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .header-content{display:flex;align-items:center;gap:16px}
+    .logo{height:60px;width:auto}
     h1{margin:0 0 4px;font-weight:800;letter-spacing:.2px}
     p.lead{margin:0;color:var(--muted)}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:24px}
@@ -28,9 +30,12 @@
 <body>
   <div class="wrap">
     <header>
-      <div>
-        <h1>NOAA Optics SI Data Portal</h1>
-        <p class="lead">Centralized access to marine optics datasets for research, analysis, and AI/ML development.</p>
+      <div class="header-content">
+        <img src="img/optics_si_logo_v1.png" alt="OPTICS SI Logo" class="logo">
+        <div>
+          <h1>NOAA Optics SI Data Portal</h1>
+          <p class="lead">Centralized access to marine optics datasets for research, analysis, and AI/ML development.</p>
+        </div>
       </div>
     </header>
 

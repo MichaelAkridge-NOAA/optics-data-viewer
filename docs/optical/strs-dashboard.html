@@ -377,8 +377,12 @@
             const totalDatasets = data.totals?.datasets || 0;
             const totalImages = data.totals?.images || 0;
             const totalSize = data.totals?.size_bytes || 0;
-            const islands = Object.keys(data.by_island || {}).length;
+            const sizeHuman = data.totals?.size_human || 'Unknown';
+            
+            // Use the actual field names from StRS data
+            const islands = Object.keys(data.by_island_top10 || {}).length;
             const years = Object.keys(data.by_year || {}).length;
+            const cruises = Object.keys(data.by_cruise_top10 || {}).length;
 
             function formatBytes(bytes) {
                 if (!bytes || bytes === 0) return 'Unknown';
@@ -389,11 +393,12 @@
             }
 
             const stats = [
-                { label: 'Datasets', number: totalDatasets.toLocaleString(), sublabel: 'Total Collections' },
+                { label: 'Datasets', number: totalDatasets.toLocaleString(), sublabel: 'StRS Collections' },
                 { label: 'Images', number: totalImages.toLocaleString(), sublabel: 'Photogrammetric Images' },
-                { label: 'Data Size', number: formatBytes(totalSize), sublabel: 'Total Storage' },
+                { label: 'Data Size', number: sizeHuman, sublabel: 'Total Storage' },
                 { label: 'Islands', number: islands.toString(), sublabel: 'Geographic Locations' },
-                { label: 'Years', number: years.toString(), sublabel: 'Sampling Years' }
+                { label: 'Years', number: years.toString(), sublabel: 'Sampling Years' },
+                { label: 'Cruises', number: cruises.toString(), sublabel: 'Survey Cruises' }
             ];
 
             statsContainer.innerHTML = stats.map(stat => `
@@ -406,7 +411,7 @@
         }
 
         function createCharts(data) {
-            createIslandChart(data.by_island || {});
+            createIslandChart(data.by_island_top10 || {});
             createYearChart(data.by_year || {});
         }
 
@@ -414,12 +419,13 @@
             const ctx = document.getElementById('islandChart');
             if (!ctx) return;
 
+            // StRS data comes as simple key:value pairs, not objects with datasets property
             const sortedIslands = Object.entries(byIsland)
-                .sort((a, b) => b[1].datasets - a[1].datasets)
+                .sort((a, b) => b[1] - a[1])
                 .slice(0, 10); // Top 10 islands
 
             const labels = sortedIslands.map(([island]) => island);
-            const values = sortedIslands.map(([, data]) => data.datasets);
+            const values = sortedIslands.map(([, count]) => count);
 
             new Chart(ctx, {
                 type: 'doughnut',
@@ -460,7 +466,7 @@
                 .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
 
             const labels = sortedYears.map(([year]) => year);
-            const values = sortedYears.map(([, data]) => data.datasets);
+            const values = sortedYears.map(([, count]) => count);
 
             new Chart(ctx, {
                 type: 'bar',
