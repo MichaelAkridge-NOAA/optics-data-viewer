@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>StRS Sites - Dataset Viewer - NOAA Optics SI Data Portal</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); --accent:#2b79ff; }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1200px;margin:0 auto;padding:40px 20px}
+    header{margin-bottom:24px}
+    .breadcrumb{margin:0 0 16px;font-size:14px}
+    .breadcrumb a{color:var(--accent);text-decoration:none}
+    .breadcrumb a:hover{text-decoration:underline}
+    h1{margin:0 0 8px;font-weight:800;letter-spacing:.2px}
+    .lead{margin:0;color:var(--muted);font-size:15px}
+    .controls{margin:20px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .search-box{background:var(--card);border:1px solid var(--ring);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;width:250px}
+    .filter-select{background:var(--card);border:1px solid var(--ring);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px}
+    .stats{color:var(--muted);font-size:13px;margin-left:auto}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;margin-top:24px}
+    .card{background:var(--card);border-radius:12px;border:1px solid var(--ring);overflow:hidden;transition:all 0.2s ease}
+    .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,0.3)}
+    .card-header{padding:14px;border-bottom:1px solid var(--ring)}
+    .card-title{margin:0 0 4px;font-size:16px;font-weight:700;color:var(--text)}
+    .card-id{margin:0;font-size:12px;color:var(--muted);font-family:monospace}
+    .card-body{padding:14px}
+    .meta-row{display:flex;justify-content:space-between;align-items:center;margin:8px 0;font-size:13px}
+    .meta-label{color:var(--muted);font-weight:500}
+    .meta-value{color:var(--text)}
+    .tags{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+    .tag{background:rgba(43,121,255,0.15);color:var(--accent);font-size:11px;padding:3px 8px;border-radius:12px;border:1px solid rgba(43,121,255,0.3)}
+    .actions{display:flex;gap:8px;margin-top:12px}
+    .btn{display:inline-block;padding:6px 12px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s ease}
+    .btn-primary{background:var(--accent);color:white;border:none}
+    .btn-secondary{background:transparent;color:var(--text);border:1px solid var(--ring)}
+    .btn:hover{opacity:0.9;transform:translateY(-1px)}
+    .loading{text-align:center;padding:60px 20px;color:var(--muted)}
+    .spinner{display:inline-block;width:32px;height:32px;border:3px solid rgba(255,255,255,0.1);border-top:3px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:16px;margin:20px 0;color:#fca5a5}
+    .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+    .empty-state h3{margin:0 0 8px;color:var(--text)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="breadcrumb">
+        <a href="../">← Portal</a> / <a href="index.html">Optical Datasets</a>
+      </div>
+      <h1>StRS Sites - Dataset Viewer</h1>
+      <p class="lead">Browse and explore curated photogrammetric imagery collections used to build 3D models from Stratified Random Sampling (StRS) sites</p>
+    </header>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <div>Loading StRS datasets from Google Cloud Storage...</div>
+    </div>
+
+    <div id="error" class="error" style="display:none;">
+      <strong>Error loading datasets:</strong> <span id="errorMessage"></span>
+    </div>
+
+    <div id="content" style="display:none;">
+      <div class="controls">
+        <input type="text" id="searchBox" class="search-box" placeholder="Search datasets...">
+        <select id="yearFilter" class="filter-select">
+          <option value="">All Years</option>
+        </select>
+        <select id="islandFilter" class="filter-select">
+          <option value="">All Islands</option>
+        </select>
+        <div class="stats" id="stats">0 datasets</div>
+      </div>
+
+      <div class="grid" id="datasetGrid">
+        <!-- Dataset cards will be inserted here -->
+      </div>
+
+      <div id="emptyState" class="empty-state" style="display:none;">
+        <h3>No datasets found</h3>
+        <p>Try adjusting your search or filter criteria</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    const INDEX_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/StRS_Sites/index.json';
+    
+    let allDatasets = [];
+    let filteredDatasets = [];
+
+    const el = (sel) => document.querySelector(sel);
+    const prettyInt = (n) => (n||0).toLocaleString();
+    const prettySize = (bytes) => {
+      if (!bytes) return 'Unknown';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let size = bytes;
+      let unitIndex = 0;
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+      }
+      return `${size.toFixed(1)} ${units[unitIndex]}`;
+    };
+
+    async function loadDatasets() {
+      try {
+        const resp = await fetch(INDEX_URL);
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        }
+        const data = await resp.json();
+        
+        allDatasets = data.datasets || [];
+        filteredDatasets = [...allDatasets];
+        
+        // Hide loading, show content
+        el('#loading').style.display = 'none';
+        el('#content').style.display = 'block';
+        
+        // Populate filters
+        populateFilters();
+        
+        // Render datasets
+        renderDatasets();
+        
+      } catch (error) {
+        console.error('Error loading datasets:', error);
+        el('#loading').style.display = 'none';
+        el('#error').style.display = 'block';
+        el('#errorMessage').textContent = error.message;
+      }
+    }
+
+    function populateFilters() {
+      // Extract unique years and islands
+      const years = [...new Set(allDatasets.map(d => extractYear(d)).filter(Boolean))].sort();
+      const islands = [...new Set(allDatasets.map(d => extractIsland(d)).filter(Boolean))].sort();
+      
+      const yearFilter = el('#yearFilter');
+      years.forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        yearFilter.appendChild(option);
+      });
+      
+      const islandFilter = el('#islandFilter');
+      islands.forEach(island => {
+        const option = document.createElement('option');
+        option.value = island;
+        option.textContent = island;
+        islandFilter.appendChild(option);
+      });
+    }
+
+    function extractYear(dataset) {
+      // Try to extract year from various possible fields
+      if (dataset.year) return dataset.year;
+      if (dataset.date) return new Date(dataset.date).getFullYear();
+      if (dataset.created_date) return new Date(dataset.created_date).getFullYear();
+      // Try to extract from title or id (look for 4-digit year)
+      const yearMatch = (dataset.title || dataset.id || '').match(/\b(19|20)\d{2}\b/);
+      return yearMatch ? parseInt(yearMatch[0]) : null;
+    }
+
+    function extractIsland(dataset) {
+      // Try to extract island from various fields
+      if (dataset.island) return dataset.island;
+      if (dataset.location) return dataset.location;
+      if (dataset.site) return dataset.site;
+      // Try to extract from title or path
+      const title = (dataset.title || dataset.id || '').toLowerCase();
+      const islands = ['oahu', 'maui', 'hawaii', 'kauai', 'molokai', 'lanai', 'niihau', 'big island'];
+      const found = islands.find(island => title.includes(island));
+      return found ? found.charAt(0).toUpperCase() + found.slice(1) : null;
+    }
+
+    function renderDatasets() {
+      const grid = el('#datasetGrid');
+      const emptyState = el('#emptyState');
+      
+      if (filteredDatasets.length === 0) {
+        grid.style.display = 'none';
+        emptyState.style.display = 'block';
+        el('#stats').textContent = '0 datasets';
+        return;
+      }
+      
+      grid.style.display = 'grid';
+      emptyState.style.display = 'none';
+      el('#stats').textContent = `${prettyInt(filteredDatasets.length)} datasets`;
+      
+      grid.innerHTML = '';
+      
+      filteredDatasets.forEach(dataset => {
+        const card = createDatasetCard(dataset);
+        grid.appendChild(card);
+      });
+    }
+
+    function createDatasetCard(dataset) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      
+      const title = dataset.title || dataset.id || 'Untitled Dataset';
+      const id = dataset.id || 'unknown';
+      const images = dataset.images || dataset.image_count || 0;
+      const videos = dataset.videos || dataset.video_count || 0;
+      const size = dataset.size_bytes ? prettySize(dataset.size_bytes) : (dataset.size_human || 'Unknown');
+      const year = extractYear(dataset);
+      const island = extractIsland(dataset);
+      
+      // Create tags
+      const tags = [];
+      if (year) tags.push(year);
+      if (island) tags.push(island);
+      if (dataset.type) tags.push(dataset.type);
+      
+      card.innerHTML = `
+        <div class="card-header">
+          <h3 class="card-title">${title}</h3>
+          <p class="card-id">ID: ${id}</p>
+        </div>
+        <div class="card-body">
+          <div class="meta-row">
+            <span class="meta-label">Images:</span>
+            <span class="meta-value">${prettyInt(images)}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Videos:</span>
+            <span class="meta-value">${prettyInt(videos)}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Size:</span>
+            <span class="meta-value">${size}</span>
+          </div>
+          ${tags.length > 0 ? `
+          <div class="tags">
+            ${tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+          </div>
+          ` : ''}
+          <div class="actions">
+            <button class="btn btn-primary" onclick="viewDataset('${id}')">View Details</button>
+            <button class="btn btn-secondary" onclick="browseImages('${id}')">Browse Images</button>
+          </div>
+        </div>
+      `;
+      
+      return card;
+    }
+
+    function filterDatasets() {
+      const searchTerm = el('#searchBox').value.toLowerCase();
+      const selectedYear = el('#yearFilter').value;
+      const selectedIsland = el('#islandFilter').value;
+      
+      filteredDatasets = allDatasets.filter(dataset => {
+        // Search filter
+        const searchMatch = !searchTerm || 
+          (dataset.title || '').toLowerCase().includes(searchTerm) ||
+          (dataset.id || '').toLowerCase().includes(searchTerm) ||
+          (dataset.description || '').toLowerCase().includes(searchTerm);
+        
+        // Year filter
+        const yearMatch = !selectedYear || extractYear(dataset) == selectedYear;
+        
+        // Island filter
+        const islandMatch = !selectedIsland || extractIsland(dataset) === selectedIsland;
+        
+        return searchMatch && yearMatch && islandMatch;
+      });
+      
+      renderDatasets();
+    }
+
+    // Global functions for card actions
+    window.viewDataset = function(id) {
+      // For now, show an alert. Later this could open a detailed view
+      alert(`Dataset details for: ${id}\n\nThis will open a detailed view of the dataset metadata, file listing, and download options in a future update.`);
+    };
+
+    window.browseImages = function(id) {
+      // Open image browser for this dataset
+      alert(`Browse source imagery for dataset: ${id}\n\nThis will open an image gallery viewer showing the curated photogrammetric images that were used to build the 3D model for this site.`);
+    };
+
+    // Event listeners
+    el('#searchBox').addEventListener('input', filterDatasets);
+    el('#yearFilter').addEventListener('change', filterDatasets);
+    el('#islandFilter').addEventListener('change', filterDatasets);
+
+    // Load data on page load
+    loadDatasets();
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Optical Datasets - NOAA Optics SI Data Portal</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d0; --ring:rgba(255,255,255,.08); --accent:#2b79ff; }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1100px;margin:0 auto;padding:40px 20px}
+    header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    h1{margin:0 0 4px;font-weight:800;letter-spacing:.2px}
+    p.lead{margin:0;color:var(--muted)}
+    .breadcrumb{margin:0 0 20px;font-size:14px}
+    .breadcrumb a{color:var(--accent);text-decoration:none}
+    .breadcrumb a:hover{text-decoration:underline}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:24px}
+    .card{background:var(--card);border-radius:14px;border:1px solid var(--ring);overflow:hidden;display:flex;flex-direction:column}
+    .thumb{display:block;width:100%;height:140px;object-fit:cover;background:#0f172a}
+    .body{padding:12px 14px 14px}
+    .title{margin:6px 0 4px;font-size:18px;font-weight:800}
+    .muted{color:var(--muted);font-size:13px;margin:0 0 10px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    a.btn{display:inline-block;padding:8px 12px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,.15);color:var(--text)}
+    a.primary{background:var(--accent);border-color:var(--accent);color:white}
+    .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.08);margin-left:6px}
+    .status-live{background:rgba(34,197,94,.2);color:rgb(34,197,94)}
+    .status-soon{background:rgba(251,191,36,.2);color:rgb(251,191,36)}
+    footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center}
+    .description{margin-top:12px;padding:16px;background:rgba(255,255,255,.03);border-radius:8px;border-left:3px solid var(--accent)}
+    .description h3{margin:0 0 8px;color:var(--accent);font-size:16px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="breadcrumb">
+      <a href="../">← Back to Portal</a>
+    </div>
+
+    <header>
+      <div>
+        <h1>Optical Datasets</h1>
+        <p class="lead">Comprehensive collection of marine optical imagery and photogrammetric data for coastal and benthic research.</p>
+      </div>
+    </header>
+
+    <div class="description">
+      <h3>About Optical Datasets</h3>
+      <p>Our optical datasets encompass a wide range of marine imagery collected through various platforms and methodologies. These datasets support habitat mapping, species identification, temporal monitoring, and machine learning applications in marine science.</p>
+    </div>
+
+    <div class="grid">
+      <!-- Photoquads -->
+      <div class="card">
+        <a href="#" aria-label="Open Photoquad datasets">
+          <div class="thumb" style="background: linear-gradient(135deg, #065f46 0%, #059669 50%, #10b981 100%); display: flex; align-items: center; justify-content: center; font-size: 28px; color: white;">📐</div>
+        </a>
+        <div class="body">
+          <div class="title">Photoquads <span class="badge status-live">Live</span></div>
+          <p class="muted">Standardized quadrat photography for quantitative benthic analysis and percent cover assessments.</p>
+          <div class="row">
+            <a class="btn primary" href="#" onclick="alert('Photoquad datasets coming soon')">Browse</a>
+            <a class="btn" href="../viewer.html?src=photoquads">View in 3D</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fixed Sites Photogrammetry -->
+      <div class="card">
+        <a href="#" aria-label="Open Fixed Sites photogrammetric imagery">
+          <div class="thumb" style="background: linear-gradient(135deg, #7c2d12 0%, #ea580c 50%, #fb923c 100%); display: flex; align-items: center; justify-content: center; font-size: 28px; color: white;">🏗️</div>
+        </a>
+        <div class="body">
+          <div class="title">Photogrammetric Imagery - Fixed Sites <span class="badge status-soon">Coming Soon</span></div>
+          <p class="muted">Long-term monitoring imagery from established fixed monitoring locations for temporal change analysis.</p>
+          <div class="row">
+            <a class="btn" href="#" onclick="alert('Fixed Sites datasets coming soon')">Details</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- StRS Sites Photogrammetry -->
+      <div class="card">
+        <a href="strs-dashboard.html" aria-label="Open StRS photogrammetric imagery dashboard">
+          <div class="thumb" style="background: linear-gradient(135deg, #581c87 0%, #8b5cf6 50%, #a78bfa 100%); display: flex; align-items: center; justify-content: center; font-size: 28px; color: white;">🛸</div>
+        </a>
+        <div class="body">
+          <div class="title">Photogrammetric Imagery - StRS Sites <span class="badge status-live">Live</span></div>
+          <p class="muted">Curated photogrammetric imagery from Stratified Random Sampling (StRS) sites used to build 3D models for habitat analysis.</p>
+          <div class="row">
+            <a class="btn primary" href="strs-dashboard.html">Dashboard</a>
+            <a class="btn" href="strs-datasets.html">Dataset Viewer</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      2025 | NOAA Fisheries - Optics SI - PIFSC | <a href="../" style="color: var(--accent);">Return to Portal</a>
+    </footer>
+  </div>
+</body>
+</html>
