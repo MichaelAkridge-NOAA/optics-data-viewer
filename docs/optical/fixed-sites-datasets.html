@@ -216,6 +216,151 @@
             color: #b0bec5;
         }
         
+        /* Download Modal */
+        .download-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            padding: 20px;
+        }
+        
+        .download-modal-content {
+            position: relative;
+            max-width: 800px;
+            margin: 50px auto;
+            background: #1a1a2e;
+            border-radius: 15px;
+            border: 1px solid #4FC3F7;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .download-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .download-modal-title {
+            margin: 0;
+            font-size: 18px;
+            color: white;
+        }
+        
+        .download-modal-body {
+            padding: 20px;
+        }
+        
+        .download-section {
+            margin-bottom: 24px;
+        }
+        
+        .download-section h4 {
+            margin: 0 0 12px;
+            color: white;
+            font-size: 16px;
+        }
+        
+        .download-section p {
+            margin: 0 0 12px;
+            color: #b0bec5;
+            line-height: 1.6;
+        }
+        
+        .command-block {
+            background: #0f0f23;
+            border: 1px solid #4FC3F7;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 14px;
+            position: relative;
+            margin: 12px 0;
+        }
+        
+        .command-text {
+            color: white;
+            word-break: break-all;
+            margin-bottom: 8px;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #4FC3F7;
+            color: #1a1a2e;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .copy-btn:hover {
+            background: #29B6F6;
+        }
+        
+        .copy-success {
+            color: #4caf50;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        
+        .dataset-meta {
+            background: rgba(79, 195, 247, 0.1);
+            border: 1px solid rgba(79, 195, 247, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            font-size: 14px;
+        }
+        
+        .meta-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .meta-label {
+            color: #b0bec5;
+            font-weight: 500;
+        }
+        
+        .meta-value {
+            color: white;
+            font-weight: 600;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+        
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
         @media (max-width: 768px) {
             .dataset-grid {
                 grid-template-columns: 1fr;
@@ -232,6 +377,15 @@
             .search-box, .filter-select {
                 width: 100%;
                 max-width: 300px;
+            }
+            
+            .download-modal-content {
+                margin: 20px auto;
+                max-width: 95%;
+            }
+            
+            .meta-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -466,6 +620,7 @@
                 <div class="dataset-actions">
                     <a href="fixed-sites-image-browser.html?dataset=${encodeURIComponent(dataset.id)}" 
                        class="btn btn-primary">Preview Dataset</a>
+                    <button class="btn btn-secondary" onclick="showDownloadModal('${dataset.id}', '${dataset.gs_prefix || ''}', ${imageCount}, ${dataset.size_bytes || 0})">Download Dataset</button>
                 </div>
             `;
             
@@ -480,8 +635,133 @@
             statsDisplay.textContent = `Showing ${totalDatasets} dataset${totalDatasets !== 1 ? 's' : ''} with ${totalImages.toLocaleString()} total images`;
         }
         
+        // Download Modal Functions
+        function showDownloadModal(datasetId, gsPrefix, imageCount, sizeBytes) {
+            // Populate dataset metadata
+            const dataSize = formatBytes(sizeBytes);
+            
+            document.getElementById('datasetMeta').innerHTML = `
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <span class="meta-label">Dataset ID:</span>
+                        <span class="meta-value">${datasetId}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Preview Images:</span>
+                        <span class="meta-value">10</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Total Images:</span>
+                        <span class="meta-value">${imageCount.toLocaleString()}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Total Size:</span>
+                        <span class="meta-value">${dataSize}</span>
+                    </div>
+                </div>
+            `;
+            
+            // Generate gsutil command
+            const gsPath = gsPrefix.replace('gs://', '');
+            const command = `gsutil -m rsync -r gs://${gsPath} ./fixed-sites-${datasetId}`;
+            document.getElementById('gsutilCommand').textContent = command;
+            
+            // Show modal
+            document.getElementById('downloadModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeDownloadModal() {
+            document.getElementById('downloadModal').style.display = 'none';
+            document.body.style.overflow = '';
+            // Hide copy success message
+            const successMsg = document.getElementById('copySuccess');
+            if (successMsg) successMsg.style.display = 'none';
+        }
+
+        function copyGsutilCommand() {
+            const command = document.getElementById('gsutilCommand').textContent;
+            navigator.clipboard.writeText(command).then(() => {
+                const successMsg = document.getElementById('copySuccess');
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.display = 'none';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy command:', err);
+                // Fallback: select the text
+                const range = document.createRange();
+                range.selectNode(document.getElementById('gsutilCommand'));
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+            });
+        }
+        
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return 'Unknown';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('downloadModal');
+                if (modal && modal.style.display === 'block') {
+                    closeDownloadModal();
+                }
+            }
+        });
+
         // Load datasets on page load
         loadDatasets();
     </script>
+
+    <!-- Download Modal -->
+    <div class="download-modal" id="downloadModal">
+        <div class="download-modal-content">
+            <div class="download-modal-header">
+                <h3 class="download-modal-title">Download Complete Dataset</h3>
+                <button class="close-btn" onclick="closeDownloadModal()">&times;</button>
+            </div>
+            <div class="download-modal-body">
+                
+                <div class="download-section">
+                    <h4>📋 Dataset Information</h4>
+                    <div class="dataset-meta" id="datasetMeta">
+                        <!-- Dataset metadata will be populated here -->
+                    </div>
+                    <p><strong>Note:</strong> This preview shows only 10 sample images. Use the command below to download the complete dataset.</p>
+                </div>
+
+                <div class="download-section">
+                    <h4>🔧 Prerequisites</h4>
+                    <p>Before downloading, ensure you have:</p>
+                    <ul style="color: #b0bec5; margin: 8px 0 16px 20px; line-height: 1.6;">
+                        <li><strong>gsutil installed:</strong> <code style="background: #0f0f23; padding: 2px 6px; border-radius: 4px;">pip install gsutil</code> or <a href="https://cloud.google.com/storage/docs/gsutil_install" style="color: #4FC3F7;">Cloud SDK</a></li>
+                        <li><strong>Authentication:</strong> <code style="background: #0f0f23; padding: 2px 6px; border-radius: 4px;">gcloud auth login</code></li>
+                        <li><strong>Sufficient storage space</strong> for the complete dataset</li>
+                    </ul>
+                </div>
+
+                <div class="download-section">
+                    <h4>💾 Download Command</h4>
+                    <p>Copy and run this command in your terminal to download the complete dataset:</p>
+                    <div class="command-block">
+                        <div class="command-text" id="gsutilCommand">gsutil -m rsync -r gs://bucket/path ./local-folder</div>
+                        <button class="copy-btn" onclick="copyGsutilCommand()">Copy</button>
+                        <div class="copy-success" id="copySuccess" style="display:none;">✓ Copied to clipboard!</div>
+                    </div>
+                    <p style="font-size: 13px; color: #b0bec5; margin-top: 8px;">
+                        This will download all files from the dataset to your local <code>./fixed-sites-[dataset-id]</code> directory. 
+                        The <code>-m</code> flag enables parallel downloads for faster transfer.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </div>
 </body>
 </html>

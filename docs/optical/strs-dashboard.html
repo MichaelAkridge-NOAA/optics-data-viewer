@@ -1,83 +1,518 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>StRS Sites Dashboard - NOAA Optics SI Data Portal</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root { --bg:#0b1220; --card:#131b2e; --text:#e7ecf3; --muted:#9fb2d1; --accent:#2b79ff; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family:system-ui,Segoe UI,Roboto,Inter,Arial; background:var(--bg); color:var(--text); }
-    header { padding:24px 20px; border-bottom: 1px solid rgba(255,255,255,.08); }
-    .breadcrumb { margin:0 0 12px; font-size:14px; }
-    .breadcrumb a { color:var(--accent); text-decoration:none; }
-    .breadcrumb a:hover { text-decoration:underline; }
-    h1 { margin:0 0 6px; font-size:22px; }
-    .path { color:var(--muted); font-size:13px; }
-    .wrap { padding:0 20px 40px; max-width:1200px; margin:auto; }
-    .tiles { display:grid; gap:16px; grid-template-columns: repeat(3, minmax(0,1fr)); margin-top:20px; }
-    .tile { background:var(--card); border-radius:16px; padding:16px; box-shadow:0 4px 16px rgba(0,0,0,.2); }
-    .tile h3 { margin:0 0 8px; font-size:14px; color:var(--muted); font-weight:600; letter-spacing:.02em; }
-    .tile .big { font-size:28px; font-weight:700; }
-    .grid { display:grid; gap:16px; grid-template-columns: 1fr 1fr; margin-top:20px; }
-    canvas { width:100%; height:320px; background:var(--card); border-radius:16px; padding:12px; }
-    .list { background:var(--card); border-radius:16px; padding:12px; max-height:360px; overflow:auto; }
-    .row { display:flex; justify-content:space-between; padding:8px 6px; border-bottom:1px solid rgba(255,255,255,.06); font-size:14px; }
-    .row:last-child { border-bottom:0; }
-    .muted { color:var(--muted); }
-    a { color:#8ec7ff; text-decoration:none; }
-    .loading { text-align: center; padding: 40px; color: var(--muted); }
-    .error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 16px; margin: 20px 0; color: #fca5a5; }
-    .description { margin-top:16px; padding:16px; background:rgba(255,255,255,.03); border-radius:8px; border-left:3px solid var(--accent); }
-    .description h3 { margin:0 0 8px; color:var(--accent); font-size:16px; }
-    @media (max-width: 960px) { .tiles { grid-template-columns: repeat(2, 1fr); } .grid{ grid-template-columns:1fr; } }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StRS Sites Dashboard - NOAA Optical Data Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #4FC3F7, #29B6F6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            color: #b0bec5;
+        }
+        
+        .nav-links {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .nav-links a {
+            color: #4FC3F7;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 16px;
+            border: 1px solid transparent;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-links a:hover {
+            background: rgba(79, 195, 247, 0.1);
+            border-color: #4FC3F7;
+        }
+        
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .stat-card h3 {
+            color: #4FC3F7;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stat-card .number {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .label {
+            color: #b0bec5;
+            font-size: 0.9em;
+        }
+        
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .chart-container h3 {
+            color: #4FC3F7;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+        
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #b0bec5;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(79, 195, 247, 0.3);
+            border-top: 3px solid #4FC3F7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            color: #ffcdd2;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .stats-overview {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-  <header>
-    <div class="breadcrumb">
-      <a href="../">← Portal</a> / <a href="index.html">Optical Datasets</a>
+    <div class="container">
+        <div class="header">
+            <h1>StRS Sites Dashboard</h1>
+            <p>Stratified Random Sampling (StRS) Photogrammetric Imagery Analytics</p>
+        </div>
+        
+        <div class="nav-links">
+            <a href="../index.html">← Back to Optical Portal</a>
+            <a href="strs-datasets.html">Browse Datasets</a>
+        </div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>Loading StRS Sites data...</div>
+        </div>
+
+        <div id="error" class="error" style="display:none;">
+            <strong>Error loading data:</strong> <span id="errorMessage"></span>
+        </div>
+
+        <div id="content" style="display:none;">
+            <div class="stats-overview" id="statsOverview">
+                <!-- Stats cards will be populated here -->
+            </div>
+
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3>📊 Datasets by Island</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="islandChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>📅 Datasets by Year</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="yearChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
-    <h1>StRS Sites Dashboard</h1>
-    <div class="path" id="rootPath">Stratified Random Sampling (StRS) Photogrammetric Imagery Sites</div>
-  </header>
-  
-  <div class="wrap">
-    <div class="description">
-      <h3>About StRS Sites</h3>
-      <p>The Stratified Random Sampling (StRS) methodology provides statistically robust habitat characterization through systematic photogrammetric data collection. This dashboard summarizes datasets collected across multiple sites and years for comprehensive benthic monitoring.</p>
-    </div>
 
-    <div id="loading" class="loading">
-      <div>Loading StRS data from Google Cloud Storage...</div>
-    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        const STRS_SUMMARY_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/StRS_Sites/summary.json';
+        const STRS_INDEX_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/StRS_Sites/index.json';
 
-    <div id="error" class="error" style="display:none;">
-      <strong>Error loading data:</strong> <span id="errorMessage"></span>
-    </div>
+        let dashboardData = null;
 
-    <section class="tiles" id="tiles" style="display:none;">
-      <!-- totals tiles injected here -->
-    </section>
+        async function loadDashboardData() {
+            try {
+                // Try to load summary.json first, fallback to index.json
+                let data;
+                try {
+                    const summaryResponse = await fetch(STRS_SUMMARY_URL);
+                    if (summaryResponse.ok) {
+                        data = await summaryResponse.json();
+                    } else {
+                        throw new Error('Summary not available');
+                    }
+                } catch (summaryError) {
+                    console.log('Summary.json not available, loading index.json...');
+                    const indexResponse = await fetch(STRS_INDEX_URL);
+                    if (!indexResponse.ok) {
+                        throw new Error(`HTTP ${indexResponse.status}: ${indexResponse.statusText}`);
+                    }
+                    const indexData = await indexResponse.json();
+                    
+                    // Build summary from index data
+                    data = buildSummaryFromIndex(Array.isArray(indexData) ? indexData : (indexData.datasets || []));
+                }
 
-    <section class="grid" id="charts" style="display:none;">
-      <div>
-        <canvas id="byYear"></canvas>
-      </div>
-      <div>
-        <canvas id="byIsland"></canvas>
-      </div>
-    </section>
+                dashboardData = data;
+                
+                // Hide loading, show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+                
+                // Populate dashboard
+                populateStats(data);
+                createCharts(data);
+                
+            } catch (error) {
+                console.error('Error loading StRS dashboard data:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('errorMessage').textContent = error.message;
+            }
+        }
 
-    <section class="grid" id="lists" style="display:none;">
-      <div class="list" id="largestByImages"></div>
-      <div class="list" id="largestBySize"></div>
-    </section>
-  </div>
+        function buildSummaryFromIndex(datasets) {
+            const summary = {
+                totals: {
+                    datasets: datasets.length,
+                    images: 0,
+                    size_bytes: 0
+                },
+                by_island: {},
+                by_year: {},
+                build_info: {
+                    source: 'Generated from index.json',
+                    timestamp: new Date().toISOString()
+                }
+            };
 
-  <!-- Chart.js (CDN) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script type="module">
+            datasets.forEach(dataset => {
+                // Count images
+                const images = dataset.counts?.images || dataset.images || dataset.image_count || 0;
+                summary.totals.images += images;
+                
+                // Sum size
+                const size = dataset.size_bytes || 0;
+                summary.totals.size_bytes += size;
+                
+                // Extract island from tags or other fields
+                const island = extractIslandFromDataset(dataset);
+                if (island) {
+                    if (!summary.by_island[island]) {
+                        summary.by_island[island] = { datasets: 0, images: 0, size_bytes: 0 };
+                    }
+                    summary.by_island[island].datasets += 1;
+                    summary.by_island[island].images += images;
+                    summary.by_island[island].size_bytes += size;
+                }
+                
+                // Extract year from tags or other fields
+                const year = extractYearFromDataset(dataset);
+                if (year) {
+                    if (!summary.by_year[year]) {
+                        summary.by_year[year] = { datasets: 0, images: 0, size_bytes: 0 };
+                    }
+                    summary.by_year[year].datasets += 1;
+                    summary.by_year[year].images += images;
+                    summary.by_year[year].size_bytes += size;
+                }
+            });
+
+            return summary;
+        }
+
+        function extractIslandFromDataset(dataset) {
+            // Try to extract island from various fields
+            if (dataset.island) return dataset.island;
+            if (dataset.location) return dataset.location;
+            if (dataset.site) return dataset.site;
+            
+            // Look in tags for island codes
+            if (dataset.tags && Array.isArray(dataset.tags)) {
+                const islandMap = {
+                    'HAW': 'Hawaii', 'KAH': 'Kahoolawe', 'KAU': 'Kauai', 'LAN': 'Lanai', 
+                    'MAI': 'Maui', 'MOL': 'Molokai', 'NII': 'Niihau', 'OAH': 'Oahu',
+                    'ASC': 'Ascension', 'GUA': 'Guam', 'MAU': 'Mau', 'PAG': 'Pagan',
+                    'ROT': 'Rota', 'SAI': 'Saipan', 'TIN': 'Tinian', 'BAK': 'Baker',
+                    'HOW': 'Howland', 'OFU': 'Ofu', 'ROS': 'Rose', 'SWA': 'Swains',
+                    'TAU': 'Tau', 'TUT': 'Tutuila', 'FFS': 'French Frigate Shoals',
+                    'KUR': 'Kure', 'LIS': 'Lisianski', 'PHR': 'Pearl and Hermes',
+                    'AGR': 'Agrihan', 'ALA': 'Alamagan', 'FDP': 'Farallon de Pajaros',
+                    'GUG': 'Guguan', 'SAR': 'Sarigan', 'WAK': 'Wake'
+                };
+                
+                for (const tag of dataset.tags) {
+                    if (islandMap[tag]) {
+                        return islandMap[tag];
+                    }
+                }
+            }
+            
+            return null;
+        }
+
+        function extractYearFromDataset(dataset) {
+            // Try to extract year from various possible fields
+            if (dataset.year) return dataset.year;
+            if (dataset.date) return new Date(dataset.date).getFullYear();
+            if (dataset.created_date) return new Date(dataset.created_date).getFullYear();
+            if (dataset.updated) return new Date(dataset.updated).getFullYear();
+            
+            // Look in tags first (most reliable)
+            if (dataset.tags && Array.isArray(dataset.tags)) {
+                for (const tag of dataset.tags) {
+                    if (/^\d{4}$/.test(tag) && parseInt(tag) >= 2000 && parseInt(tag) <= 2030) {
+                        return parseInt(tag);
+                    }
+                }
+            }
+            
+            // Try to extract from title or id (look for 4-digit year)
+            const yearMatch = (dataset.title || dataset.id || '').match(/\b(19|20)\d{2}\b/);
+            return yearMatch ? parseInt(yearMatch[0]) : null;
+        }
+
+        function populateStats(data) {
+            const statsContainer = document.getElementById('statsOverview');
+            
+            const totalDatasets = data.totals?.datasets || 0;
+            const totalImages = data.totals?.images || 0;
+            const totalSize = data.totals?.size_bytes || 0;
+            const islands = Object.keys(data.by_island || {}).length;
+            const years = Object.keys(data.by_year || {}).length;
+
+            function formatBytes(bytes) {
+                if (!bytes || bytes === 0) return 'Unknown';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            }
+
+            const stats = [
+                { label: 'Datasets', number: totalDatasets.toLocaleString(), sublabel: 'Total Collections' },
+                { label: 'Images', number: totalImages.toLocaleString(), sublabel: 'Photogrammetric Images' },
+                { label: 'Data Size', number: formatBytes(totalSize), sublabel: 'Total Storage' },
+                { label: 'Islands', number: islands.toString(), sublabel: 'Geographic Locations' },
+                { label: 'Years', number: years.toString(), sublabel: 'Sampling Years' }
+            ];
+
+            statsContainer.innerHTML = stats.map(stat => `
+                <div class="stat-card">
+                    <h3>${stat.label}</h3>
+                    <div class="number">${stat.number}</div>
+                    <div class="label">${stat.sublabel}</div>
+                </div>
+            `).join('');
+        }
+
+        function createCharts(data) {
+            createIslandChart(data.by_island || {});
+            createYearChart(data.by_year || {});
+        }
+
+        function createIslandChart(byIsland) {
+            const ctx = document.getElementById('islandChart');
+            if (!ctx) return;
+
+            const sortedIslands = Object.entries(byIsland)
+                .sort((a, b) => b[1].datasets - a[1].datasets)
+                .slice(0, 10); // Top 10 islands
+
+            const labels = sortedIslands.map(([island]) => island);
+            const values = sortedIslands.map(([, data]) => data.datasets);
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            '#4FC3F7', '#29B6F6', '#03A9F4', '#0288D1', '#0277BD',
+                            '#01579B', '#81C784', '#66BB6A', '#4CAF50', '#388E3C'
+                        ],
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: 'white',
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createYearChart(byYear) {
+            const ctx = document.getElementById('yearChart');
+            if (!ctx) return;
+
+            const sortedYears = Object.entries(byYear)
+                .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+
+            const labels = sortedYears.map(([year]) => year);
+            const values = sortedYears.map(([, data]) => data.datasets);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Datasets',
+                        data: values,
+                        backgroundColor: 'rgba(79, 195, 247, 0.7)',
+                        borderColor: '#4FC3F7',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: 'white',
+                                stepSize: 1
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'white'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load data on page load
+        loadDashboardData();
+    </script>
+</body>
+</html>
     const STRS_SUMMARY_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric%20Imagery/StRS_Sites/summary.json';
 
     const prettyInt = (n) => (n||0).toLocaleString();

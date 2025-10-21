@@ -42,6 +42,10 @@
     .error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:16px;margin:20px 0;color:#fca5a5}
     .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
     .empty-state h3{margin:0 0 8px;color:var(--text)}
+    .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px}
+    .meta-item{display:flex;justify-content:space-between}
+    .meta-label{color:var(--muted);font-weight:500}
+    .meta-value{color:var(--text);font-weight:600}
   </style>
 </head>
 <body>
@@ -273,8 +277,8 @@
           </div>
           ` : ''}
           <div class="actions">
-            <button class="btn btn-primary" onclick="viewDataset('${id}')">View Details</button>
-            <button class="btn btn-secondary" onclick="browseImages('${id}')">Preview Dataset</button>
+            <button class="btn btn-primary" onclick="browseImages('${id}')">Preview Dataset</button>
+            <button class="btn btn-secondary" onclick="showDownloadModal('${id}', '${dataset.gs_prefix || ''}', ${images}, ${dataset.size_bytes || 0})">Download Dataset</button>
           </div>
         </div>
       `;
@@ -333,6 +337,86 @@
       window.open(url, '_blank');
     };
 
+    // Download Modal Functions
+    window.showDownloadModal = function(datasetId, gsPrefix, imageCount, sizeBytes) {
+      // Populate dataset metadata
+      const dataSize = formatBytes(sizeBytes);
+      
+      document.getElementById('datasetMeta').innerHTML = `
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Dataset ID:</span>
+            <span class="meta-value">${datasetId}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Preview Images:</span>
+            <span class="meta-value">10</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Total Images:</span>
+            <span class="meta-value">${imageCount.toLocaleString()}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Total Size:</span>
+            <span class="meta-value">${dataSize}</span>
+          </div>
+        </div>
+      `;
+      
+      // Generate gsutil command
+      const gsPath = gsPrefix.replace('gs://', '');
+      const command = `gsutil -m rsync -r gs://${gsPath} ./strs-${datasetId}`;
+      document.getElementById('gsutilCommand').textContent = command;
+      
+      // Show modal
+      document.getElementById('downloadModal').style.display = 'block';
+      document.body.style.overflow = 'hidden';
+    };
+
+    window.closeDownloadModal = function() {
+      document.getElementById('downloadModal').style.display = 'none';
+      document.body.style.overflow = '';
+      // Hide copy success message
+      const successMsg = document.getElementById('copySuccess');
+      if (successMsg) successMsg.style.display = 'none';
+    };
+
+    window.copyGsutilCommand = function() {
+      const command = document.getElementById('gsutilCommand').textContent;
+      navigator.clipboard.writeText(command).then(() => {
+        const successMsg = document.getElementById('copySuccess');
+        successMsg.style.display = 'block';
+        setTimeout(() => {
+          successMsg.style.display = 'none';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy command:', err);
+        // Fallback: select the text
+        const range = document.createRange();
+        range.selectNode(document.getElementById('gsutilCommand'));
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      });
+    };
+    
+    function formatBytes(bytes) {
+      if (!bytes || bytes === 0) return 'Unknown';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('downloadModal');
+        if (modal && modal.style.display === 'block') {
+          closeDownloadModal();
+        }
+      }
+    });
+
     // Event listeners
     el('#searchBox').addEventListener('input', filterDatasets);
     el('#yearFilter').addEventListener('change', filterDatasets);
@@ -341,5 +425,50 @@
     // Load data on page load
     loadDatasets();
   </script>
+
+  <!-- Download Modal -->
+  <div class="modal" id="downloadModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;padding:20px;">
+    <div style="position:relative;max-width:800px;margin:50px auto;background:var(--card);border-radius:12px;border:1px solid var(--ring);max-height:80vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid var(--ring);">
+        <h3 style="margin:0;font-size:18px;color:var(--text);">Download Complete Dataset</h3>
+        <button onclick="closeDownloadModal()" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px;">&times;</button>
+      </div>
+      <div style="padding:20px;">
+        
+        <div style="margin-bottom:24px;">
+          <h4 style="margin:0 0 12px;color:var(--text);font-size:16px;">📋 Dataset Information</h4>
+          <div id="datasetMeta" style="background:rgba(43,121,255,0.1);border:1px solid rgba(43,121,255,0.3);border-radius:8px;padding:16px;margin:16px 0;">
+            <!-- Dataset metadata will be populated here -->
+          </div>
+          <p style="margin:0 0 12px;color:var(--muted);line-height:1.6;"><strong>Note:</strong> This preview shows only 10 sample images. Use the command below to download the complete dataset.</p>
+        </div>
+
+        <div style="margin-bottom:24px;">
+          <h4 style="margin:0 0 12px;color:var(--text);font-size:16px;">🔧 Prerequisites</h4>
+          <p style="margin:0 0 12px;color:var(--muted);line-height:1.6;">Before downloading, ensure you have:</p>
+          <ul style="color:var(--muted);margin:8px 0 16px 20px;line-height:1.6;">
+            <li><strong>gsutil installed:</strong> <code style="background:var(--bg);padding:2px 6px;border-radius:4px;">pip install gsutil</code> or <a href="https://cloud.google.com/storage/docs/gsutil_install" style="color:var(--accent);">Cloud SDK</a></li>
+            <li><strong>Authentication:</strong> <code style="background:var(--bg);padding:2px 6px;border-radius:4px;">gcloud auth login</code></li>
+            <li><strong>Sufficient storage space</strong> for the complete dataset</li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom:24px;">
+          <h4 style="margin:0 0 12px;color:var(--text);font-size:16px;">💾 Download Command</h4>
+          <p style="margin:0 0 12px;color:var(--muted);line-height:1.6;">Copy and run this command in your terminal to download the complete dataset:</p>
+          <div style="background:var(--card);border:1px solid var(--ring);border-radius:8px;padding:16px;font-family:monospace;font-size:14px;position:relative;margin:12px 0;">
+            <div id="gsutilCommand" style="color:var(--text);word-break:break-all;margin-bottom:8px;">gsutil -m rsync -r gs://bucket/path ./local-folder</div>
+            <button onclick="copyGsutilCommand()" style="position:absolute;top:8px;right:8px;background:var(--accent);color:white;border:none;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;">Copy</button>
+            <div id="copySuccess" style="display:none;color:#10b981;font-size:12px;margin-top:4px;">✓ Copied to clipboard!</div>
+          </div>
+          <p style="font-size:13px;color:var(--muted);margin-top:8px;">
+            This will download all files from the dataset to your local <code>./strs-[dataset-id]</code> directory. 
+            The <code>-m</code> flag enables parallel downloads for faster transfer.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
 </body>
 </html>
