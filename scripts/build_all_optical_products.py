@@ -448,19 +448,36 @@ def create_thumbnail(tif_path: str, output_path: str, max_size: Tuple[int, int] 
             
             # Handle different numbers of bands
             if data.shape[0] == 1:
-                # Single band (DEM) - use colormap
+                # Single band (DEM) - use colormap and transparency
                 band_data = data[0]
-                # Normalize to 0-255 for better visualization
-                valid_data = band_data[~np.isnan(band_data)]
+                # Mask NoData/extreme values
+                nodata = None
+                with rasterio.open(tif_path) as src2:
+                    nodata = src2.nodata
+                mask = np.zeros_like(band_data, dtype=bool)
+                if nodata is not None:
+                    mask |= (band_data == nodata)
+                # Optionally mask huge negative values and all-zeros
+                mask |= (band_data < -1e5) | (band_data == 0)
+                band_data_masked = np.where(mask, np.nan, band_data)
+                valid_data = band_data_masked[~np.isnan(band_data_masked)]
                 if len(valid_data) > 0:
                     vmin, vmax = np.percentile(valid_data, [2, 98])
-                    normalized = np.clip((band_data - vmin) / (vmax - vmin), 0, 1)
+                    normalized = np.clip((band_data_masked - vmin) / (vmax - vmin), 0, 1)
                 else:
-                    normalized = band_data
-                
-                # Create figure
+                    normalized = band_data_masked
+                # Hillshade
+                from matplotlib.colors import LightSource
+                ls = LightSource(azdeg=315, altdeg=45)
+                hillshade = ls.hillshade(np.nan_to_num(band_data_masked), vert_exag=1, dx=1, dy=1)
+                # Color-mapped DEM
+                rgb = plt.get_cmap('terrain')(normalized)
+                # Blend with hillshade
+                rgb[..., :3] = rgb[..., :3] * 0.7 + hillshade[..., None] * 0.3
+                # Set alpha channel for transparency
+                rgb[..., 3] = (~np.isnan(normalized)).astype(float)
                 fig, ax = plt.subplots(figsize=(8, 8))
-                im = ax.imshow(normalized, cmap='terrain', aspect='equal')
+                ax.imshow(rgb, aspect='equal')
                 ax.set_title(f'DEM Preview')
                 ax.axis('off')
                 
@@ -583,17 +600,31 @@ def create_large_preview(tif_path: str, output_path: str, max_size: Tuple[int, i
             
             # Handle different numbers of bands (same logic as thumbnail)
             if data.shape[0] == 1:
-                # Single band (DEM) 
+                # Single band (DEM) - use colormap and transparency
                 band_data = data[0]
-                valid_data = band_data[~np.isnan(band_data)]
+                nodata = None
+                with rasterio.open(tif_path) as src2:
+                    nodata = src2.nodata
+                mask = np.zeros_like(band_data, dtype=bool)
+                if nodata is not None:
+                    mask |= (band_data == nodata)
+                mask |= (band_data < -1e5) | (band_data == 0)
+                band_data_masked = np.where(mask, np.nan, band_data)
+                valid_data = band_data_masked[~np.isnan(band_data_masked)]
                 if len(valid_data) > 0:
                     vmin, vmax = np.percentile(valid_data, [2, 98])
-                    normalized = np.clip((band_data - vmin) / (vmax - vmin), 0, 1)
+                    normalized = np.clip((band_data_masked - vmin) / (vmax - vmin), 0, 1)
                 else:
-                    normalized = band_data
-                
+                    normalized = band_data_masked
+                # Hillshade
+                from matplotlib.colors import LightSource
+                ls = LightSource(azdeg=315, altdeg=45)
+                hillshade = ls.hillshade(np.nan_to_num(band_data_masked), vert_exag=1, dx=1, dy=1)
+                rgb = plt.get_cmap('terrain')(normalized)
+                rgb[..., :3] = rgb[..., :3] * 0.7 + hillshade[..., None] * 0.3
+                rgb[..., 3] = (~np.isnan(normalized)).astype(float)
                 fig, ax = plt.subplots(figsize=(12, 12))
-                im = ax.imshow(normalized, cmap='terrain', aspect='equal')
+                ax.imshow(rgb, aspect='equal')
                 ax.set_title(f'DEM Large Preview')
                 ax.axis('off')
                 

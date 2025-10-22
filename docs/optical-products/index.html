@@ -35,6 +35,7 @@
     .loading{text-align:center;padding:40px;color:var(--muted)} .spinner{width:24px;height:24px;border:2px solid var(--ring);border-top:2px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
     @keyframes spin{to{transform:rotate(360deg)}}
     footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}
+
     /* Modal */
     dialog{border:none;border-radius:16px;max-width:980px;width:90vw;background:var(--card);color:var(--text);padding:0}
     .modal-header{position:sticky;top:0;background:var(--card);display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--ring);z-index:1}
@@ -43,6 +44,15 @@
     .modal-body{display:grid;grid-template-columns:1fr 360px;gap:12px;padding:12px;max-height:80vh;overflow:auto}
     .modal-body img{width:100%;height:auto;border-radius:10px}
     .kv{font-size:13px;color:var(--muted)} .kv div{margin:4px 0} .kv strong{color:var(--text)}
+
+    /* Download panel (borrowed style from Fixed Sites page) */
+    .download-section{margin-top:12px}
+    .download-section h4{margin:0 0 8px;font-size:14px}
+    .command-block{background:#0f0f23;border:1px solid #4FC3F7;border-radius:8px;padding:12px;font-family:monospace;font-size:13px;position:relative;margin:8px 0;color:#fff}
+    .command-text{word-break:break-all;margin-bottom:6px}
+    .copy-btn{position:absolute;top:6px;right:6px;background:#4FC3F7;color:#1a1a2e;border:none;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;font-weight:bold}
+    .copy-btn:hover{background:#29B6F6}
+    .copy-success{color:#4caf50;font-size:12px;margin-top:4px;display:none}
   </style>
 
   <script defer>
@@ -118,6 +128,32 @@
     return join(join(URLS.base, folder), encodeLastSegment(rel));
   }
 
+  // Try to produce a gs:// prefix from an item JSON
+  function httpsToGs(u){
+    const m = String(u||"").match(/^https?:\/\/storage\.googleapis\.com\/([^\/]+)\/(.+)$/i);
+    if(!m) return null;
+    return `gs://${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
+  }
+  function dirnameGs(gs){
+    if(!gs) return null;
+    // if gs points to a file, trim to folder; if it already ends with '/', keep it
+    return gs.endsWith("/") ? gs.replace(/\/+$/,"/") : gs.replace(/\/[^\/]*$/,"/");
+  }
+  function extractGsPrefix(item){
+    const cands = [
+      item?.gs_prefix, item?.gs_uri, item?.gs_path,
+      item?.gcs_prefix, item?.gcs_path, item?.storage_gs,
+      item?.paths?.dem, item?.paths?.ortho, item?.assets?.dem, item?.assets?.orthomosaic,
+      item?.source_path, item?.source_url, item?.download_url
+    ].filter(Boolean);
+    for(const v of cands){
+      if(/^gs:\/\//i.test(v)) return dirnameGs(v);
+      const converted = httpsToGs(v);
+      if(converted) return dirnameGs(converted);
+    }
+    return null;
+  }
+
   /* ---------------- FILTERS & SORT ---------------- */
   function populateFilters(products){
     const addOpts = (select, values) => {
@@ -165,7 +201,7 @@
       const thumb   = toUrl("thumb", p.thumbnail);
       const preview = toUrl("prev",  p.large_preview);
       const itemJsonPath = p.item_path ? toUrl("item", p.item_path) : toUrl("item", (p.id + ".json"));
-    const badgeCls = p.product_type === "dem" ? "badge-dem" : "badge-ortho";
+      const badgeCls = p.product_type === "dem" ? "badge-dem" : "badge-ortho";
 
       return `
       <div class="card" data-id="${p.id}">
@@ -248,6 +284,8 @@
       dlg.querySelector(".m-img").src = previewUrl || "";
       dlg.querySelector(".m-json").href = itemUrl;
       dlg.querySelector(".m-preview").href = previewUrl || "#";
+
+      // Fill key/values
       const kv = dlg.querySelector(".kv");
       kv.innerHTML = `
         <div><strong>Region:</strong> ${p.region||""} (${p.region_code||""})</div>
@@ -257,10 +295,39 @@
         <div><strong>Type:</strong> ${p.product_type||""}</div>
         <div><strong>Size:</strong> ${p.size_human || (p.size_bytes!=null?formatSize(p.size_bytes):"N/A")}</div>
       `;
+
+      // Build gsutil command
+      const gsPrefix = extractGsPrefix(item) || extractGsPrefix(p) || null;
+      const cmd = gsPrefix
+        ? `gsutil -m rsync -r ${gsPrefix} ./optical-${p.id}`
+        : 'GS path not available for this item. (No gs:// or storage URL found in item.)';
+
+      const cmdEl = document.getElementById("gsutilCommand");
+      const copyMsg = document.getElementById("copySuccess");
+      cmdEl.textContent = cmd;
+      copyMsg.style.display = "none";
+
       dlg.showModal();
     }catch(err){
       alert("Could not load item details: " + err.message);
     }
+  }
+
+  function copyGsutilCommand(){
+    const el = document.getElementById("gsutilCommand");
+    const txt = el.textContent;
+    navigator.clipboard.writeText(txt).then(()=>{
+      const ok = document.getElementById("copySuccess");
+      ok.style.display = "block";
+      setTimeout(()=>{ ok.style.display = "none"; }, 2000);
+    }).catch(()=>{
+      // fallback: select text
+      const range = document.createRange();
+      range.selectNode(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
   }
 
   /* ---------------- INIT ---------------- */
@@ -357,7 +424,23 @@
     </div>
     <div class="modal-body">
       <img class="m-img" alt="Preview"/>
-      <div><div class="kv"></div></div>
+      <div>
+        <div class="kv"></div>
+
+        <!-- Download section -->
+        <div class="download-section">
+          <h4>💾 Download (gsutil)</h4>
+          <p style="color:var(--muted);margin:0 0 6px;">Copy & run this in your terminal to download the full product folder:</p>
+          <div class="command-block">
+            <div class="command-text" id="gsutilCommand">Detecting path…</div>
+            <button class="copy-btn" onclick="copyGsutilCommand()">Copy</button>
+            <div class="copy-success" id="copySuccess">✓ Copied!</div>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin:6px 0 0;">
+            Requires <code>gsutil</code> (via <a href="https://cloud.google.com/storage/docs/gsutil_install" target="_blank" rel="noopener" style="color:#4FC3F7;">Cloud SDK</a>) and auth (<code>gcloud auth login</code>).
+          </p>
+        </div>
+      </div>
     </div>
   </dialog>
 </body>
