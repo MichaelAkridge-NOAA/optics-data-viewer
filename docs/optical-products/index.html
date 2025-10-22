@@ -45,11 +45,11 @@
     .modal-body img{width:100%;height:auto;border-radius:10px}
     .kv{font-size:13px;color:var(--muted)} .kv div{margin:4px 0} .kv strong{color:var(--text)}
 
-    /* Download panel (borrowed style from Fixed Sites page) */
+    /* Download / command block */
     .download-section{margin-top:12px}
     .download-section h4{margin:0 0 8px;font-size:14px}
     .command-block{background:#0f0f23;border:1px solid #4FC3F7;border-radius:8px;padding:12px;font-family:monospace;font-size:13px;position:relative;margin:8px 0;color:#fff}
-    .command-text{word-break:break-all;margin-bottom:6px}
+    .command-text{word-break:break-all;margin-bottom:6px;white-space:pre-wrap}
     .copy-btn{position:absolute;top:6px;right:6px;background:#4FC3F7;color:#1a1a2e;border:none;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;font-weight:bold}
     .copy-btn:hover{background:#29B6F6}
     .copy-success{color:#4caf50;font-size:12px;margin-top:4px;display:none}
@@ -128,29 +128,51 @@
     return join(join(URLS.base, folder), encodeLastSegment(rel));
   }
 
-  // Try to produce a gs:// prefix from an item JSON
+  // https://storage.googleapis.com/bucket/path → gs://bucket/path
   function httpsToGs(u){
     const m = String(u||"").match(/^https?:\/\/storage\.googleapis\.com\/([^\/]+)\/(.+)$/i);
     if(!m) return null;
     return `gs://${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
   }
-  function dirnameGs(gs){
-    if(!gs) return null;
-    // if gs points to a file, trim to folder; if it already ends with '/', keep it
-    return gs.endsWith("/") ? gs.replace(/\/+$/,"/") : gs.replace(/\/[^\/]*$/,"/");
-  }
-  function extractGsPrefix(item){
-    const cands = [
-      item?.gs_prefix, item?.gs_uri, item?.gs_path,
-      item?.gcs_prefix, item?.gcs_path, item?.storage_gs,
-      item?.paths?.dem, item?.paths?.ortho, item?.assets?.dem, item?.assets?.orthomosaic,
-      item?.source_path, item?.source_url, item?.download_url
-    ].filter(Boolean);
-    for(const v of cands){
-      if(/^gs:\/\//i.test(v)) return dirnameGs(v);
-      const converted = httpsToGs(v);
-      if(converted) return dirnameGs(converted);
+  function dirnameGs(gs){ return !gs ? null : (gs.endsWith("/") ? gs : gs.replace(/\/[^\/]*$/, "/")); }
+
+  // Pull gs info; prefers explicit fields like gcs_uri
+  function extractGsInfo(obj){
+    if (!obj) return null;
+    const keys = [
+      "gcs_uri","gcs_url","gcs_path","gcs_prefix",
+      "gs_uri","gs_url","gs_path","gs_prefix",
+      "storage_gs","download_gs","source_gs"
+    ];
+    for (const k of keys) {
+      const v = obj?.[k];
+      if (!v) continue;
+      if (/^gs:\/\//i.test(v)) return { file: v, folder: dirnameGs(v) };
+      const conv = httpsToGs(v);
+      if (conv) return { file: conv, folder: dirnameGs(conv) };
     }
+    const cands = [
+      obj?.paths?.dem, obj?.paths?.ortho,
+      obj?.assets?.dem, obj?.assets?.orthomosaic,
+      obj?.source_path, obj?.source_url, obj?.download_url
+    ].filter(Boolean);
+    for (const v of cands) {
+      if (/^gs:\/\//i.test(v)) return { file: v, folder: dirnameGs(v) };
+      const conv = httpsToGs(v);
+      if (conv) return { file: conv, folder: dirnameGs(conv) };
+    }
+    try {
+      const stack = [obj];
+      while (stack.length) {
+        const cur = stack.pop();
+        if (typeof cur === "string") {
+          if (/^gs:\/\//i.test(cur)) return { file: cur, folder: dirnameGs(cur) };
+          const conv = httpsToGs(cur);
+          if (conv) return { file: conv, folder: dirnameGs(conv) };
+        } else if (Array.isArray(cur)) stack.push(...cur);
+        else if (cur && typeof cur === "object") stack.push(...Object.values(cur));
+      }
+    } catch {}
     return null;
   }
 
@@ -223,8 +245,7 @@
           </div>
           <div class="description">${p.region || ""} • Site: ${p.site_code || ""}</div>
           <div class="actions">
-            <a class="btn btn-ghost" href="${itemJsonPath}" target="_blank" rel="noopener">Details JSON</a>
-            ${preview ? `<button class="btn btn-primary" data-preview="${p.id}" aria-label="Open preview">Preview</button>` : ``}
+            ${preview ? `<button class="btn btn-primary" data-preview="${p.id}" aria-label="Open details">Details</button>` : `<button class="btn btn-primary" data-preview="${p.id}" aria-label="Open details">Details</button>`}
           </div>
         </div>
       </div>`;
@@ -296,11 +317,20 @@
         <div><strong>Size:</strong> ${p.size_human || (p.size_bytes!=null?formatSize(p.size_bytes):"N/A")}</div>
       `;
 
-      // Build gsutil command
-      const gsPrefix = extractGsPrefix(item) || extractGsPrefix(p) || null;
-      const cmd = gsPrefix
-        ? `gsutil -m rsync -r ${gsPrefix} ./optical-${p.id}`
-        : 'GS path not available for this item. (No gs:// or storage URL found in item.)';
+      // Build gsutil commands from item (prefer) or card record
+      const gs = extractGsInfo(item) || extractGsInfo(p) || null;
+
+      let cmd = 'GS path not available for this item. (No gs:// or storage URL found.)';
+      if (gs) {
+        const lines = [];
+        if (gs.folder) {
+          lines.push(`# Download the whole product folder`, `gsutil -m rsync -r "${gs.folder}" "./optical-${p.id}"`);
+        }
+        if (gs.file) {
+          lines.push(``, `# Or just the main file`, `gsutil cp "${gs.file}" .`);
+        }
+        cmd = lines.join("\n");
+      }
 
       const cmdEl = document.getElementById("gsutilCommand");
       const copyMsg = document.getElementById("copySuccess");
@@ -321,7 +351,6 @@
       ok.style.display = "block";
       setTimeout(()=>{ ok.style.display = "none"; }, 2000);
     }).catch(()=>{
-      // fallback: select text
       const range = document.createRange();
       range.selectNode(el);
       const sel = window.getSelection();
@@ -413,9 +442,9 @@
   </div>
 
   <!-- Viewer modal -->
-  <dialog id="viewer" aria-label="Preview viewer">
+  <dialog id="viewer" aria-label="Details viewer">
     <div class="modal-header">
-      <div class="modal-title m-title">Viewer</div>
+      <div class="modal-title m-title">Details</div>
       <div class="modal-actions">
         <a class="btn btn-ghost m-json" href="#" target="_blank" rel="noopener">Item JSON</a>
         <a class="btn btn-primary m-preview" href="#" target="_blank" rel="noopener">Open Full Preview</a>
@@ -427,10 +456,10 @@
       <div>
         <div class="kv"></div>
 
-        <!-- Download section -->
+        <!-- Download (gsutil) -->
         <div class="download-section">
           <h4>💾 Download (gsutil)</h4>
-          <p style="color:var(--muted);margin:0 0 6px;">Copy & run this in your terminal to download the full product folder:</p>
+          <p style="color:var(--muted);margin:0 0 6px;">Copy & run this in your terminal:</p>
           <div class="command-block">
             <div class="command-text" id="gsutilCommand">Detecting path…</div>
             <button class="copy-btn" onclick="copyGsutilCommand()">Copy</button>
