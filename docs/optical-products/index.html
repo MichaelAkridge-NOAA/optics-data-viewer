@@ -33,7 +33,6 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center}
     .charts{display:flex;gap:40px;margin:40px 0} canvas{border-radius:10px;box-shadow:0 4px 8px rgba(0,0,0,.1)}
-    /* Modal viewer */
     dialog{border:none;border-radius:16px;max-width:980px;width:90vw;background:var(--card);color:var(--text);padding:0}
     .modal-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--ring)}
     .modal-body{display:grid;grid-template-columns:1fr 360px;gap:12px;padding:12px;max-height:80vh;overflow:auto}
@@ -41,20 +40,19 @@
     .kv{font-size:13px;color:var(--muted)} .kv div{margin:4px 0} .kv strong{color:var(--text)}
   </style>
 
-  <!-- Load Chart.js FIRST; defer preserves order -->
+  <!-- Load Chart.js first; defer preserves order -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 
-  <!-- App script -->
   <script defer>
+  // --------- CONFIG ----------
   const BASE = "https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/optical-products/vital-rates";
   const URLS = {
+    base: BASE,
     index:   BASE + "/index.json",
-    summary: BASE + "/summary.json",
-    thumb:   BASE + "/thumbnails/",
-    preview: BASE + "/previews/",
-    items:   BASE + "/items/"
+    summary: BASE + "/summary.json"
   };
 
+  // --------- DOM GETTERS ----------
   const els = {
     loading:  () => document.getElementById("loading"),
     grid:     () => document.getElementById("products-grid"),
@@ -72,23 +70,48 @@
     chartsWrap: () => document.querySelector(".charts")
   };
 
+  // --------- STATE ----------
   let ALL_PRODUCTS = [];
   let SUMMARY = null;
 
+  // --------- HELPERS ----------
   async function getJSON(url){
     const res = await fetch(url, {method:"GET", mode:"cors", cache:"no-store"});
     if(!res.ok) throw new Error("HTTP "+res.status+" for "+url);
     return res.json();
   }
-
   function show(el){ el.style.display = ""; }
   function hide(el){ el.style.display = "none"; }
-
   function formatSize(bytes){
     if(!bytes && bytes!==0) return "N/A";
     const u=["B","KB","MB","GB","TB"]; let i=0, n=+bytes;
     while(n>=1024 && i<u.length-1){ n/=1024; i++; }
     return n.toFixed(n<10 && i>0 ? 1 : 0)+" "+u[i];
+  }
+
+  // URL helpers to avoid previews/previews and %2F issues
+  const isFullUrl = (s) => typeof s === "string" && /^https?:\/\//i.test(s);
+  const stripLeadingSlash = (s) => (s || "").replace(/^\/+/, "");
+  const join = (a, b) => a.replace(/\/+$/,"") + "/" + stripLeadingSlash(b || "");
+  function encodeLastSegment(pathLike){
+    const rel = stripLeadingSlash(pathLike || "");
+    const parts = rel.split("/");
+    if (parts.length === 1) return encodeURIComponent(parts[0]);
+    const file = parts.pop();
+    return parts.join("/") + "/" + encodeURIComponent(file);
+  }
+  function toUrl(kind, value){
+    if (!value) return "";
+    if (isFullUrl(value)) return value;
+    let rel = stripLeadingSlash(value);
+    if (/^(previews|thumbnails|items)\//i.test(rel)) {
+      return join(URLS.base, encodeLastSegment(rel));
+    }
+    let folder = "";
+    if (kind === "thumb") folder = "thumbnails";
+    else if (kind === "prev") folder = "previews";
+    else if (kind === "item") folder = "items";
+    return join(join(URLS.base, folder), encodeLastSegment(rel));
   }
 
   function populateFilters(products){
@@ -97,8 +120,8 @@
       [...values].sort((a,b)=>String(a).localeCompare(String(b))).forEach(v=>{
         const o=document.createElement("option"); o.value=String(v); o.textContent=String(v); frag.appendChild(o);
       });
-      select.innerHTML = ""; // replace "All ..." with below line
       const label = select.dataset.all || "All";
+      select.innerHTML = "";
       select.appendChild(new Option(label, "all"));
       select.appendChild(frag);
     };
@@ -112,7 +135,6 @@
     const region = els.filters.region().value;
     const island = els.filters.island().value;
     const year   = els.filters.year().value;
-
     return ALL_PRODUCTS.filter(p => {
       if(type!=="all"   && p.product_type !== type) return false;
       if(region!=="all" && String(p.region_code)!==region) return false;
@@ -125,14 +147,20 @@
   function renderProducts(products){
     const grid = els.grid();
     grid.innerHTML = products.map(p => {
-      const thumb = p.thumbnail ? (URLS.thumb + encodeURIComponent(p.thumbnail)) : "";
+      const thumb   = toUrl("thumb", p.thumbnail);
+      const preview = toUrl("prev",  p.large_preview);
+      const itemJsonPath = p.item_path ? toUrl("item", p.item_path)
+                                       : toUrl("item", (p.id + ".json"));
       const badgeCls = p.product_type === "dem" ? "badge-dem" : "badge-ortho";
-      const preview = p.large_preview ? (URLS.preview + encodeURIComponent(p.large_preview)) : "";
 
       return `
       <div class="card" data-id="${p.id}">
         <div class="card-header">
-          ${thumb ? `<img src="${thumb}" alt="${p.title}" class="thumbnail" onerror="this.style.display='none'">` : `<div class="thumbnail"></div>`}
+          ${thumb
+            ? `<img src="${thumb}" alt="${p.title||''}" class="thumbnail"
+                   onerror="this.remove(); this.parentElement.insertAdjacentHTML('beforeend','<div class=&quot;thumbnail&quot;></div>');">`
+            : `<div class="thumbnail"></div>`
+          }
           <div class="region-badge">${p.region_code || ""}</div>
           <div class="product-type-badge ${badgeCls}">${(p.product_type||"").toUpperCase()}</div>
         </div>
@@ -145,7 +173,7 @@
           </div>
           <div class="description">${p.region || ""} • Site: ${p.site_code || ""}</div>
           <div class="actions" onclick="event.stopPropagation()">
-            <a class="btn" href="${URLS.items + encodeURIComponent(p.id) + '.json'}" target="_blank" rel="noopener">Details JSON</a>
+            <a class="btn" href="${itemJsonPath}" target="_blank" rel="noopener">Details JSON</a>
             ${preview ? `<a class="btn btn-primary" href="${preview}" target="_blank" rel="noopener">Preview</a>` : ``}
             <button class="btn" data-view="${p.id}">View Here</button>
           </div>
@@ -153,7 +181,6 @@
       </div>`;
     }).join("");
 
-    // card -> open modal
     grid.querySelectorAll(".card").forEach(card=>{
       card.addEventListener("click", ()=> openViewer(card.dataset.id));
       card.querySelectorAll("[data-view]").forEach(btn=>{
@@ -195,14 +222,18 @@
 
   async function openViewer(id){
     try{
-      const item = await getJSON(URLS.items + encodeURIComponent(id) + ".json");
+      // Prefer item_path if provided in index.json
       const p = ALL_PRODUCTS.find(x => String(x.id) === String(id)) || {};
-      const previewUrl = p.large_preview ? (URLS.preview + encodeURIComponent(p.large_preview)) : "";
+      const itemUrl = p.item_path ? toUrl("item", p.item_path)
+                                  : toUrl("item", (id + ".json"));
+      const item = await getJSON(itemUrl);
+
+      const previewUrl = toUrl("prev", p.large_preview) || toUrl("thumb", p.thumbnail);
 
       const dlg = document.getElementById("viewer");
       dlg.querySelector(".m-title").textContent = item.title || p.title || (p.site_code || "");
-      dlg.querySelector(".m-img").src = previewUrl || (p.thumbnail ? (URLS.thumb + encodeURIComponent(p.thumbnail)) : "");
-      dlg.querySelector(".m-json").href = URLS.items + encodeURIComponent(id) + ".json";
+      dlg.querySelector(".m-img").src = previewUrl || "";
+      dlg.querySelector(".m-json").href = itemUrl;
       dlg.querySelector(".m-preview").href = previewUrl || "#";
 
       const kv = dlg.querySelector(".kv");
@@ -245,7 +276,6 @@
         </div>`;
     }
 
-    // filter interactions
     ["type","region","island","year"].forEach(k=>{
       els.filters[k]().addEventListener("change", ()=>{
         const filtered = applyFilters();
@@ -275,11 +305,22 @@
     </div>
 
     <div class="controls">
-      <div class="control-group"><label>Product Type:</label><select id="type-filter" data-all="All Types">
-        <option value="all">All Types</option><option value="dem">DEMs</option><option value="ortho">Orthomosaics</option></select></div>
-      <div class="control-group"><label>Region:</label><select id="region-filter" data-all="All Regions"><option value="all">All Regions</option></select></div>
-      <div class="control-group"><label>Island:</label><select id="island-filter" data-all="All Islands"><option value="all">All Islands</option></select></div>
-      <div class="control-group"><label>Year:</label><select id="year-filter" data-all="All Years"><option value="all">All Years</option></select></div>
+      <div class="control-group"><label>Product Type:</label>
+        <select id="type-filter" data-all="All Types">
+          <option value="all">All Types</option>
+          <option value="dem">DEMs</option>
+          <option value="ortho">Orthomosaics</option>
+        </select>
+      </div>
+      <div class="control-group"><label>Region:</label>
+        <select id="region-filter" data-all="All Regions"><option value="all">All Regions</option></select>
+      </div>
+      <div class="control-group"><label>Island:</label>
+        <select id="island-filter" data-all="All Islands"><option value="all">All Islands</option></select>
+      </div>
+      <div class="control-group"><label>Year:</label>
+        <select id="year-filter" data-all="All Years"><option value="all">All Years</option></select>
+      </div>
     </div>
 
     <div class="loading" id="loading"><div class="spinner"></div><div>Loading optical products...</div></div>
