@@ -18,4 +18,19 @@ python ./build_index_fixed_sites.py --root "gs://nmfs_odp_pifsc/PIFSC/ESD/ARP/Ph
 ```
 gsutil -m rsync -r "./docs/optical/fixed_sites" "gs://nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/Photogrammetric Imagery/Fixed_Sites"
 ```
+## Build Fixed Site DEM/Ortho page
+```
+python build_all_optical_products.py --out-dir ./docs/datasets/optical-products
+```
+```
+gsutil -m rsync -r "./docs/datasets/optical-products" "gs://nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/dataset_index/optical-products/vital-rates"
+```
+
+-Arc
+-Orthomosaic
+-DEM
+
+
+
+
 
