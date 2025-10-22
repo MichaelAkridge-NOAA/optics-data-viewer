@@ -14,10 +14,9 @@
     .top{display:flex;flex-direction:column;gap:16px}
     .stats-bar{display:flex;gap:20px;padding:16px;background:var(--card);border-radius:10px;border:1px solid var(--ring);flex-wrap:wrap}
     .stat{text-align:center}.stat-number{font-size:24px;font-weight:800;color:var(--accent)}.stat-label{font-size:12px;color:var(--muted)}
-    .charts{display:flex;gap:28px;margin:0} canvas{border-radius:10px;box-shadow:0 4px 8px rgba(0,0,0,.1)}
     .controls{display:flex;gap:12px;margin:20px 0;flex-wrap:wrap}
     .control-group{display:flex;flex-direction:column;gap:4px}.control-group label{font-size:12px;color:var(--muted);font-weight:600}
-    .control-group select,.control-group input{background:var(--card);color:var(--text);border:1px solid var(--ring);border-radius:6px;padding:6px 10px;font-size:14px}
+    .control-group select{background:var(--card);color:var(--text);border:1px solid var(--ring);border-radius:6px;padding:6px 10px;font-size:14px}
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin-top:12px}
     .card{background:var(--card);border-radius:14px;border:1px solid var(--ring);overflow:hidden;display:flex;flex-direction:column}
     .card-header{position:relative;height:160px;overflow:hidden}
@@ -36,7 +35,6 @@
     .loading{text-align:center;padding:40px;color:var(--muted)} .spinner{width:24px;height:24px;border:2px solid var(--ring);border-top:2px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
     @keyframes spin{to{transform:rotate(360deg)}}
     footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}
-
     /* Modal */
     dialog{border:none;border-radius:16px;max-width:980px;width:90vw;background:var(--card);color:var(--text);padding:0}
     .modal-header{position:sticky;top:0;background:var(--card);display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--ring);z-index:1}
@@ -46,8 +44,6 @@
     .modal-body img{width:100%;height:auto;border-radius:10px}
     .kv{font-size:13px;color:var(--muted)} .kv div{margin:4px 0} .kv strong{color:var(--text)}
   </style>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 
   <script defer>
   /* ---------------- CONFIG ---------------- */
@@ -69,12 +65,10 @@
       island: () => document.getElementById("island-filter"),
       year:   () => document.getElementById("year-filter"),
     },
-    chartsWrap: () => document.querySelector(".charts")
   };
 
   /* ---------------- STATE ---------------- */
   let ALL_PRODUCTS = [];
-  let SUMMARY = null;
 
   /* ---------------- UTILS ---------------- */
   async function getJSON(url){
@@ -171,13 +165,13 @@
       const thumb   = toUrl("thumb", p.thumbnail);
       const preview = toUrl("prev",  p.large_preview);
       const itemJsonPath = p.item_path ? toUrl("item", p.item_path) : toUrl("item", (p.id + ".json"));
-      const badgeCls = p.product_type === "dem" ? "badge-dem" : "badge-ortho";
+    const badgeCls = p.product_type === "dem" ? "badge-dem" : "badge-ortho";
 
       return `
       <div class="card" data-id="${p.id}">
         <div class="card-header">
           ${thumb
-            ? `<img src="${thumb}" alt="${p.title||''}" class="thumbnail"
+            ? `<img src="${thumb}" alt="${p.title||''}" class="thumbnail" loading="lazy"
                    onerror="this.remove(); this.parentElement.insertAdjacentHTML('beforeend','<div class=&quot;thumbnail&quot;></div>');">`
             : `<div class="thumbnail"></div>`
           }
@@ -194,21 +188,15 @@
           <div class="description">${p.region || ""} • Site: ${p.site_code || ""}</div>
           <div class="actions">
             <a class="btn btn-ghost" href="${itemJsonPath}" target="_blank" rel="noopener">Details JSON</a>
-            ${
-              preview
-                ? `<button class="btn btn-primary" data-preview="${p.id}" aria-label="Open preview">Preview</button>`
-                : ``
-            }
+            ${preview ? `<button class="btn btn-primary" data-preview="${p.id}" aria-label="Open preview">Preview</button>` : ``}
           </div>
         </div>
       </div>`;
     }).join("");
 
-    // wire the preview buttons to open the in-page viewer
     grid.querySelectorAll("[data-preview]").forEach(btn=>{
       btn.addEventListener("click", (e)=>{
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         openViewer(btn.getAttribute("data-preview"));
       });
     });
@@ -245,40 +233,6 @@
     els.totalOrthos().textContent   = summary.by_type?.ortho ?? 0;
     els.totalSize().textContent     = formatSize(summary.total_size_bytes ?? 0);
     show(els.statsBar());
-  }
-
-  function renderCharts(){
-    const chartsWrap = els.chartsWrap();
-    const ctx1 = document.getElementById("chart-by-type").getContext("2d");
-    const ctx2 = document.getElementById("chart-by-year").getContext("2d");
-
-    // by type from current (robust) summary computed from index
-    const typeCounts = { dem:0, ortho:0 };
-    for (const p of ALL_PRODUCTS) {
-      if(p.product_type === "dem") typeCounts.dem++;
-      else if(p.product_type === "ortho") typeCounts.ortho++;
-    }
-
-    new Chart(ctx1, {
-      type: "pie",
-      data: { labels: ["DEM","Ortho"], datasets: [{ data: [typeCounts.dem, typeCounts.ortho] }] },
-      options: { plugins: { legend: { position: "bottom" } } }
-    });
-
-    const byYearIndex = {};
-    for (const p of ALL_PRODUCTS) {
-      const y = String(p.year||"Unknown");
-      byYearIndex[y] = (byYearIndex[y]||0)+1;
-    }
-    const yearLabels = Object.keys(byYearIndex).sort((a,b)=>parseInt(a)>parseInt(b)?1:-1);
-
-    new Chart(ctx2, {
-      type: "bar",
-      data: { labels: yearLabels, datasets: [{ label: "Products by Year", data: yearLabels.map(y=>byYearIndex[y]) }] },
-      options: { responsive: true, plugins: { legend: { display: false } } }
-    });
-
-    show(chartsWrap);
   }
 
   /* ---------------- VIEWER ---------------- */
@@ -321,7 +275,6 @@
       const robustSummary = computeSummaryFromIndex(raw, summaryJSON || undefined);
 
       renderStats(robustSummary);
-      renderCharts();
       renderProducts(ALL_PRODUCTS);
 
       hide(loading);
@@ -356,18 +309,13 @@
       </div>
     </header>
 
-    <!-- TOP: totals + charts -->
+    <!-- TOP: totals only -->
     <div class="top">
       <div class="stats-bar" id="stats" style="display:none;">
         <div class="stat"><div class="stat-number" id="total-products">0</div><div class="stat-label">Total Products</div></div>
         <div class="stat"><div class="stat-number" id="total-dems">0</div><div class="stat-label">DEMs</div></div>
         <div class="stat"><div class="stat-number" id="total-orthos">0</div><div class="stat-label">Orthomosaics</div></div>
         <div class="stat"><div class="stat-number" id="total-size">0</div><div class="stat-label">Total Size</div></div>
-      </div>
-
-      <div class="charts" style="display:none;">
-        <canvas id="chart-by-type" width="320" height="320"></canvas>
-        <canvas id="chart-by-year" width="520" height="320"></canvas>
       </div>
     </div>
 
