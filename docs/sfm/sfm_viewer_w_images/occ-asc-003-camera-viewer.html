@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>OCC-ASC-003 Camera Viewer - Point Cloud + Cameras</title>
+    <meta name="description" content="View OCC-ASC-003 cameras aligned with point cloud">
+    <meta name="author" content="NOAA">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    
+    <link rel="stylesheet" type="text/css" href="../build/potree/potree.css">
+    <link rel="stylesheet" type="text/css" href="../libs/jquery-ui/jquery-ui.min.css">
+    <link rel="stylesheet" type="text/css" href="../libs/openlayers3/ol.css">
+    <link rel="stylesheet" type="text/css" href="../libs/spectrum/spectrum.css">
+    <link rel="stylesheet" type="text/css" href="../libs/jstree/themes/mixed/style.css">
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #potree_render_area {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        #potree_sidebar_container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 350px;
+            max-height: calc(100% - 20px);
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 8px;
+            padding: 15px;
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        
+        #potree_sidebar_container h2 {
+            margin: 0 0 15px 0;
+            color: #4CAF50;
+            font-size: 1.3em;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 8px;
+        }
+        
+        #potree_sidebar_container h3 {
+            margin: 15px 0 10px 0;
+            color: #81C784;
+            font-size: 1.1em;
+        }
+        
+        .control-section {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+        
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .control-label {
+            color: #ccc;
+            font-size: 0.9em;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:active {
+            background: #3d8b40;
+        }
+        
+        button.secondary {
+            background: #2196F3;
+        }
+        
+        button.secondary:hover {
+            background: #0b7dda;
+        }
+        
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .stat-box {
+            background: rgba(76, 175, 80, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #4CAF50;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .stat-label {
+            font-size: 0.8em;
+            color: #999;
+            margin-top: 3px;
+        }
+        
+        .camera-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        
+        .camera-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid #2196F3;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85em;
+        }
+        
+        .camera-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-left-color: #4CAF50;
+            transform: translateX(3px);
+        }
+        
+        .camera-item.selected {
+            background: rgba(76, 175, 80, 0.2);
+            border-left-color: #FFD700;
+        }
+        
+        .camera-name {
+            font-weight: bold;
+            color: #81C784;
+        }
+        
+        .camera-coords {
+            font-size: 0.8em;
+            color: #999;
+            margin-top: 3px;
+        }
+        
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            color: white;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #4CAF50;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        
+        #info-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            max-width: 400px;
+            display: none;
+        }
+        
+        #info-panel.visible {
+            display: block;
+        }
+        
+        .info-title {
+            font-size: 1.1em;
+            color: #4CAF50;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .info-content {
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        
+        .info-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #4CAF50;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #45a049;
+        }
+    </style>
+    
+    <script src="../libs/jquery/jquery-3.1.1.min.js"></script>
+    <script src="../libs/spectrum/spectrum.js"></script>
+    <script src="../libs/jquery-ui/jquery-ui.min.js"></script>
+    <script src="../libs/three.js/build/three.min.js"></script>
+    <script src="../libs/three.js/extra/lines.js"></script>
+    <script src="../libs/other/BinaryHeap.js"></script>
+    <script src="../libs/tween/tween.min.js"></script>
+    <script src="../libs/d3/d3.js"></script>
+    <script src="../libs/proj4/proj4.js"></script>
+    <script src="../libs/openlayers3/ol.js"></script>
+    <script src="../libs/i18next/i18next.js"></script>
+    <script src="../libs/jstree/jstree.js"></script>
+    <script src="../build/potree/potree.js"></script>
+    <script src="../libs/plasio/js/laslaz.js"></script>
+</head>
+<body>
+    <div id="potree_render_area"></div>
+    
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading Point Cloud and Cameras...</div>
+        <div id="loading-status" style="margin-top: 10px; font-size: 0.9em; color: #999;"></div>
+    </div>
+    
+    <div id="potree_sidebar_container">
+        <h2>📷 OCC-ASC-003 Camera Viewer</h2>
+        
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-value" id="camera-count">0</div>
+                <div class="stat-label">Cameras</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="selected-camera">-</div>
+                <div class="stat-label">Selected</div>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <h3>Camera Visualization</h3>
+            
+            <div class="control-row">
+                <label class="control-label">Show Cameras</label>
+                <input type="checkbox" id="toggle-cameras" checked>
+            </div>
+            
+            <div class="control-row">
+                <label class="control-label">Camera Size</label>
+                <input type="range" id="camera-scale" min="0.1" max="5" step="0.1" value="1">
+            </div>
+            
+            <div class="control-row">
+                <label class="control-label">Camera Color</label>
+                <input type="color" id="camera-color" value="#4CAF50">
+            </div>
+            
+            <button onclick="fitAllCameras()">📍 Fit All Cameras to View</button>
+            <button onclick="clearSelection()" class="secondary">Clear Selection</button>
+        </div>
+        
+        <div class="control-section">
+            <h3>Camera List</h3>
+            <div id="camera-list" class="camera-list">
+                <div style="text-align: center; color: #666; padding: 20px;">
+                    Loading cameras...
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <h3>Point Cloud</h3>
+            <div class="control-row">
+                <label class="control-label">Point Budget</label>
+                <input type="range" id="point-budget" min="100000" max="5000000" step="100000" value="1000000">
+            </div>
+            <div class="control-row">
+                <label class="control-label">Point Size</label>
+                <input type="range" id="point-size" min="0.5" max="5" step="0.1" value="1">
+            </div>
+        </div>
+    </div>
+    
+    <div id="info-panel">
+        <div class="info-title" id="info-title">Camera Info</div>
+        <div class="info-content" id="info-content"></div>
+    </div>
+
+    <script>
+        // Global variables
+        let viewer;
+        let cameras = [];
+        let cameraMarkers = [];
+        let selectedCameraIndex = -1;
+        let cameraGroup;
+        
+        // Configuration - OCC-ASC-003 dataset from Google Cloud Storage
+        const CAMERA_JSON_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_cameras_potree.json';
+        const POINT_CLOUD_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js';
+        const IMAGE_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/MARI/ASC/OCC-ASC-003/2022/20220724_OCC-ASC-003_RA2201';
+        const THUMBNAIL_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/thumbnails';
+        
+        // Initialize viewer
+        async function initViewer() {
+            console.log('Initializing OCC-ASC-003 Camera Viewer...');
+            
+            // Create Potree viewer
+            viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+            viewer.setEDLEnabled(true);
+            viewer.setFOV(60);
+            viewer.setPointBudget(1000000);
+            viewer.loadSettingsFromURL();
+            
+            // Set up camera controls
+            viewer.setControls(viewer.orbitControls);
+            viewer.loadGUI(() => {
+                viewer.setLanguage('en');
+            });
+            
+            console.log('Viewer initialized');
+            
+            // Load cameras first
+            updateLoadingStatus('Loading camera data...');
+            await loadCameras();
+            
+            // Then load point cloud (if available)
+            updateLoadingStatus('Loading point cloud...');
+            await loadPointCloud();
+            
+            // Hide loading overlay
+            document.getElementById('loading-overlay').style.display = 'none';
+            
+            // Set up event handlers
+            setupEventHandlers();
+            
+            console.log('Initialization complete!');
+        }
+        
+        // Load camera data
+        async function loadCameras() {
+            try {
+                console.log('Loading cameras from:', CAMERA_JSON_URL);
+                
+                const response = await fetch(CAMERA_JSON_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                cameras = data.cameras || [];
+                
+                console.log(`Loaded ${cameras.length} cameras`);
+                document.getElementById('camera-count').textContent = cameras.length;
+                
+                // Create camera visualizations
+                createCameraMarkers();
+                
+                // Populate camera list
+                populateCameraList();
+                
+                // Fit cameras to view
+                setTimeout(() => fitAllCameras(), 500);
+                
+            } catch (error) {
+                console.error('Error loading cameras:', error);
+                alert('Failed to load camera data: ' + error.message);
+            }
+        }
+        
+        // Create 3D camera markers
+        function createCameraMarkers() {
+            console.log('Creating camera markers...');
+            
+            // Create group for all cameras
+            cameraGroup = new THREE.Group();
+            cameraGroup.name = 'cameras';
+            
+            cameras.forEach((camera, index) => {
+                // Create camera marker (cone shape pointing in look direction)
+                const geometry = new THREE.ConeGeometry(0.3, 0.8, 4);
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0x4CAF50,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const cone = new THREE.Mesh(geometry, material);
+                
+                // Position camera
+                const pos = camera.position;
+                cone.position.set(pos[0], pos[1], pos[2]);
+                
+                // Rotate camera to point in the right direction
+                // Camera rotation is stored as quaternion [x, y, z, w]
+                if (camera.rotation) {
+                    const quat = new THREE.Quaternion(
+                        camera.rotation[0],
+                        camera.rotation[1],
+                        camera.rotation[2],
+                        camera.rotation[3]
+                    );
+                    cone.setRotationFromQuaternion(quat);
+                    
+                    // Rotate cone to point forward (cones point up by default)
+                    cone.rotateX(Math.PI / 2);
+                }
+                
+                // Add frustum lines
+                const frustum = createCameraFrustum(camera);
+                cone.add(frustum);
+                
+                // Store reference
+                cone.userData = {
+                    cameraIndex: index,
+                    camera: camera
+                };
+                
+                cameraMarkers.push(cone);
+                cameraGroup.add(cone);
+            });
+            
+            viewer.scene.scene.add(cameraGroup);
+            console.log(`Created ${cameraMarkers.length} camera markers`);
+        }
+        
+        // Create camera frustum (viewing cone)
+        function createCameraFrustum(camera) {
+            const fov = camera.fov || 60;
+            const aspect = camera.aspect || 1.5;
+            const near = 0.5;
+            const far = 3;
+            
+            // Create frustum helper
+            const tempCamera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+            const helper = new THREE.CameraHelper(tempCamera);
+            
+            // Update the helper geometry
+            helper.update();
+            
+            // Create line segments from helper geometry
+            const geometry = helper.geometry;
+            const material = new THREE.LineBasicMaterial({
+                color: 0x4CAF50,
+                transparent: true,
+                opacity: 0.5
+            });
+            
+            const lines = new THREE.LineSegments(geometry, material);
+            
+            return lines;
+        }
+        
+        // Load point cloud
+        async function loadPointCloud() {
+            try {
+                console.log('Attempting to load point cloud from:', POINT_CLOUD_URL);
+                
+                // Check if point cloud file exists
+                const testResponse = await fetch(POINT_CLOUD_URL, { method: 'HEAD' }).catch(() => null);
+                
+                if (!testResponse || !testResponse.ok) {
+                    console.warn('Point cloud not found at:', POINT_CLOUD_URL);
+                    console.log('Viewer will show cameras only');
+                    return;
+                }
+                
+                // Load point cloud
+                Potree.loadPointCloud(POINT_CLOUD_URL, "OCC-ASC-003", e => {
+                    let pointcloud = e.pointcloud;
+                    let material = pointcloud.material;
+                    
+                    material.size = 1;
+                    material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+                    
+                    viewer.scene.addPointCloud(pointcloud);
+                    viewer.fitToScreen();
+                    
+                    console.log('Point cloud loaded successfully');
+                });
+                
+            } catch (error) {
+                console.warn('Could not load point cloud:', error);
+                console.log('Viewer will show cameras only');
+            }
+        }
+        
+        // Populate camera list in sidebar
+        function populateCameraList() {
+            const listContainer = document.getElementById('camera-list');
+            listContainer.innerHTML = '';
+            
+            cameras.forEach((camera, index) => {
+                const item = document.createElement('div');
+                item.className = 'camera-item';
+                item.dataset.index = index;
+                
+                const name = document.createElement('div');
+                name.className = 'camera-name';
+                name.textContent = camera.name || `Camera ${index + 1}`;
+                
+                const coords = document.createElement('div');
+                coords.className = 'camera-coords';
+                const pos = camera.position;
+                coords.textContent = `[${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}, ${pos[2].toFixed(2)}]`;
+                
+                item.appendChild(name);
+                item.appendChild(coords);
+                
+                item.onclick = () => selectCamera(index);
+                
+                listContainer.appendChild(item);
+            });
+        }
+        
+        // Select camera
+        function selectCamera(index) {
+            console.log('Selecting camera:', index);
+            
+            // Deselect previous
+            if (selectedCameraIndex >= 0) {
+                const prevItem = document.querySelector(`.camera-item[data-index="${selectedCameraIndex}"]`);
+                if (prevItem) prevItem.classList.remove('selected');
+                
+                const prevMarker = cameraMarkers[selectedCameraIndex];
+                if (prevMarker) {
+                    prevMarker.material.color.setHex(0x4CAF50);
+                    prevMarker.material.emissive = new THREE.Color(0x000000);
+                }
+            }
+            
+            // Select new
+            selectedCameraIndex = index;
+            const item = document.querySelector(`.camera-item[data-index="${index}"]`);
+            if (item) item.classList.add('selected');
+            
+            const marker = cameraMarkers[index];
+            if (marker) {
+                marker.material.color.setHex(0xFFD700);
+                marker.material.emissive = new THREE.Color(0xFFD700);
+                marker.material.emissiveIntensity = 0.3;
+            }
+            
+            document.getElementById('selected-camera').textContent = cameras[index].name || index;
+            
+            // Fly to camera
+            flyToCamera(index);
+            
+            // Show info panel
+            showCameraInfo(index);
+        }
+        
+        // Fly camera to selected position
+        function flyToCamera(index) {
+            const camera = cameras[index];
+            const pos = camera.position;
+            
+            // Calculate target position (move back from camera position)
+            const offset = 10; // Distance behind camera
+            
+            // Use camera rotation to determine look direction
+            const quat = new THREE.Quaternion(
+                camera.rotation[0],
+                camera.rotation[1],
+                camera.rotation[2],
+                camera.rotation[3]
+            );
+            
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(quat);
+            
+            const targetPos = new THREE.Vector3(
+                pos[0] - forward.x * offset,
+                pos[1] - forward.y * offset,
+                pos[2] - forward.z * offset
+            );
+            
+            // Animate camera movement
+            viewer.scene.view.position.set(targetPos.x, targetPos.y, targetPos.z);
+            viewer.scene.view.lookAt(pos[0], pos[1], pos[2]);
+        }
+        
+        // Show camera info panel
+        function showCameraInfo(index) {
+            const camera = cameras[index];
+            const panel = document.getElementById('info-panel');
+            const title = document.getElementById('info-title');
+            const content = document.getElementById('info-content');
+            
+            title.textContent = camera.name || `Camera ${index + 1}`;
+            
+            const pos = camera.position;
+            const fov = camera.fov.toFixed(1);
+            
+            let html = `
+                <strong>Position:</strong> [${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}, ${pos[2].toFixed(3)}]<br>
+                <strong>FOV:</strong> ${fov}°<br>
+                <strong>Aspect:</strong> ${camera.aspect.toFixed(2)}<br>
+            `;
+            
+            if (camera.image) {
+                html += `<br><strong>Image:</strong><br>
+                         <img src="${camera.image}" class="info-image" onerror="this.style.display='none'">`;
+            }
+            
+            content.innerHTML = html;
+            panel.classList.add('visible');
+        }
+        
+        // Fit all cameras to view
+        function fitAllCameras() {
+            if (cameras.length === 0) return;
+            
+            // Calculate bounding box
+            const box = new THREE.Box3();
+            
+            cameras.forEach(camera => {
+                const pos = camera.position;
+                box.expandByPoint(new THREE.Vector3(pos[0], pos[1], pos[2]));
+            });
+            
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            
+            // Position camera to see all
+            const distance = maxDim * 2;
+            viewer.scene.view.position.set(
+                center.x + distance * 0.5,
+                center.y + distance * 0.5,
+                center.z + distance * 0.5
+            );
+            viewer.scene.view.lookAt(center.x, center.y, center.z);
+            
+            console.log('Fitted all cameras to view');
+        }
+        
+        // Clear selection
+        function clearSelection() {
+            if (selectedCameraIndex >= 0) {
+                const item = document.querySelector(`.camera-item[data-index="${selectedCameraIndex}"]`);
+                if (item) item.classList.remove('selected');
+                
+                const marker = cameraMarkers[selectedCameraIndex];
+                if (marker) {
+                    marker.material.color.setHex(0x4CAF50);
+                    marker.material.emissive = new THREE.Color(0x000000);
+                }
+            }
+            
+            selectedCameraIndex = -1;
+            document.getElementById('selected-camera').textContent = '-';
+            document.getElementById('info-panel').classList.remove('visible');
+        }
+        
+        // Set up event handlers
+        function setupEventHandlers() {
+            // Toggle cameras
+            document.getElementById('toggle-cameras').addEventListener('change', (e) => {
+                cameraGroup.visible = e.target.checked;
+            });
+            
+            // Camera scale
+            document.getElementById('camera-scale').addEventListener('input', (e) => {
+                const scale = parseFloat(e.target.value);
+                cameraMarkers.forEach(marker => {
+                    marker.scale.setScalar(scale);
+                });
+            });
+            
+            // Camera color
+            document.getElementById('camera-color').addEventListener('input', (e) => {
+                const color = new THREE.Color(e.target.value);
+                cameraMarkers.forEach((marker, index) => {
+                    if (index !== selectedCameraIndex) {
+                        marker.material.color = color.clone();
+                    }
+                });
+            });
+            
+            // Point budget
+            document.getElementById('point-budget').addEventListener('input', (e) => {
+                viewer.setPointBudget(parseInt(e.target.value));
+            });
+            
+            // Point size
+            document.getElementById('point-size').addEventListener('input', (e) => {
+                viewer.scene.pointclouds.forEach(pc => {
+                    pc.material.size = parseFloat(e.target.value);
+                });
+            });
+            
+            // Click on 3D scene to select camera
+            viewer.renderer.domElement.addEventListener('mousedown', (e) => {
+                if (e.button === 0) { // Left click
+                    const mouse = {
+                        x: (e.clientX / window.innerWidth) * 2 - 1,
+                        y: -(e.clientY / window.innerHeight) * 2 + 1
+                    };
+                    
+                    const raycaster = new THREE.Raycaster();
+                    raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
+                    
+                    const intersects = raycaster.intersectObjects(cameraMarkers, true);
+                    
+                    if (intersects.length > 0) {
+                        let object = intersects[0].object;
+                        while (object.parent && !object.userData.cameraIndex && object.userData.cameraIndex !== 0) {
+                            object = object.parent;
+                        }
+                        
+                        if (object.userData.cameraIndex !== undefined) {
+                            selectCamera(object.userData.cameraIndex);
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update loading status
+        function updateLoadingStatus(message) {
+            document.getElementById('loading-status').textContent = message;
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            initViewer().catch(error => {
+                console.error('Failed to initialize viewer:', error);
+                alert('Failed to initialize viewer. Check console for details.');
+            });
+        });
+    </script>
+</body>
+</html>
