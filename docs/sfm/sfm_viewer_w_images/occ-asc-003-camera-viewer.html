@@ -404,7 +404,8 @@
             await loadPointCloud();
             
             // Hide loading overlay
-            document.getElementById('loading-overlay').style.display = 'none';
+            const overlayEl = document.getElementById('loading-overlay');
+            if (overlayEl) overlayEl.style.display = 'none';
             
             // Set up event handlers
             setupEventHandlers();
@@ -426,7 +427,8 @@
                 cameras = data.cameras || [];
                 
                 console.log(`Loaded ${cameras.length} cameras`);
-                document.getElementById('camera-count').textContent = cameras.length;
+                const cameraCountEl = document.getElementById('camera-count');
+                if (cameraCountEl) cameraCountEl.textContent = cameras.length;
                 
                 // Create camera visualizations
                 createCameraMarkers();
@@ -562,6 +564,8 @@
         // Populate camera list in sidebar
         function populateCameraList() {
             const listContainer = document.getElementById('camera-list');
+            if (!listContainer) return;
+            
             listContainer.innerHTML = '';
             
             cameras.forEach((camera, index) => {
@@ -615,7 +619,8 @@
                 marker.material.emissiveIntensity = 0.3;
             }
             
-            document.getElementById('selected-camera').textContent = cameras[index].name || index;
+            const selectedEl = document.getElementById('selected-camera');
+            if (selectedEl) selectedEl.textContent = cameras[index].name || index;
             
             // Fly to camera
             flyToCamera(index);
@@ -660,6 +665,8 @@
             const panel = document.getElementById('info-panel');
             const title = document.getElementById('info-title');
             const content = document.getElementById('info-content');
+            
+            if (!panel || !title || !content) return;
             
             title.textContent = camera.name || `Camera ${index + 1}`;
             
@@ -723,46 +730,63 @@
             }
             
             selectedCameraIndex = -1;
-            document.getElementById('selected-camera').textContent = '-';
-            document.getElementById('info-panel').classList.remove('visible');
+            const selectedEl = document.getElementById('selected-camera');
+            if (selectedEl) selectedEl.textContent = '-';
+            const panelEl = document.getElementById('info-panel');
+            if (panelEl) panelEl.classList.remove('visible');
         }
         
         // Set up event handlers
         function setupEventHandlers() {
             // Toggle cameras
-            document.getElementById('toggle-cameras').addEventListener('change', (e) => {
-                cameraGroup.visible = e.target.checked;
-            });
+            const toggleEl = document.getElementById('toggle-cameras');
+            if (toggleEl) {
+                toggleEl.addEventListener('change', (e) => {
+                    cameraGroup.visible = e.target.checked;
+                });
+            }
             
             // Camera scale
-            document.getElementById('camera-scale').addEventListener('input', (e) => {
-                const scale = parseFloat(e.target.value);
-                cameraMarkers.forEach(marker => {
-                    marker.scale.setScalar(scale);
+            const scaleEl = document.getElementById('camera-scale');
+            if (scaleEl) {
+                scaleEl.addEventListener('input', (e) => {
+                    const scale = parseFloat(e.target.value);
+                    cameraMarkers.forEach(marker => {
+                        marker.scale.setScalar(scale);
+                    });
                 });
-            });
+            }
             
             // Camera color
-            document.getElementById('camera-color').addEventListener('input', (e) => {
-                const color = new THREE.Color(e.target.value);
-                cameraMarkers.forEach((marker, index) => {
-                    if (index !== selectedCameraIndex) {
-                        marker.material.color = color.clone();
-                    }
+            const colorEl = document.getElementById('camera-color');
+            if (colorEl) {
+                colorEl.addEventListener('input', (e) => {
+                    const color = new THREE.Color(e.target.value);
+                    cameraMarkers.forEach((marker, index) => {
+                        if (index !== selectedCameraIndex) {
+                            marker.material.color = color.clone();
+                        }
+                    });
                 });
-            });
+            }
             
             // Point budget
-            document.getElementById('point-budget').addEventListener('input', (e) => {
-                viewer.setPointBudget(parseInt(e.target.value));
-            });
+            const budgetEl = document.getElementById('point-budget');
+            if (budgetEl) {
+                budgetEl.addEventListener('input', (e) => {
+                    viewer.setPointBudget(parseInt(e.target.value));
+                });
+            }
             
             // Point size
-            document.getElementById('point-size').addEventListener('input', (e) => {
-                viewer.scene.pointclouds.forEach(pc => {
-                    pc.material.size = parseFloat(e.target.value);
+            const sizeEl = document.getElementById('point-size');
+            if (sizeEl) {
+                sizeEl.addEventListener('input', (e) => {
+                    viewer.scene.pointclouds.forEach(pc => {
+                        pc.material.size = parseFloat(e.target.value);
+                    });
                 });
-            });
+            }
             
             // Click on 3D scene to select camera
             viewer.renderer.domElement.addEventListener('mousedown', (e) => {
@@ -793,16 +817,25 @@
         
         // Update loading status
         function updateLoadingStatus(message) {
-            document.getElementById('loading-status').textContent = message;
+            const statusEl = document.getElementById('loading-status');
+            if (statusEl) statusEl.textContent = message;
         }
         
-        // Initialize when page loads
-        window.addEventListener('DOMContentLoaded', () => {
+        // Initialize when page loads - use setTimeout to ensure DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initViewer().catch(error => {
+                    console.error('Failed to initialize viewer:', error);
+                    alert('Failed to initialize viewer. Check console for details.');
+                });
+            });
+        } else {
+            // DOM already loaded
             initViewer().catch(error => {
                 console.error('Failed to initialize viewer:', error);
                 alert('Failed to initialize viewer. Check console for details.');
             });
-        });
+        }
     </script>
 </body>
 </html>
