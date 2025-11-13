@@ -835,6 +835,9 @@
         
         // Spatial query: Find nearest cameras to a point
         function findNearestCameras(point, count, radius) {
+            console.log(`[Spatial Query] Finding cameras near point [${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)}]`);
+            console.log(`[Spatial Query] Parameters: count=${count}, radius=${radius}m`);
+            
             const distances = cameras.map((camera, index) => {
                 const pos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
                 const dist = point.distanceTo(pos);
@@ -845,12 +848,20 @@
             const withinRadius = distances.filter(d => d.distance <= radius);
             withinRadius.sort((a, b) => a.distance - b.distance);
             
+            console.log(`[Spatial Query] Found ${withinRadius.length} cameras within ${radius}m radius`);
+            
             // Take top N
-            return withinRadius.slice(0, count);
+            const result = withinRadius.slice(0, count);
+            console.log(`[Spatial Query] Returning top ${result.length} cameras`);
+            
+            return result;
         }
         
         // Apply spatial filter to show only nearest cameras
         function applySpatialFilter(point) {
+            console.log('=== [Spatial Query] Applying Spatial Filter ===');
+            console.log('[Spatial Query] Click point:', point);
+            
             spatialFilterActive = true;
             queryPoint = point;
             
@@ -858,7 +869,8 @@
             const nearest = findNearestCameras(point, nearestCount, searchRadius);
             const nearestIndices = new Set(nearest.map(n => n.index));
             
-            console.log(`Found ${nearest.length} cameras within ${searchRadius}m of clicked point`);
+            console.log(`[Spatial Query] Found ${nearest.length} cameras within ${searchRadius}m of clicked point`);
+            console.log('[Spatial Query] Camera indices:', Array.from(nearestIndices));
             
             // Update visibility in 3D and list
             const listContainer = document.getElementById('camera-list');
@@ -891,12 +903,17 @@
             
             // Auto-fit view to show nearby cameras
             if (nearest.length > 0) {
+                console.log('[Spatial Query] Auto-fitting view to visible cameras');
                 fitCamerasToView(nearest.map(n => n.index));
             }
+            
+            console.log('=== [Spatial Query] Filter Applied ===');
         }
         
         // Clear spatial filter and show all cameras
         function clearSpatialFilter() {
+            console.log('[Spatial Query] Clearing spatial filter - showing all cameras');
+            
             spatialFilterActive = false;
             queryPoint = null;
             
@@ -925,7 +942,7 @@
             const visibleCamsEl = document.getElementById('visible-cameras');
             if (visibleCamsEl) visibleCamsEl.textContent = `All ${cameras.length} cameras shown`;
             
-            console.log('Cleared spatial filter, showing all cameras');
+            console.log('[Spatial Query] ✓ All cameras now visible');
         }
         
         // Create visual marker at query point
@@ -1139,8 +1156,11 @@
                 nearestSlider.addEventListener('input', (e) => {
                     nearestCount = parseInt(e.target.value);
                     nearestLabel.textContent = `${nearestCount} cameras`;
+                    console.log(`[Controls] Nearest count changed to: ${nearestCount}`);
+                    
                     // Re-apply filter if active
                     if (spatialFilterActive && queryPoint) {
+                        console.log('[Controls] Re-applying spatial filter with new count');
                         applySpatialFilter(queryPoint);
                     }
                 });
@@ -1153,8 +1173,11 @@
                 radiusSlider.addEventListener('input', (e) => {
                     searchRadius = parseFloat(e.target.value);
                     radiusLabel.textContent = `${searchRadius}m`;
+                    console.log(`[Controls] Search radius changed to: ${searchRadius}m`);
+                    
                     // Re-apply filter if active
                     if (spatialFilterActive && queryPoint) {
+                        console.log('[Controls] Re-applying spatial filter with new radius');
                         applySpatialFilter(queryPoint);
                     }
                 });
@@ -1163,18 +1186,26 @@
             // Click on 3D scene - prioritize point cloud, then cameras
             viewer.renderer.domElement.addEventListener('mousedown', (e) => {
                 if (e.button === 0) { // Left click
+                    console.log('[Click] Left click detected at screen coords:', e.clientX, e.clientY);
+                    
                     const mouse = {
                         x: (e.clientX / window.innerWidth) * 2 - 1,
                         y: -(e.clientY / window.innerHeight) * 2 + 1
                     };
+                    
+                    console.log('[Click] Normalized mouse coords:', mouse);
                     
                     const raycaster = new THREE.Raycaster();
                     raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
                     
                     // First, try to intersect with point cloud
                     let pointCloudHit = false;
+                    console.log('[Click] Checking for point cloud intersection...');
+                    
                     if (viewer.scene.pointclouds.length > 0) {
-                        viewer.scene.pointclouds.forEach(pc => {
+                        console.log(`[Click] Found ${viewer.scene.pointclouds.length} point cloud(s) in scene`);
+                        
+                        viewer.scene.pointclouds.forEach((pc, index) => {
                             const result = pc.pick(viewer, viewer.scene.getActiveCamera(), mouse, {
                                 pickWindowSize: 17,
                                 pickOutsideClipRegion: true
@@ -1182,16 +1213,24 @@
                             
                             if (result && result.position) {
                                 // Hit point cloud - apply spatial filter
-                                console.log('Point cloud clicked:', result.position);
+                                console.log(`[Click] ✓ Point cloud #${index} hit!`);
+                                console.log('[Click] Hit position:', result.position);
                                 applySpatialFilter(result.position);
                                 pointCloudHit = true;
+                            } else {
+                                console.log(`[Click] ✗ Point cloud #${index} missed`);
                             }
                         });
+                    } else {
+                        console.log('[Click] ⚠ No point clouds in scene');
                     }
                     
                     // If no point cloud hit, check for camera markers
                     if (!pointCloudHit) {
+                        console.log('[Click] No point cloud hit, checking camera markers...');
+                        
                         const intersects = raycaster.intersectObjects(cameraMarkers, true);
+                        console.log(`[Click] Found ${intersects.length} camera marker intersections`);
                         
                         if (intersects.length > 0) {
                             let object = intersects[0].object;
@@ -1200,8 +1239,13 @@
                             }
                             
                             if (object.userData.cameraIndex !== undefined) {
+                                console.log(`[Click] ✓ Camera marker clicked: index ${object.userData.cameraIndex}`);
                                 selectCamera(object.userData.cameraIndex);
+                            } else {
+                                console.log('[Click] ✗ Camera marker has no index');
                             }
+                        } else {
+                            console.log('[Click] ✗ Clicked empty space');
                         }
                     }
                 }
