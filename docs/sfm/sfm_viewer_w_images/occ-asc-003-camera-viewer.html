@@ -346,6 +346,30 @@
             <button onclick="clearSelection()" class="secondary">Clear Selection</button>
         </div>
         
+        <div class="control-section" style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3);">
+            <h3>🎯 Spatial Query</h3>
+            <p style="font-size: 0.85em; color: #999; margin: 0 0 10px 0;">Click on the point cloud to find nearby cameras</p>
+            
+            <div class="control-row">
+                <label class="control-label">Show Nearest</label>
+                <input type="range" id="nearest-count" min="5" max="50" step="5" value="10">
+                <span style="font-size: 0.8em; color: #4CAF50;" id="nearest-count-label">10 cameras</span>
+            </div>
+            
+            <div class="control-row">
+                <label class="control-label">Search Radius</label>
+                <input type="range" id="search-radius" min="1" max="20" step="1" value="10">
+                <span style="font-size: 0.8em; color: #4CAF50;" id="search-radius-label">10m</span>
+            </div>
+            
+            <div style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px; margin-top: 10px; font-size: 0.85em;">
+                <div>📍 <span id="query-point">No point selected</span></div>
+                <div>📷 <span id="visible-cameras">All 0 cameras shown</span></div>
+            </div>
+            
+            <button onclick="clearSpatialFilter()" style="margin-top: 10px; background: rgba(255, 152, 0, 0.2); border-color: rgba(255, 152, 0, 0.5);">Clear Filter & Show All</button>
+        </div>
+        
         <div class="control-section">
             <h3>Camera List</h3>
             <input type="text" id="camera-search" placeholder="🔍 Search cameras..." style="width: 100%; padding: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(76, 175, 80, 0.3); border-radius: 4px; color: white;">
@@ -385,6 +409,11 @@
         let lodEnabled = true;
         let lodDistance = 30;
         let showFrustums = true;
+        let spatialFilterActive = false;
+        let nearestCount = 10;
+        let searchRadius = 10;
+        let queryPoint = null;
+        let queryMarker = null;
         
         // Configuration - OCC-ASC-003 dataset from Google Cloud Storage
         const CAMERA_JSON_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_cameras_potree.json';
@@ -445,6 +474,10 @@
                 console.log(`Loaded ${cameras.length} cameras`);
                 const cameraCountEl = document.getElementById('camera-count');
                 if (cameraCountEl) cameraCountEl.textContent = cameras.length;
+                
+                // Update visible cameras display
+                const visibleCamsEl = document.getElementById('visible-cameras');
+                if (visibleCamsEl) visibleCamsEl.textContent = `All ${cameras.length} cameras shown`;
                 
                 // Create camera visualizations
                 createCameraMarkers();
@@ -800,6 +833,158 @@
             console.log(`Filtered to ${visibleCount} cameras`);
         }
         
+        // Spatial query: Find nearest cameras to a point
+        function findNearestCameras(point, count, radius) {
+            const distances = cameras.map((camera, index) => {
+                const pos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
+                const dist = point.distanceTo(pos);
+                return { index, distance: dist, camera };
+            });
+            
+            // Filter by radius, then sort by distance
+            const withinRadius = distances.filter(d => d.distance <= radius);
+            withinRadius.sort((a, b) => a.distance - b.distance);
+            
+            // Take top N
+            return withinRadius.slice(0, count);
+        }
+        
+        // Apply spatial filter to show only nearest cameras
+        function applySpatialFilter(point) {
+            spatialFilterActive = true;
+            queryPoint = point;
+            
+            // Find nearest cameras
+            const nearest = findNearestCameras(point, nearestCount, searchRadius);
+            const nearestIndices = new Set(nearest.map(n => n.index));
+            
+            console.log(`Found ${nearest.length} cameras within ${searchRadius}m of clicked point`);
+            
+            // Update visibility in 3D and list
+            const listContainer = document.getElementById('camera-list');
+            if (listContainer) {
+                const items = listContainer.querySelectorAll('.camera-item');
+                items.forEach((item, index) => {
+                    const isNear = nearestIndices.has(index);
+                    item.style.display = isNear ? 'flex' : 'none';
+                    
+                    // Update 3D marker visibility
+                    if (cameraMarkers[index]) {
+                        cameraMarkers[index].visible = isNear;
+                    }
+                });
+            }
+            
+            // Update UI
+            const queryPointEl = document.getElementById('query-point');
+            if (queryPointEl) {
+                queryPointEl.textContent = `[${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)}]`;
+            }
+            
+            const visibleCamsEl = document.getElementById('visible-cameras');
+            if (visibleCamsEl) {
+                visibleCamsEl.textContent = `${nearest.length} of ${cameras.length} cameras shown`;
+            }
+            
+            // Add visual marker at query point
+            createQueryMarker(point);
+            
+            // Auto-fit view to show nearby cameras
+            if (nearest.length > 0) {
+                fitCamerasToView(nearest.map(n => n.index));
+            }
+        }
+        
+        // Clear spatial filter and show all cameras
+        function clearSpatialFilter() {
+            spatialFilterActive = false;
+            queryPoint = null;
+            
+            // Show all cameras
+            const listContainer = document.getElementById('camera-list');
+            if (listContainer) {
+                const items = listContainer.querySelectorAll('.camera-item');
+                items.forEach((item, index) => {
+                    item.style.display = 'flex';
+                    if (cameraMarkers[index]) {
+                        cameraMarkers[index].visible = true;
+                    }
+                });
+            }
+            
+            // Remove query marker
+            if (queryMarker) {
+                viewer.scene.scene.remove(queryMarker);
+                queryMarker = null;
+            }
+            
+            // Update UI
+            const queryPointEl = document.getElementById('query-point');
+            if (queryPointEl) queryPointEl.textContent = 'No point selected';
+            
+            const visibleCamsEl = document.getElementById('visible-cameras');
+            if (visibleCamsEl) visibleCamsEl.textContent = `All ${cameras.length} cameras shown`;
+            
+            console.log('Cleared spatial filter, showing all cameras');
+        }
+        
+        // Create visual marker at query point
+        function createQueryMarker(point) {
+            // Remove old marker
+            if (queryMarker) {
+                viewer.scene.scene.remove(queryMarker);
+            }
+            
+            // Create sphere at clicked point
+            const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xFF9800,
+                transparent: true,
+                opacity: 0.7
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.copy(point);
+            
+            // Add radius ring
+            const ringGeometry = new THREE.RingGeometry(searchRadius - 0.1, searchRadius, 32);
+            const ringMaterial = new THREE.MeshBasicMaterial({
+                color: 0xFF9800,
+                transparent: true,
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            ring.rotation.x = Math.PI / 2;
+            sphere.add(ring);
+            
+            queryMarker = sphere;
+            viewer.scene.scene.add(queryMarker);
+        }
+        
+        // Fit view to specific cameras
+        function fitCamerasToView(indices) {
+            if (indices.length === 0) return;
+            
+            const box = new THREE.Box3();
+            indices.forEach(index => {
+                const camera = cameras[index];
+                const pos = camera.position;
+                box.expandByPoint(new THREE.Vector3(pos[0], pos[1], pos[2]));
+            });
+            
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z, 1);
+            
+            const distance = maxDim * 3;
+            viewer.scene.view.position.set(
+                center.x + distance * 0.5,
+                center.y + distance * 0.5,
+                center.z + distance * 0.5
+            );
+            viewer.scene.view.lookAt(center.x, center.y, center.z);
+        }
+        
         // Fit all cameras to view
         function fitAllCameras() {
             if (cameras.length === 0) return;
@@ -941,11 +1126,41 @@
             const searchInput = document.getElementById('camera-search');
             if (searchInput) {
                 searchInput.addEventListener('input', (e) => {
-                    filterCameras(e.target.value);
+                    if (!spatialFilterActive) {
+                        filterCameras(e.target.value);
+                    }
                 });
             }
             
-            // Click on 3D scene to select camera
+            // Nearest count slider
+            const nearestSlider = document.getElementById('nearest-count');
+            const nearestLabel = document.getElementById('nearest-count-label');
+            if (nearestSlider && nearestLabel) {
+                nearestSlider.addEventListener('input', (e) => {
+                    nearestCount = parseInt(e.target.value);
+                    nearestLabel.textContent = `${nearestCount} cameras`;
+                    // Re-apply filter if active
+                    if (spatialFilterActive && queryPoint) {
+                        applySpatialFilter(queryPoint);
+                    }
+                });
+            }
+            
+            // Search radius slider
+            const radiusSlider = document.getElementById('search-radius');
+            const radiusLabel = document.getElementById('search-radius-label');
+            if (radiusSlider && radiusLabel) {
+                radiusSlider.addEventListener('input', (e) => {
+                    searchRadius = parseFloat(e.target.value);
+                    radiusLabel.textContent = `${searchRadius}m`;
+                    // Re-apply filter if active
+                    if (spatialFilterActive && queryPoint) {
+                        applySpatialFilter(queryPoint);
+                    }
+                });
+            }
+            
+            // Click on 3D scene - prioritize point cloud, then cameras
             viewer.renderer.domElement.addEventListener('mousedown', (e) => {
                 if (e.button === 0) { // Left click
                     const mouse = {
@@ -956,16 +1171,37 @@
                     const raycaster = new THREE.Raycaster();
                     raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
                     
-                    const intersects = raycaster.intersectObjects(cameraMarkers, true);
+                    // First, try to intersect with point cloud
+                    let pointCloudHit = false;
+                    if (viewer.scene.pointclouds.length > 0) {
+                        viewer.scene.pointclouds.forEach(pc => {
+                            const result = pc.pick(viewer, viewer.scene.getActiveCamera(), mouse, {
+                                pickWindowSize: 17,
+                                pickOutsideClipRegion: true
+                            });
+                            
+                            if (result && result.position) {
+                                // Hit point cloud - apply spatial filter
+                                console.log('Point cloud clicked:', result.position);
+                                applySpatialFilter(result.position);
+                                pointCloudHit = true;
+                            }
+                        });
+                    }
                     
-                    if (intersects.length > 0) {
-                        let object = intersects[0].object;
-                        while (object.parent && !object.userData.cameraIndex && object.userData.cameraIndex !== 0) {
-                            object = object.parent;
-                        }
+                    // If no point cloud hit, check for camera markers
+                    if (!pointCloudHit) {
+                        const intersects = raycaster.intersectObjects(cameraMarkers, true);
                         
-                        if (object.userData.cameraIndex !== undefined) {
-                            selectCamera(object.userData.cameraIndex);
+                        if (intersects.length > 0) {
+                            let object = intersects[0].object;
+                            while (object.parent && !object.userData.cameraIndex && object.userData.cameraIndex !== 0) {
+                                object = object.parent;
+                            }
+                            
+                            if (object.userData.cameraIndex !== undefined) {
+                                selectCamera(object.userData.cameraIndex);
+                            }
                         }
                     }
                 }
