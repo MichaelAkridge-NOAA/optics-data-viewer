@@ -331,12 +331,25 @@
                 <input type="color" id="camera-color" value="#4CAF50">
             </div>
             
+            <div class="control-row">
+                <label class="control-label">Show Frustums</label>
+                <input type="checkbox" id="toggle-frustums" checked>
+            </div>
+            
+            <div class="control-row">
+                <label class="control-label">LOD Distance</label>
+                <input type="range" id="lod-distance" min="5" max="100" step="5" value="30">
+                <span style="font-size: 0.8em; color: #999;">Simplify distant cameras</span>
+            </div>
+            
             <button onclick="fitAllCameras()">📍 Fit All Cameras to View</button>
             <button onclick="clearSelection()" class="secondary">Clear Selection</button>
         </div>
         
         <div class="control-section">
             <h3>Camera List</h3>
+            <input type="text" id="camera-search" placeholder="🔍 Search cameras..." style="width: 100%; padding: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(76, 175, 80, 0.3); border-radius: 4px; color: white;">
+            
             <div id="camera-list" class="camera-list">
                 <div style="text-align: center; color: #666; padding: 20px;">
                     Loading cameras...
@@ -369,6 +382,9 @@
         let cameraMarkers = [];
         let selectedCameraIndex = -1;
         let cameraGroup;
+        let lodEnabled = true;
+        let lodDistance = 30;
+        let showFrustums = true;
         
         // Configuration - OCC-ASC-003 dataset from Google Cloud Storage
         const CAMERA_JSON_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_cameras_potree.json';
@@ -445,30 +461,32 @@
             }
         }
         
-        // Create 3D camera markers
+        // Create 3D camera markers with LOD system
         function createCameraMarkers() {
-            console.log('Creating camera markers...');
+            console.log('Creating camera markers with LOD...');
             
             // Create group for all cameras
             cameraGroup = new THREE.Group();
             cameraGroup.name = 'cameras';
             
             cameras.forEach((camera, index) => {
-                // Create camera marker (cone shape pointing in look direction)
-                const geometry = new THREE.ConeGeometry(0.3, 0.8, 4);
-                const material = new THREE.MeshBasicMaterial({
+                // Create LOD object for each camera
+                const lod = new THREE.LOD();
+                
+                // LOD Level 0 (close): Detailed cone with frustum
+                const detailedGroup = new THREE.Group();
+                const coneGeometry = new THREE.ConeGeometry(0.3, 0.8, 8); // More segments
+                const coneMaterial = new THREE.MeshBasicMaterial({
                     color: 0x4CAF50,
                     transparent: true,
-                    opacity: 0.8
+                    opacity: 0.8,
+                    depthTest: true,
+                    depthWrite: true,
+                    side: THREE.DoubleSide
                 });
-                const cone = new THREE.Mesh(geometry, material);
-                
-                // Position camera
-                const pos = camera.position;
-                cone.position.set(pos[0], pos[1], pos[2]);
+                const cone = new THREE.Mesh(coneGeometry, coneMaterial);
                 
                 // Rotate camera to point in the right direction
-                // Camera rotation is stored as quaternion [x, y, z, w]
                 if (camera.rotation) {
                     const quat = new THREE.Quaternion(
                         camera.rotation[0],
@@ -477,27 +495,64 @@
                         camera.rotation[3]
                     );
                     cone.setRotationFromQuaternion(quat);
-                    
-                    // Rotate cone to point forward (cones point up by default)
                     cone.rotateX(Math.PI / 2);
                 }
                 
-                // Add frustum lines
+                // Add frustum lines (will be toggled based on settings)
                 const frustum = createCameraFrustum(camera);
+                frustum.name = 'frustum';
                 cone.add(frustum);
                 
+                detailedGroup.add(cone);
+                lod.addLevel(detailedGroup, 0);
+                
+                // LOD Level 1 (medium): Simple cone, no frustum
+                const simpleConeGeometry = new THREE.ConeGeometry(0.3, 0.8, 4); // Fewer segments
+                const simpleCone = new THREE.Mesh(simpleConeGeometry, coneMaterial.clone());
+                if (camera.rotation) {
+                    const quat = new THREE.Quaternion(
+                        camera.rotation[0],
+                        camera.rotation[1],
+                        camera.rotation[2],
+                        camera.rotation[3]
+                    );
+                    simpleCone.setRotationFromQuaternion(quat);
+                    simpleCone.rotateX(Math.PI / 2);
+                }
+                lod.addLevel(simpleCone, lodDistance);
+                
+                // LOD Level 2 (far): Just a point/sphere
+                const pointGeometry = new THREE.SphereGeometry(0.2, 4, 4);
+                const pointMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x4CAF50,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                const point = new THREE.Mesh(pointGeometry, pointMaterial);
+                lod.addLevel(point, lodDistance * 2);
+                
+                // Position camera
+                const pos = camera.position;
+                lod.position.set(pos[0], pos[1], pos[2]);
+                
                 // Store reference
-                cone.userData = {
+                lod.userData = {
                     cameraIndex: index,
-                    camera: camera
+                    camera: camera,
+                    detailedMesh: cone,
+                    simpleMesh: simpleCone,
+                    pointMesh: point
                 };
                 
-                cameraMarkers.push(cone);
-                cameraGroup.add(cone);
+                cameraMarkers.push(lod);
+                cameraGroup.add(lod);
             });
             
             viewer.scene.scene.add(cameraGroup);
-            console.log(`Created ${cameraMarkers.length} camera markers`);
+            console.log(`Created ${cameraMarkers.length} camera markers with LOD`);
+            
+            // Update LOD on each frame
+            viewer.addEventListener('update', updateLOD);
         }
         
         // Create camera frustum (viewing cone)
@@ -601,9 +656,16 @@
                 if (prevItem) prevItem.classList.remove('selected');
                 
                 const prevMarker = cameraMarkers[selectedCameraIndex];
-                if (prevMarker) {
-                    prevMarker.material.color.setHex(0x4CAF50);
-                    prevMarker.material.emissive = new THREE.Color(0x000000);
+                if (prevMarker && prevMarker.userData.detailedMesh) {
+                    prevMarker.userData.detailedMesh.material.color.setHex(0x4CAF50);
+                    prevMarker.userData.detailedMesh.material.opacity = 0.8;
+                    if (prevMarker.userData.simpleMesh) {
+                        prevMarker.userData.simpleMesh.material.color.setHex(0x4CAF50);
+                        prevMarker.userData.simpleMesh.material.opacity = 0.8;
+                    }
+                    if (prevMarker.userData.pointMesh) {
+                        prevMarker.userData.pointMesh.material.color.setHex(0x4CAF50);
+                    }
                 }
             }
             
@@ -613,10 +675,16 @@
             if (item) item.classList.add('selected');
             
             const marker = cameraMarkers[index];
-            if (marker) {
-                marker.material.color.setHex(0xFFD700);
-                marker.material.emissive = new THREE.Color(0xFFD700);
-                marker.material.emissiveIntensity = 0.3;
+            if (marker && marker.userData.detailedMesh) {
+                marker.userData.detailedMesh.material.color.setHex(0xFFD700);
+                marker.userData.detailedMesh.material.opacity = 1.0;
+                if (marker.userData.simpleMesh) {
+                    marker.userData.simpleMesh.material.color.setHex(0xFFD700);
+                    marker.userData.simpleMesh.material.opacity = 1.0;
+                }
+                if (marker.userData.pointMesh) {
+                    marker.userData.pointMesh.material.color.setHex(0xFFD700);
+                }
             }
             
             const selectedEl = document.getElementById('selected-camera');
@@ -688,6 +756,50 @@
             panel.classList.add('visible');
         }
         
+        // Update LOD for all cameras based on distance from viewer
+        function updateLOD() {
+            if (!lodEnabled || !viewer.scene.view) return;
+            
+            const cameraPosition = viewer.scene.view.position;
+            
+            cameraMarkers.forEach(lod => {
+                lod.update(viewer.scene.getActiveCamera());
+                
+                // Toggle frustum visibility based on settings and distance
+                const frustum = lod.userData.detailedMesh?.children.find(c => c.name === 'frustum');
+                if (frustum) {
+                    const distance = cameraPosition.distanceTo(lod.position);
+                    frustum.visible = showFrustums && (distance < lodDistance * 1.5 || lod.userData.cameraIndex === selectedCameraIndex);
+                }
+            });
+        }
+        
+        // Filter/search cameras
+        function filterCameras(searchText) {
+            const listContainer = document.getElementById('camera-list');
+            if (!listContainer) return;
+            
+            const items = listContainer.querySelectorAll('.camera-item');
+            let visibleCount = 0;
+            
+            items.forEach((item, index) => {
+                const camera = cameras[index];
+                const cameraName = (camera.name || `Camera ${index + 1}`).toLowerCase();
+                const matches = cameraName.includes(searchText.toLowerCase());
+                
+                item.style.display = matches ? 'flex' : 'none';
+                
+                // Also hide/show 3D marker
+                if (cameraMarkers[index]) {
+                    cameraMarkers[index].visible = matches;
+                }
+                
+                if (matches) visibleCount++;
+            });
+            
+            console.log(`Filtered to ${visibleCount} cameras`);
+        }
+        
         // Fit all cameras to view
         function fitAllCameras() {
             if (cameras.length === 0) return;
@@ -723,9 +835,16 @@
                 if (item) item.classList.remove('selected');
                 
                 const marker = cameraMarkers[selectedCameraIndex];
-                if (marker) {
-                    marker.material.color.setHex(0x4CAF50);
-                    marker.material.emissive = new THREE.Color(0x000000);
+                if (marker && marker.userData.detailedMesh) {
+                    marker.userData.detailedMesh.material.color.setHex(0x4CAF50);
+                    marker.userData.detailedMesh.material.opacity = 0.8;
+                    if (marker.userData.simpleMesh) {
+                        marker.userData.simpleMesh.material.color.setHex(0x4CAF50);
+                        marker.userData.simpleMesh.material.opacity = 0.8;
+                    }
+                    if (marker.userData.pointMesh) {
+                        marker.userData.pointMesh.material.color.setHex(0x4CAF50);
+                    }
                 }
             }
             
@@ -763,8 +882,14 @@
                 colorEl.addEventListener('input', (e) => {
                     const color = new THREE.Color(e.target.value);
                     cameraMarkers.forEach((marker, index) => {
-                        if (index !== selectedCameraIndex) {
-                            marker.material.color = color.clone();
+                        if (index !== selectedCameraIndex && marker.userData.detailedMesh) {
+                            marker.userData.detailedMesh.material.color.copy(color);
+                            if (marker.userData.simpleMesh) {
+                                marker.userData.simpleMesh.material.color.copy(color);
+                            }
+                            if (marker.userData.pointMesh) {
+                                marker.userData.pointMesh.material.color.copy(color);
+                            }
                         }
                     });
                 });
@@ -785,6 +910,38 @@
                     viewer.scene.pointclouds.forEach(pc => {
                         pc.material.size = parseFloat(e.target.value);
                     });
+                });
+            }
+            
+            // Toggle frustums
+            const frustumToggle = document.getElementById('toggle-frustums');
+            if (frustumToggle) {
+                frustumToggle.addEventListener('change', (e) => {
+                    showFrustums = e.target.checked;
+                    updateLOD(); // Force update
+                });
+            }
+            
+            // LOD distance
+            const lodSlider = document.getElementById('lod-distance');
+            if (lodSlider) {
+                lodSlider.addEventListener('input', (e) => {
+                    lodDistance = parseFloat(e.target.value);
+                    // Update LOD levels
+                    cameraMarkers.forEach(lod => {
+                        if (lod.levels && lod.levels.length >= 2) {
+                            lod.levels[1].distance = lodDistance;
+                            lod.levels[2].distance = lodDistance * 2;
+                        }
+                    });
+                });
+            }
+            
+            // Camera search
+            const searchInput = document.getElementById('camera-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    filterCameras(e.target.value);
                 });
             }
             
