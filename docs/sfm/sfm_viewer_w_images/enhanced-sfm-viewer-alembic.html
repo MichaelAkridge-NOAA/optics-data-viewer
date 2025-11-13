@@ -316,11 +316,12 @@
     
     // Default URLs for OCC-ASC-003 dataset from Google Cloud Storage
     const defaultSrc = qs.get('src') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js';
-    const defaultAlembicSrc = qs.get('alembic') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cameras.abc';
+    // Updated to use converted CAMS file (2149 cameras from photogrammetry) - Cloud version
+    const defaultAlembicSrc = qs.get('alembic') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_cameras_potree.json';
     const defaultImageBase = qs.get('imageBase') || qs.get('images') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/MARI/ASC/OCC-ASC-003/2022/20220724_OCC-ASC-003_RA2201';
     const defaultThumbnailBase = qs.get('thumbnailBase') || qs.get('thumbnails') || 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/thumbnails';
     
-    const title = qs.get('title') || 'OCC-ASC-003 Enhanced SFM Viewer with Alembic';
+    const title = qs.get('title') || 'OCC-ASC-003 SFM Viewer (2149 Cameras)';
     
     const chip = document.getElementById('chip'); 
     chip.textContent = title;
