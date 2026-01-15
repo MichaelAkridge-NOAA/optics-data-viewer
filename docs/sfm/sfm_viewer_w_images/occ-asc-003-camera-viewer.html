@@ -672,9 +672,19 @@
                         // Convert to Potree-compatible format
                         camerasData = parser.toPotreeFormat(IMAGE_BASE_URL);
                         
+                        // Debug: Check positions before transformation
+                        if (camerasData.length > 0) {
+                            const firstCam = camerasData[0];
+                            console.log('[Debug] First camera BEFORE transform:', firstCam.label, firstCam.position);
+                        }
+                        
                         // Apply coordinate transformation to match point cloud
                         camerasData.forEach(cam => {
+                            const originalPos = [...cam.position];
                             cam.position = transformCameraPosition(cam.position);
+                            if (cam === camerasData[0]) {
+                                console.log('[Debug] First camera AFTER transform:', originalPos, '->', cam.position);
+                            }
                         });
                         
                         console.log(`✓ Parsed ${camerasData.length} cameras from XML`);
