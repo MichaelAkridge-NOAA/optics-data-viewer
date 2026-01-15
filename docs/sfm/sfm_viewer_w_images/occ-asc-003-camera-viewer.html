@@ -581,140 +581,6 @@
         const IMAGE_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/MARI/ASC/OCC-ASC-003/2022/20220724_OCC-ASC-003_RA2201';
         const THUMBNAIL_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/thumbnails';
         
-        // Coordinate transformation settings
-        // Agisoft and Potree may use different coordinate systems
-        const TRANSFORM_CAMERAS = true; // Set to false if cameras already match point cloud coords
-        const COORD_SCALE = 1.0; // Additional scale factor if needed (after component transform)
-        const SWAP_YZ = false; // Swap Y and Z axes (for Z-up to Y-up conversion)
-        const INVERT_Z = true; // Invert Z axis (common fix)
-        const MANUAL_OFFSET = [10, 10, -10]; // Manual X,Y,Z offset to align cameras with point cloud
-        const AUTO_ALIGN = true; // Automatically align camera bounding box with point cloud bounds
-        
-        // Auto-align cameras to point cloud space (called after both are loaded)
-        function autoAlignCameras(pointCloudBounds) {
-            if (!AUTO_ALIGN || cameras.length === 0) return;
-            
-            console.log('[Auto-Align] Starting automatic camera alignment...');
-            
-            // Calculate camera bounding box
-            const camPos = cameras.map(c => c.position);
-            const camMin = [
-                Math.min(...camPos.map(p => p[0])),
-                Math.min(...camPos.map(p => p[1])),
-                Math.min(...camPos.map(p => p[2]))
-            ];
-            const camMax = [
-                Math.max(...camPos.map(p => p[0])),
-                Math.max(...camPos.map(p => p[1])),
-                Math.max(...camPos.map(p => p[2]))
-            ];
-            
-            console.log('[Auto-Align] Camera bounds:', camMin, 'to', camMax);
-            console.log('[Auto-Align] Point cloud bounds:', 
-                [pointCloudBounds.min.x, pointCloudBounds.min.y, pointCloudBounds.min.z],
-                'to',
-                [pointCloudBounds.max.x, pointCloudBounds.max.y, pointCloudBounds.max.z]);
-            
-            // Calculate transformation: scale + offset to fit camera bounds into point cloud bounds
-            const camSize = [
-                camMax[0] - camMin[0],
-                camMax[1] - camMin[1],
-                camMax[2] - camMin[2]
-            ];
-            
-            const pcSize = [
-                pointCloudBounds.max.x - pointCloudBounds.min.x,
-                pointCloudBounds.max.y - pointCloudBounds.min.y,
-                pointCloudBounds.max.z - pointCloudBounds.min.z
-            ];
-            
-            // Use uniform scale based on the largest dimension
-            const scaleX = pcSize[0] / camSize[0];
-            const scaleY = pcSize[1] / camSize[1];
-            const scaleZ = pcSize[2] / camSize[2];
-            const uniformScale = Math.min(scaleX, scaleY, scaleZ) * 0.9; // 0.9 to keep cameras slightly inside
-            
-            console.log('[Auto-Align] Calculated scale:', uniformScale);
-            
-            // Apply transformation to all cameras
-            cameras.forEach((cam, idx) => {
-                const [x, y, z] = cam.position;
-                
-                // Center on origin
-                const centered = [
-                    x - (camMin[0] + camSize[0] / 2),
-                    y - (camMin[1] + camSize[1] / 2),
-                    z - (camMin[2] + camSize[2] / 2)
-                ];
-                
-                // Scale
-                const scaled = [
-                    centered[0] * uniformScale,
-                    centered[1] * uniformScale,
-                    centered[2] * uniformScale
-                ];
-                
-                // Translate to point cloud center
-                cam.position = [
-                    scaled[0] + pointCloudBounds.min.x + pcSize[0] / 2,
-                    scaled[1] + pointCloudBounds.min.y + pcSize[1] / 2,
-                    scaled[2] + pointCloudBounds.min.z + pcSize[2] / 2
-                ];
-                
-                // Update marker position
-                if (cameraMarkers[idx]) {
-                    cameraMarkers[idx].position.set(cam.position[0], cam.position[1], cam.position[2]);
-                }
-            });
-            
-            console.log('[Auto-Align] Cameras realigned to point cloud space');
-            
-            // Log new camera bounds
-            const newPos = cameras.map(c => c.position);
-            const newMin = [
-                Math.min(...newPos.map(p => p[0])),
-                Math.min(...newPos.map(p => p[1])),
-                Math.min(...newPos.map(p => p[2]))
-            ];
-            const newMax = [
-                Math.max(...newPos.map(p => p[0])),
-                Math.max(...newPos.map(p => p[1])),
-                Math.max(...newPos.map(p => p[2]))
-            ];
-            console.log('[Auto-Align] New camera bounds:', newMin, 'to', newMax);
-        }
-        
-        // Transform camera position to match point cloud coordinate system
-        function transformCameraPosition(pos) {
-            if (!TRANSFORM_CAMERAS) return pos;
-            
-            let [x, y, z] = pos;
-            
-            // Apply scale
-            x *= COORD_SCALE;
-            y *= COORD_SCALE;
-            z *= COORD_SCALE;
-            
-            // Swap axes if needed (Z-up to Y-up)
-            if (SWAP_YZ) {
-                [y, z] = [z, y];
-            }
-            
-            // Invert Z if needed
-            if (INVERT_Z) {
-                z = -z;
-            }
-            
-            // Apply manual offset (only if not using auto-align)
-            if (!AUTO_ALIGN) {
-                x += MANUAL_OFFSET[0];
-                y += MANUAL_OFFSET[1];
-                z += MANUAL_OFFSET[2];
-            }
-            
-            return [x, y, z];
-        }
-        
         // Initialize viewer
         async function initViewer() {
             console.log('Initializing OCC-ASC-003 Camera Viewer...');
@@ -775,23 +641,7 @@
                         // Convert to Potree-compatible format
                         camerasData = parser.toPotreeFormat(IMAGE_BASE_URL);
                         
-                        // Debug: Check positions before transformation
-                        if (camerasData.length > 0) {
-                            const firstCam = camerasData[0];
-                            console.log('[Debug] First camera BEFORE transform:', firstCam.label, firstCam.position);
-                        }
-                        
-                        // Apply coordinate transformation to match point cloud
-                        camerasData.forEach(cam => {
-                            const originalPos = [...cam.position];
-                            cam.position = transformCameraPosition(cam.position);
-                            if (cam === camerasData[0]) {
-                                console.log('[Debug] First camera AFTER transform:', originalPos, '->', cam.position);
-                            }
-                        });
-                        
                         console.log(`✓ Parsed ${camerasData.length} cameras from XML`);
-                        console.log('[Transform] Applied coordinate transformation to cameras');
                     } catch (xmlError) {
                         console.warn('Failed to load XML, trying JSON fallback:', xmlError);
                         camerasData = null;
@@ -816,18 +666,6 @@
                 
                 // Store cameras
                 cameras = camerasData;
-                
-                // Debug: Log camera position ranges
-                if (cameras.length > 0) {
-                    const positions = cameras.map(c => c.position);
-                    const xVals = positions.map(p => p[0]);
-                    const yVals = positions.map(p => p[1]);
-                    const zVals = positions.map(p => p[2]);
-                    console.log('[Debug] Camera position ranges:');
-                    console.log(`  X: ${Math.min(...xVals).toFixed(2)} to ${Math.max(...xVals).toFixed(2)}`);
-                    console.log(`  Y: ${Math.min(...yVals).toFixed(2)} to ${Math.max(...yVals).toFixed(2)}`);
-                    console.log(`  Z: ${Math.min(...zVals).toFixed(2)} to ${Math.max(...zVals).toFixed(2)}`);
-                }
                 
                 // Update UI
                 console.log(`Total cameras loaded: ${cameras.length}`);
@@ -1003,18 +841,6 @@
                     
                     viewer.scene.addPointCloud(pointcloud);
                     viewer.fitToScreen();
-                    
-                    // Debug: Log point cloud bounds
-                    const bbox = pointcloud.boundingBox;
-                    if (bbox) {
-                        console.log('[Debug] Point cloud bounds:');
-                        console.log(`  X: ${bbox.min.x.toFixed(2)} to ${bbox.max.x.toFixed(2)}`);
-                        console.log(`  Y: ${bbox.min.y.toFixed(2)} to ${bbox.max.y.toFixed(2)}`);
-                        console.log(`  Z: ${bbox.min.z.toFixed(2)} to ${bbox.max.z.toFixed(2)}`);
-                        
-                        // Auto-align cameras to point cloud if enabled
-                        autoAlignCameras(bbox);
-                    }
                     
                     console.log('Point cloud loaded successfully');
                 });
