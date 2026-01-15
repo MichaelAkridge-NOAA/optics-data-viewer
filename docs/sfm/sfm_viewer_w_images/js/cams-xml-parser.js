@@ -118,6 +118,13 @@ class CamsXMLParser {
       
       const transformMatrix = this.parseMatrixString(transformEl.textContent, 16);
       
+      // Debug first camera
+      if (index === 0) {
+        console.log('[Parser Debug] First camera transform matrix:', transformMatrix);
+        console.log('[Parser Debug] Matrix elements 12,13,14:', transformMatrix[12], transformMatrix[13], transformMatrix[14]);
+        console.log('[Parser Debug] Matrix elements 3,7,11:', transformMatrix[3], transformMatrix[7], transformMatrix[11]);
+      }
+      
       // Extract position from transform matrix (last column: elements 12, 13, 14)
       const position = [
         transformMatrix[12],
