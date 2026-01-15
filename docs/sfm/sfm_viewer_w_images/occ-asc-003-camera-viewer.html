@@ -273,6 +273,144 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #45a049;
         }
+        
+        /* Image Gallery Modal */
+        #image-gallery {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 380px;
+            max-height: 45vh;
+            background: rgba(0, 0, 0, 0.95);
+            border-radius: 10px;
+            padding: 20px;
+            z-index: 2000;
+            overflow-y: auto;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.7);
+        }
+        
+        #image-gallery.visible {
+            display: block;
+        }
+        
+        #gallery-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            color: white;
+        }
+        
+        #gallery-title {
+            font-size: 1.2em;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        #gallery-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 15px;
+        }
+        
+        .gallery-camera-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .gallery-camera-card:hover {
+            transform: translateY(-5px);
+            border-color: #4CAF50;
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .gallery-camera-card img {
+            width: 100%;
+            height: 110px;
+            object-fit: cover;
+            display: block;
+            background: #1a1a1a;
+        }
+        
+        .gallery-camera-info {
+            padding: 10px;
+            color: white;
+        }
+        
+        .gallery-camera-name {
+            font-weight: bold;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+            color: #81C784;
+        }
+        
+        .gallery-camera-distance {
+            font-size: 0.75em;
+            color: #999;
+        }
+        
+        /* Full Image Viewer */
+        #full-image-viewer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 3000;
+            padding: 40px;
+        }
+        
+        #full-image-viewer.visible {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #full-viewer-image {
+            max-width: 90%;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+        }
+        
+        #full-viewer-info {
+            color: white;
+            margin-top: 20px;
+            text-align: center;
+            max-width: 600px;
+        }
+        
+        #full-viewer-info h2 {
+            color: #4CAF50;
+            margin: 0 0 10px 0;
+        }
+        
+        #close-full-viewer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            z-index: 3001;
+        }
+        
+        #close-full-viewer:hover {
+            background: #d32f2f;
+        }
     </style>
     
     <script src="../../libs/jquery/jquery-3.1.1.min.js"></script>
@@ -289,6 +427,9 @@
     <script src="../../libs/jstree/jstree.js"></script>
     <script src="../../build/potree/potree.js"></script>
     <script src="../../libs/plasio/js/laslaz.js"></script>
+    
+    <!-- Camera XML Parser for Agisoft .cams.xml files -->
+    <script src="js/cams-xml-parser.js"></script>
 </head>
 <body>
     <div id="potree_render_area"></div>
@@ -398,6 +539,22 @@
         <div class="info-title" id="info-title">Camera Info</div>
         <div class="info-content" id="info-content"></div>
     </div>
+    
+    <!-- Image Gallery (appears when clicking on point cloud) -->
+    <div id="image-gallery">
+        <div id="gallery-header">
+            <div id="gallery-title">📷 Nearby Camera Images</div>
+            <button id="close-gallery" style="width: auto; margin: 0; padding: 8px 16px;">✕ Close</button>
+        </div>
+        <div id="gallery-content"></div>
+    </div>
+    
+    <!-- Full Image Viewer -->
+    <div id="full-image-viewer">
+        <button id="close-full-viewer">✕ Close</button>
+        <img id="full-viewer-image" src="" alt="Camera Image">
+        <div id="full-viewer-info"></div>
+    </div>
 
     <script>
         // Global variables
@@ -416,7 +573,10 @@
         let queryMarker = null;
         
         // Configuration - OCC-ASC-003 dataset from Google Cloud Storage
-        const CAMERA_JSON_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_cameras_potree.json';
+        // Supports both .cams.xml (Agisoft) and .json (pre-processed) formats
+        const CAMERA_DATA_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_cameras_potree.json';
+        const CAMERA_XML_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_RA2201.cams.xml'; // Missing semicolon added
+        const CAMERA_META_JSON = null; // Optional: Set to .meta.json file URL for image paths
         const POINT_CLOUD_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js';
         const IMAGE_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/MARI/ASC/OCC-ASC-003/2022/20220724_OCC-ASC-003_RA2201';
         const THUMBNAIL_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/thumbnails';
@@ -458,24 +618,60 @@
             console.log('Initialization complete!');
         }
         
-        // Load camera data
+        // Load camera data - supports both .cams.xml and .json formats
         async function loadCameras() {
             try {
-                console.log('Loading cameras from:', CAMERA_JSON_URL);
+                let camerasData = [];
                 
-                const response = await fetch(CAMERA_JSON_URL);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // Try loading from XML first if URL is provided
+                if (CAMERA_XML_URL && typeof CamsXMLParser !== 'undefined') {
+                    console.log('Loading cameras from XML:', CAMERA_XML_URL);
+                    updateLoadingStatus('Parsing Agisoft camera XML...');
+                    
+                    try {
+                        const parser = new CamsXMLParser();
+                        
+                        // Load with meta.json if available
+                        if (CAMERA_META_JSON) {
+                            await parser.loadWithMetaJSON(CAMERA_XML_URL, CAMERA_META_JSON);
+                        } else {
+                            await parser.loadFromURL(CAMERA_XML_URL);
+                        }
+                        
+                        // Convert to Potree-compatible format
+                        camerasData = parser.toPotreeFormat(IMAGE_BASE_URL);
+                        
+                        console.log(`✓ Parsed ${camerasData.length} cameras from XML`);
+                    } catch (xmlError) {
+                        console.warn('Failed to load XML, trying JSON fallback:', xmlError);
+                        camerasData = null;
+                    }
                 }
                 
-                const data = await response.json();
-                cameras = data.cameras || [];
+                // Fallback to JSON format if XML not loaded
+                if (!camerasData || camerasData.length === 0) {
+                    console.log('Loading cameras from JSON:', CAMERA_DATA_URL);
+                    updateLoadingStatus('Loading camera data...');
+                    
+                    const response = await fetch(CAMERA_DATA_URL);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    camerasData = data.cameras || [];
+                    
+                    console.log(`✓ Loaded ${camerasData.length} cameras from JSON`);
+                }
                 
-                console.log(`Loaded ${cameras.length} cameras`);
+                // Store cameras
+                cameras = camerasData;
+                
+                // Update UI
+                console.log(`Total cameras loaded: ${cameras.length}`);
                 const cameraCountEl = document.getElementById('camera-count');
                 if (cameraCountEl) cameraCountEl.textContent = cameras.length;
                 
-                // Update visible cameras display
                 const visibleCamsEl = document.getElementById('visible-cameras');
                 if (visibleCamsEl) visibleCamsEl.textContent = `All ${cameras.length} cameras shown`;
                 
@@ -908,6 +1104,118 @@
             }
             
             console.log('=== [Spatial Query] Filter Applied ===');
+            
+            // Display image gallery
+            displayImageGallery(nearest, point);
+        }
+        
+        // Display image gallery with nearby cameras
+        function displayImageGallery(nearestCameras, clickPoint) {
+            console.log(`[Gallery] Displaying ${nearestCameras.length} cameras in gallery`);
+            
+            const gallery = document.getElementById('gallery-content');
+            gallery.innerHTML = '';
+            
+            document.getElementById('gallery-title').textContent = 
+                `📷 ${nearestCameras.length} Nearby Camera${nearestCameras.length > 1 ? 's' : ''}`;
+            
+            nearestCameras.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'gallery-camera-card';
+                
+                // Create thumbnail/image
+                const img = document.createElement('img');
+                
+                // Try thumbnail first, fallback to full image
+                const cameraName = item.camera.name || `camera_${item.index}`;
+                let imageUrl = item.camera.image;
+                
+                // If thumbnail base URL is available, try to use it
+                if (THUMBNAIL_BASE_URL && cameraName) {
+                    img.src = `${THUMBNAIL_BASE_URL}/${cameraName}_thumb.jpg`;
+                    // Fallback to full image if thumbnail fails
+                    img.onerror = () => {
+                        if (imageUrl) {
+                            img.src = imageUrl;
+                            img.onerror = () => {
+                                img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23333" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="white" font-family="Arial" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
+                            };
+                        } else {
+                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23333" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="white" font-family="Arial" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
+                        }
+                    };
+                } else if (imageUrl) {
+                    img.src = imageUrl;
+                    img.onerror = () => {
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23333" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="white" font-family="Arial" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
+                    };
+                } else {
+                    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23333" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="white" font-family="Arial" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
+                }
+                
+                img.alt = item.camera.name || `Camera ${item.index + 1}`;
+                
+                const info = document.createElement('div');
+                info.className = 'gallery-camera-info';
+                
+                const name = document.createElement('div');
+                name.className = 'gallery-camera-name';
+                name.textContent = item.camera.name || `Camera ${item.index + 1}`;
+                
+                const distance = document.createElement('div');
+                distance.className = 'gallery-camera-distance';
+                distance.textContent = `${item.distance.toFixed(2)}m away`;
+                
+                info.appendChild(name);
+                info.appendChild(distance);
+                
+                card.appendChild(img);
+                card.appendChild(info);
+                
+                // Click handler to view full image
+                card.onclick = () => {
+                    selectCamera(item.index);
+                    showFullImage(item.camera, item.distance);
+                };
+                
+                gallery.appendChild(card);
+            });
+            
+            // Show gallery
+            document.getElementById('image-gallery').classList.add('visible');
+            console.log('[Gallery] ✓ Gallery displayed');
+        }
+        
+        // Show full image viewer
+        function showFullImage(camera, distance) {
+            console.log('[Viewer] Opening full image for:', camera.name);
+            
+            const viewer = document.getElementById('full-image-viewer');
+            const img = document.getElementById('full-viewer-image');
+            const info = document.getElementById('full-viewer-info');
+            
+            // Construct full image URL
+            let imageUrl = camera.image;
+            if (!imageUrl && IMAGE_BASE_URL && camera.name) {
+                // Try to construct from base URL and camera name
+                imageUrl = `${IMAGE_BASE_URL}/${camera.name}.JPG`;
+            }
+            
+            img.src = imageUrl || '';
+            img.onerror = () => {
+                console.warn('[Viewer] Failed to load image:', imageUrl);
+                img.alt = 'Image not available';
+            };
+            
+            const pos = camera.position;
+            info.innerHTML = `
+                <h2>${camera.name || 'Camera'}</h2>
+                <p><strong>Distance from click point:</strong> ${distance.toFixed(2)}m</p>
+                <p><strong>Position:</strong> [${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}, ${pos[2].toFixed(2)}]</p>
+                <p><strong>FOV:</strong> ${camera.fov ? camera.fov.toFixed(1) + '°' : 'N/A'}</p>
+            `;
+            
+            viewer.classList.add('visible');
         }
         
         // Clear spatial filter and show all cameras
@@ -941,6 +1249,9 @@
             
             const visibleCamsEl = document.getElementById('visible-cameras');
             if (visibleCamsEl) visibleCamsEl.textContent = `All ${cameras.length} cameras shown`;
+            
+            // Close gallery
+            document.getElementById('image-gallery').classList.remove('visible');
             
             console.log('[Spatial Query] ✓ All cameras now visible');
         }
@@ -1182,6 +1493,42 @@
                     }
                 });
             }
+            
+            // Gallery close button
+            const closeGallery = document.getElementById('close-gallery');
+            if (closeGallery) {
+                closeGallery.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.getElementById('image-gallery').classList.remove('visible');
+                    console.log('[Gallery] Gallery closed by user');
+                });
+            }
+            
+            // Full image viewer close button
+            const closeFullViewer = document.getElementById('close-full-viewer');
+            if (closeFullViewer) {
+                closeFullViewer.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.getElementById('full-image-viewer').classList.remove('visible');
+                    console.log('[Viewer] Full image viewer closed');
+                });
+            }
+            
+            // Close full viewer on escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    const fullViewer = document.getElementById('full-image-viewer');
+                    const gallery = document.getElementById('image-gallery');
+                    
+                    if (fullViewer.classList.contains('visible')) {
+                        fullViewer.classList.remove('visible');
+                        console.log('[Viewer] Full image viewer closed with ESC');
+                    } else if (gallery.classList.contains('visible')) {
+                        gallery.classList.remove('visible');
+                        console.log('[Gallery] Gallery closed with ESC');
+                    }
+                }
+            });
             
             // Click on 3D scene - prioritize point cloud, then cameras
             viewer.renderer.domElement.addEventListener('mousedown', (e) => {
