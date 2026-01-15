@@ -1164,14 +1164,37 @@
             const forward = new THREE.Vector3(0, 0, -1);
             forward.applyQuaternion(quat);
             
+            // Calculate up vector from quaternion to maintain proper orientation
+            const up = new THREE.Vector3(0, 1, 0);
+            up.applyQuaternion(quat);
+            
             const targetPos = new THREE.Vector3(
                 pos[0] - forward.x * offset,
                 pos[1] - forward.y * offset,
                 pos[2] - forward.z * offset
             );
             
-            // Animate camera movement
+            // Set camera position
             viewer.scene.view.position.set(targetPos.x, targetPos.y, targetPos.z);
+            
+            // Store the current up vector before lookAt
+            const viewerCam = viewer.scene.getActiveCamera();
+            
+            // Ensure up vector is set properly (default to world up if nearly vertical)
+            const lookDir = new THREE.Vector3(pos[0] - targetPos.x, pos[1] - targetPos.y, pos[2] - targetPos.z);
+            lookDir.normalize();
+            
+            // Check if looking nearly straight up or down (prevent gimbal lock)
+            const verticalThreshold = 0.99;
+            if (Math.abs(lookDir.y) > verticalThreshold) {
+                // When looking nearly vertical, use a safe up vector
+                viewerCam.up.set(0, 0, -Math.sign(lookDir.y));
+            } else {
+                // Use the calculated up vector from the camera quaternion
+                viewerCam.up.copy(up);
+            }
+            
+            // Now do the lookAt with the proper up vector set
             viewer.scene.view.lookAt(pos[0], pos[1], pos[2]);
         }
         
