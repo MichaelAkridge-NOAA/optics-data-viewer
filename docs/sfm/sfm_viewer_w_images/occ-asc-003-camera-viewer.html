@@ -584,9 +584,10 @@
         // Coordinate transformation settings
         // Agisoft and Potree may use different coordinate systems
         const TRANSFORM_CAMERAS = true; // Set to false if cameras already match point cloud coords
-        const COORD_SCALE = 1.0; // Scale factor if needed
+        const COORD_SCALE = 1.0; // Additional scale factor if needed (after component transform)
         const SWAP_YZ = false; // Swap Y and Z axes (for Z-up to Y-up conversion)
         const INVERT_Z = true; // Invert Z axis (common fix)
+        const MANUAL_OFFSET = [10, 10, -10]; // Manual X,Y,Z offset to align cameras with point cloud
         
         // Transform camera position to match point cloud coordinate system
         function transformCameraPosition(pos) {
@@ -608,6 +609,11 @@
             if (INVERT_Z) {
                 z = -z;
             }
+            
+            // Apply manual offset
+            x += MANUAL_OFFSET[0];
+            y += MANUAL_OFFSET[1];
+            z += MANUAL_OFFSET[2];
             
             return [x, y, z];
         }
