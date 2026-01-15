@@ -2713,21 +2713,6 @@
                 container.scrollTop = scrollTop - walkY;
             });
         }
-            fullImage.onerror = () => {
-                console.error(`[Full Viewer] Failed to load image: ${finalImageURL}`);
-                fullImage.alt = 'Image not available';
-            };
-            
-            fullInfo.innerHTML = `
-                <h3>${displayName}</h3>
-                <p><strong>Position:</strong> [${camera.position[0].toFixed(3)}, ${camera.position[1].toFixed(3)}, ${camera.position[2].toFixed(3)}]</p>
-                <p><strong>FOV:</strong> ${camera.fov ? camera.fov.toFixed(1) : 'N/A'}°</p>
-                <p><strong>Aspect Ratio:</strong> ${camera.aspect ? camera.aspect.toFixed(2) : 'N/A'}</p>
-            `;
-            
-            fullViewer.classList.add('visible');
-            console.log(`[Full Viewer] Now showing ${displayName}`);
-        }
         
         // Close selection gallery
         function closeSelectionGallery() {
