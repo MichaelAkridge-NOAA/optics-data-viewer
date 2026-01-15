@@ -125,11 +125,12 @@ class CamsXMLParser {
         console.log('[Parser Debug] Matrix elements 3,7,11:', transformMatrix[3], transformMatrix[7], transformMatrix[11]);
       }
       
-      // Extract position from transform matrix (last column: elements 12, 13, 14)
+      // Extract position from transform matrix
+      // Agisoft uses ROW-MAJOR 4x4 matrix: translation is at indices 3, 7, 11
       const position = [
-        transformMatrix[12],
-        transformMatrix[13],
-        transformMatrix[14]
+        transformMatrix[3],
+        transformMatrix[7],
+        transformMatrix[11]
       ];
       
       // Extract rotation matrix (first 3x3)
