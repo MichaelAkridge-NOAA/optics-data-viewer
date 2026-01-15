@@ -803,9 +803,10 @@
             
             // Set up camera controls
             viewer.setControls(viewer.orbitControls);
-            viewer.loadGUI(() => {
-                viewer.setLanguage('en');
-            });
+            // Don't load default Potree GUI - we have a custom sidebar
+            // viewer.loadGUI(() => {
+            //     viewer.setLanguage('en');
+            // });
             
             console.log('Viewer initialized');
             
