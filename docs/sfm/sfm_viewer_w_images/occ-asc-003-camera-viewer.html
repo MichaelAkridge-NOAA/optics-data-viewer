@@ -374,6 +374,182 @@
             justify-content: center;
         }
         
+        /* Sidebar Thumbnail Carousel */
+        #sidebar-thumbnail-carousel {
+            background: rgba(40, 40, 50, 0.95);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        #sidebar-thumbnail-carousel.visible {
+            display: block;
+        }
+        
+        .sidebar-carousel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        
+        .sidebar-carousel-close {
+            background: rgba(231, 76, 60, 0.8);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-carousel-close:hover {
+            background: rgba(231, 76, 60, 1);
+            transform: scale(1.1);
+        }
+        
+        .sidebar-thumbnail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        
+        .sidebar-thumbnail-item {
+            position: relative;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(60, 60, 70, 0.6);
+        }
+        
+        .sidebar-thumbnail-item:hover {
+            border-color: #4CAF50;
+            transform: scale(1.05);
+        }
+        
+        .sidebar-thumbnail-item.selected {
+            border-color: #FFD700;
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+        }
+        
+        .sidebar-thumbnail-img {
+            width: 100%;
+            height: 80px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .sidebar-thumbnail-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            font-size: 10px;
+            padding: 4px;
+            text-align: center;
+        }
+        
+        .sidebar-thumbnail-distance {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(76, 175, 80, 0.9);
+            color: #fff;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        
+        .sidebar-carousel-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+        }
+        
+        .sidebar-carousel-actions button {
+            background: rgba(76, 175, 80, 0.8);
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s ease;
+        }
+        
+        .sidebar-carousel-actions button:hover {
+            background: rgba(76, 175, 80, 1);
+            transform: translateY(-2px);
+        }
+        
+        .sidebar-carousel-actions button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Visual toggle section */
+        .visual-toggles {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        
+        .toggle-button {
+            background: rgba(60, 60, 70, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #aaa;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .toggle-button:hover {
+            background: rgba(80, 80, 90, 0.8);
+            color: #fff;
+        }
+        
+        .toggle-button.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+        
+        .toggle-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #666;
+            transition: background 0.2s;
+        }
+        
+        .toggle-button.active .toggle-indicator {
+            background: #4CAF50;
+        }
+        
         #full-viewer-image {
             max-width: 90%;
             max-height: 80vh;
@@ -485,6 +661,26 @@
             
             <button onclick="fitAllCameras()">📍 Fit All Cameras to View</button>
             <button onclick="clearSelection()" class="secondary">Clear Selection</button>
+            
+            <h3 style="margin-top: 20px;">👁️ Visual Toggles</h3>
+            <div class="visual-toggles">
+                <div class="toggle-button active" id="toggle-point-cloud">
+                    <span class="toggle-indicator"></span>
+                    <span>Point Cloud</span>
+                </div>
+                <div class="toggle-button active" id="toggle-camera-markers">
+                    <span class="toggle-indicator"></span>
+                    <span>Markers</span>
+                </div>
+                <div class="toggle-button active" id="toggle-frustum-vis">
+                    <span class="toggle-indicator"></span>
+                    <span>Frustums</span>
+                </div>
+                <div class="toggle-button" id="toggle-query-marker">
+                    <span class="toggle-indicator"></span>
+                    <span>Query Point</span>
+                </div>
+            </div>
         </div>
         
         <div class="control-section" style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3);">
@@ -501,6 +697,19 @@
                 <label class="control-label">Search Radius</label>
                 <input type="range" id="search-radius" min="1" max="20" step="1" value="10">
                 <span style="font-size: 0.8em; color: #4CAF50;" id="search-radius-label">10m</span>
+            </div>
+            
+            <!-- Sidebar Thumbnail Carousel -->
+            <div id="sidebar-thumbnail-carousel">
+                <div class="sidebar-carousel-header">
+                    <span id="sidebar-carousel-title">Nearby Cameras</span>
+                    <button class="sidebar-carousel-close" onclick="closeSidebarCarousel()">×</button>
+                </div>
+                <div class="sidebar-thumbnail-grid" id="sidebar-thumbnail-grid"></div>
+                <div class="sidebar-carousel-actions">
+                    <button onclick="viewSelectedImages()">View Selected</button>
+                    <button onclick="clearThumbnailSelection()">Clear</button>
+                </div>
             </div>
             
             <div style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px; margin-top: 10px; font-size: 0.85em;">
@@ -614,6 +823,9 @@
             
             // Set up event handlers
             setupEventHandlers();
+            
+            // Set up visual toggles
+            setupVisualToggles();
             
             console.log('Initialization complete!');
         }
@@ -1127,16 +1339,13 @@
             // Add visual marker at query point
             createQueryMarker(point);
             
-            // Auto-fit view to show nearby cameras
-            if (nearest.length > 0) {
-                console.log('[Spatial Query] Auto-fitting view to visible cameras');
-                fitCamerasToView(nearest.map(n => n.index));
-            }
+            // Don't auto-fit view - it causes camera to flip orientation
+            // User can manually fly to camera if needed
             
             console.log('=== [Spatial Query] Filter Applied ===');
             
-            // Display image gallery
-            displayImageGallery(nearest, point);
+            // Show sidebar thumbnail carousel instead of full modal
+            showSidebarThumbnailCarousel(nearest, point);
         }
         
         // Display image gallery with nearby cameras
@@ -1642,6 +1851,190 @@
         function updateLoadingStatus(message) {
             const statusEl = document.getElementById('loading-status');
             if (statusEl) statusEl.textContent = message;
+        }
+        
+        // ===== SIDEBAR THUMBNAIL CAROUSEL FUNCTIONS =====
+        
+        // Show sidebar thumbnail carousel with nearby cameras
+        function showSidebarThumbnailCarousel(nearestCameras, clickPoint) {
+            console.log(`[Sidebar Carousel] Showing ${nearestCameras.length} cameras`);
+            
+            const carousel = document.getElementById('sidebar-thumbnail-carousel');
+            const grid = document.getElementById('sidebar-thumbnail-grid');
+            const title = document.getElementById('sidebar-carousel-title');
+            
+            if (!carousel || !grid || !title) {
+                console.warn('[Sidebar Carousel] Elements not found');
+                return;
+            }
+            
+            // Set title
+            title.textContent = `${nearestCameras.length} Nearby Cameras`;
+            
+            // Clear previous thumbnails
+            grid.innerHTML = '';
+            
+            // Create thumbnail items
+            nearestCameras.forEach(({ camera, index, distance }) => {
+                const thumbnailItem = document.createElement('div');
+                thumbnailItem.className = 'sidebar-thumbnail-item';
+                thumbnailItem.dataset.cameraIndex = index;
+                
+                // Get thumbnail URL
+                const cameraName = camera.name || `camera_${index}`;
+                const thumbnailURL = THUMBNAIL_BASE_URL 
+                    ? `${THUMBNAIL_BASE_URL}/${cameraName}.JPG`
+                    : (camera.image || IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '');
+                
+                thumbnailItem.innerHTML = `
+                    <img class="sidebar-thumbnail-img" src="${thumbnailURL}" alt="${cameraName}" loading="lazy" 
+                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%2280%22%3E%3Crect fill=%22%23333%22 width=%22100%22 height=%2280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2212%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                    <div class="sidebar-thumbnail-label">${cameraName}</div>
+                    <div class="sidebar-thumbnail-distance">${distance.toFixed(1)}m</div>
+                `;
+                
+                // Handle thumbnail selection
+                thumbnailItem.onclick = (e) => {
+                    const isSelected = thumbnailItem.classList.contains('selected');
+                    
+                    if (!e.ctrlKey && !e.shiftKey) {
+                        // Clear other selections if not holding Ctrl
+                        grid.querySelectorAll('.sidebar-thumbnail-item.selected').forEach(item => {
+                            item.classList.remove('selected');
+                        });
+                    }
+                    
+                    thumbnailItem.classList.toggle('selected');
+                    
+                    // If single click and now selected, fly to camera
+                    if (!isSelected && !e.ctrlKey) {
+                        selectCamera(index);
+                        flyToCamera(index);
+                    }
+                    
+                    console.log(`[Sidebar Carousel] ${isSelected ? 'Deselected' : 'Selected'} camera: ${cameraName}`);
+                };
+                
+                grid.appendChild(thumbnailItem);
+            });
+            
+            // Show carousel
+            carousel.classList.add('visible');
+            
+            console.log('[Sidebar Carousel] Carousel displayed');
+        }
+        
+        // Close sidebar carousel
+        function closeSidebarCarousel() {
+            const carousel = document.getElementById('sidebar-thumbnail-carousel');
+            if (carousel) {
+                carousel.classList.remove('visible');
+                console.log('[Sidebar Carousel] Carousel closed');
+            }
+        }
+        
+        // View selected images in full size
+        function viewSelectedImages() {
+            const grid = document.getElementById('sidebar-thumbnail-grid');
+            if (!grid) return;
+            
+            const selectedItems = grid.querySelectorAll('.sidebar-thumbnail-item.selected');
+            
+            if (selectedItems.length === 0) {
+                alert('Please select at least one camera thumbnail first.');
+                return;
+            }
+            
+            if (selectedItems.length > 5) {
+                if (!confirm(`This will open ${selectedItems.length} images in new tabs. Continue?`)) {
+                    return;
+                }
+            }
+            
+            // Open full resolution images
+            selectedItems.forEach((item, idx) => {
+                const cameraIndex = parseInt(item.dataset.cameraIndex);
+                const camera = cameras[cameraIndex];
+                if (camera) {
+                    const cameraName = camera.name || `camera_${cameraIndex}`;
+                    const fullImageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+                    
+                    setTimeout(() => {
+                        window.open(fullImageURL, '_blank');
+                    }, idx * 100); // Stagger opens slightly
+                }
+            });
+            
+            console.log(`[Sidebar Carousel] Opening ${selectedItems.length} full resolution images`);
+        }
+        
+        // Clear thumbnail selection
+        function clearThumbnailSelection() {
+            const grid = document.getElementById('sidebar-thumbnail-grid');
+            if (grid) {
+                grid.querySelectorAll('.sidebar-thumbnail-item.selected').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                console.log('[Sidebar Carousel] Selection cleared');
+            }
+        }
+        
+        // ===== VISUAL TOGGLE FUNCTIONS =====
+        
+        // Setup visual toggle buttons
+        function setupVisualToggles() {
+            // Point cloud toggle
+            const pcToggle = document.getElementById('toggle-point-cloud');
+            if (pcToggle) {
+                pcToggle.onclick = () => {
+                    const isActive = pcToggle.classList.contains('active');
+                    viewer.scene.pointclouds.forEach(pc => {
+                        pc.visible = !isActive;
+                    });
+                    pcToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Point cloud ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            // Camera markers toggle
+            const markersToggle = document.getElementById('toggle-camera-markers');
+            if (markersToggle) {
+                markersToggle.onclick = () => {
+                    const isActive = markersToggle.classList.contains('active');
+                    if (cameraGroup) {
+                        cameraGroup.visible = !isActive;
+                    }
+                    markersToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Camera markers ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            // Frustums toggle
+            const frustumToggle = document.getElementById('toggle-frustum-vis');
+            if (frustumToggle) {
+                frustumToggle.onclick = () => {
+                    const isActive = frustumToggle.classList.contains('active');
+                    showFrustums = !isActive;
+                    updateLOD(); // Force update
+                    frustumToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Frustums ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            // Query marker toggle
+            const queryToggle = document.getElementById('toggle-query-marker');
+            if (queryToggle) {
+                queryToggle.onclick = () => {
+                    const isActive = queryToggle.classList.contains('active');
+                    if (queryMarker) {
+                        queryMarker.visible = !isActive;
+                    }
+                    queryToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Query marker ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            console.log('[Visual Toggles] Setup complete');
         }
         
         // Initialize when page loads - use setTimeout to ensure DOM is ready
