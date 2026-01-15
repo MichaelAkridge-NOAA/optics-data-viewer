@@ -1166,85 +1166,16 @@
         
         // Fly camera to selected position
         function flyToCamera(index) {
-            console.log('\n=== [FlyToCamera] Starting camera navigation ===');
-            console.log(`[FlyToCamera] Target camera index: ${index}`);
+            console.log('\n=== [FlyToCamera] Camera selected - NOT moving viewer camera ===');
+            console.log(`[FlyToCamera] Selected camera index: ${index}`);
             
             const camera = cameras[index];
             const pos = camera.position;
             console.log(`[FlyToCamera] Camera position: [${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}, ${pos[2].toFixed(3)}]`);
+            console.log('[FlyToCamera] Viewer camera will remain at current position/orientation');
             
-            // Get current viewer camera state BEFORE changes
-            const viewerCam = viewer.scene.getActiveCamera();
-            console.log('[FlyToCamera] BEFORE - Viewer camera state:');
-            console.log(`  Position: [${viewerCam.position.x.toFixed(3)}, ${viewerCam.position.y.toFixed(3)}, ${viewerCam.position.z.toFixed(3)}]`);
-            console.log(`  Up vector: [${viewerCam.up.x.toFixed(3)}, ${viewerCam.up.y.toFixed(3)}, ${viewerCam.up.z.toFixed(3)}]`);
-            
-            // Calculate target position (move back from camera position)
-            const offset = 10; // Distance behind camera
-            
-            // Use camera rotation to determine look direction
-            const quat = new THREE.Quaternion(
-                camera.rotation[0],
-                camera.rotation[1],
-                camera.rotation[2],
-                camera.rotation[3]
-            );
-            console.log(`[FlyToCamera] Camera quaternion: [${camera.rotation[0].toFixed(3)}, ${camera.rotation[1].toFixed(3)}, ${camera.rotation[2].toFixed(3)}, ${camera.rotation[3].toFixed(3)}]`);
-            
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(quat);
-            console.log(`[FlyToCamera] Forward vector: [${forward.x.toFixed(3)}, ${forward.y.toFixed(3)}, ${forward.z.toFixed(3)}]`);
-            
-            // Calculate up vector from quaternion to maintain proper orientation
-            const up = new THREE.Vector3(0, 1, 0);
-            up.applyQuaternion(quat);
-            console.log(`[FlyToCamera] Calculated up vector from quaternion: [${up.x.toFixed(3)}, ${up.y.toFixed(3)}, ${up.z.toFixed(3)}]`);
-            
-            const targetPos = new THREE.Vector3(
-                pos[0] - forward.x * offset,
-                pos[1] - forward.y * offset,
-                pos[2] - forward.z * offset
-            );
-            console.log(`[FlyToCamera] Viewer target position (${offset}m behind camera): [${targetPos.x.toFixed(3)}, ${targetPos.y.toFixed(3)}, ${targetPos.z.toFixed(3)}]`);
-            
-            // Calculate look direction for vertical check
-            const lookDir = new THREE.Vector3(pos[0] - targetPos.x, pos[1] - targetPos.y, pos[2] - targetPos.z);
-            lookDir.normalize();
-            console.log(`[FlyToCamera] Look direction (normalized): [${lookDir.x.toFixed(3)}, ${lookDir.y.toFixed(3)}, ${lookDir.z.toFixed(3)}]`);
-            console.log(`[FlyToCamera] Look direction Y component: ${lookDir.y.toFixed(3)} (vertical threshold: 0.99)`);
-            
-            // Determine proper up vector
-            const verticalThreshold = 0.99;
-            let upVector;
-            if (Math.abs(lookDir.y) > verticalThreshold) {
-                // When looking nearly vertical, use a safe up vector
-                upVector = new THREE.Vector3(0, 0, -Math.sign(lookDir.y));
-                console.log(`[FlyToCamera] ⚠ Nearly vertical view detected! Using safe up vector: [${upVector.x.toFixed(3)}, ${upVector.y.toFixed(3)}, ${upVector.z.toFixed(3)}]`);
-            } else {
-                // Use the calculated up vector from the camera quaternion
-                upVector = up.clone();
-                console.log(`[FlyToCamera] ✓ Normal view. Using calculated up vector from quaternion`);
-            }
-            
-            console.log(`[FlyToCamera] Using up vector: [${upVector.x.toFixed(3)}, ${upVector.y.toFixed(3)}, ${upVector.z.toFixed(3)}]`);
-            
-            // Use Potree's proper camera positioning method
-            // Set the camera position directly on the THREE.js camera object
-            viewerCam.position.set(targetPos.x, targetPos.y, targetPos.z);
-            viewerCam.up.copy(upVector);
-            viewerCam.lookAt(pos[0], pos[1], pos[2]);
-            viewerCam.updateProjectionMatrix();
-            
-            // Also update the view's pivot point (where the camera looks)
-            viewer.scene.view.position.copy(viewerCam.position);
-            
-            console.log(`[FlyToCamera] Camera position set via THREE.js camera object`);
-            
-            // Log AFTER state
-            console.log('[FlyToCamera] AFTER - Viewer camera state:');
-            console.log(`  Position: [${viewerCam.position.x.toFixed(3)}, ${viewerCam.position.y.toFixed(3)}, ${viewerCam.position.z.toFixed(3)}]`);
-            console.log(`  Up vector: [${viewerCam.up.x.toFixed(3)}, ${viewerCam.up.y.toFixed(3)}, ${viewerCam.up.z.toFixed(3)}]`);
-            console.log('=== [FlyToCamera] Camera navigation complete ===\n');
+            // Don't move the viewer camera at all - just highlight and show info
+            // This prevents any orientation/flipping issues
         }
         
         // Show camera info panel
