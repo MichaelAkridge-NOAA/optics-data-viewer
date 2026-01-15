@@ -581,6 +581,37 @@
         const IMAGE_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/MARI/ASC/OCC-ASC-003/2022/20220724_OCC-ASC-003_RA2201';
         const THUMBNAIL_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/thumbnails';
         
+        // Coordinate transformation settings
+        // Agisoft and Potree may use different coordinate systems
+        const TRANSFORM_CAMERAS = true; // Set to false if cameras already match point cloud coords
+        const COORD_SCALE = 1.0; // Scale factor if needed
+        const SWAP_YZ = false; // Swap Y and Z axes (for Z-up to Y-up conversion)
+        const INVERT_Z = true; // Invert Z axis (common fix)
+        
+        // Transform camera position to match point cloud coordinate system
+        function transformCameraPosition(pos) {
+            if (!TRANSFORM_CAMERAS) return pos;
+            
+            let [x, y, z] = pos;
+            
+            // Apply scale
+            x *= COORD_SCALE;
+            y *= COORD_SCALE;
+            z *= COORD_SCALE;
+            
+            // Swap axes if needed (Z-up to Y-up)
+            if (SWAP_YZ) {
+                [y, z] = [z, y];
+            }
+            
+            // Invert Z if needed
+            if (INVERT_Z) {
+                z = -z;
+            }
+            
+            return [x, y, z];
+        }
+        
         // Initialize viewer
         async function initViewer() {
             console.log('Initializing OCC-ASC-003 Camera Viewer...');
@@ -641,7 +672,13 @@
                         // Convert to Potree-compatible format
                         camerasData = parser.toPotreeFormat(IMAGE_BASE_URL);
                         
+                        // Apply coordinate transformation to match point cloud
+                        camerasData.forEach(cam => {
+                            cam.position = transformCameraPosition(cam.position);
+                        });
+                        
                         console.log(`✓ Parsed ${camerasData.length} cameras from XML`);
+                        console.log('[Transform] Applied coordinate transformation to cameras');
                     } catch (xmlError) {
                         console.warn('Failed to load XML, trying JSON fallback:', xmlError);
                         camerasData = null;
@@ -666,6 +703,18 @@
                 
                 // Store cameras
                 cameras = camerasData;
+                
+                // Debug: Log camera position ranges
+                if (cameras.length > 0) {
+                    const positions = cameras.map(c => c.position);
+                    const xVals = positions.map(p => p[0]);
+                    const yVals = positions.map(p => p[1]);
+                    const zVals = positions.map(p => p[2]);
+                    console.log('[Debug] Camera position ranges:');
+                    console.log(`  X: ${Math.min(...xVals).toFixed(2)} to ${Math.max(...xVals).toFixed(2)}`);
+                    console.log(`  Y: ${Math.min(...yVals).toFixed(2)} to ${Math.max(...yVals).toFixed(2)}`);
+                    console.log(`  Z: ${Math.min(...zVals).toFixed(2)} to ${Math.max(...zVals).toFixed(2)}`);
+                }
                 
                 // Update UI
                 console.log(`Total cameras loaded: ${cameras.length}`);
@@ -841,6 +890,15 @@
                     
                     viewer.scene.addPointCloud(pointcloud);
                     viewer.fitToScreen();
+                    
+                    // Debug: Log point cloud bounds
+                    const bbox = pointcloud.boundingBox;
+                    if (bbox) {
+                        console.log('[Debug] Point cloud bounds:');
+                        console.log(`  X: ${bbox.min.x.toFixed(2)} to ${bbox.max.x.toFixed(2)}`);
+                        console.log(`  Y: ${bbox.min.y.toFixed(2)} to ${bbox.max.y.toFixed(2)}`);
+                        console.log(`  Z: ${bbox.min.z.toFixed(2)} to ${bbox.max.z.toFixed(2)}`);
+                    }
                     
                     console.log('Point cloud loaded successfully');
                 });
