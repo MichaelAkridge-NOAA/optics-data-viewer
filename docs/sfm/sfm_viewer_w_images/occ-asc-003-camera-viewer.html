@@ -274,6 +274,102 @@
             background: #45a049;
         }
         
+        /* Box Selection Tool */
+        #selection-box {
+            position: absolute;
+            border: 2px dashed #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+            pointer-events: none;
+            z-index: 999;
+            display: none;
+        }
+        
+        #selection-gallery {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 380px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.95);
+            border-top: 3px solid #4CAF50;
+            z-index: 2000;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        #selection-gallery.visible {
+            display: block;
+        }
+        
+        #selection-gallery-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: white;
+        }
+        
+        #selection-gallery-title {
+            font-size: 1.1em;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        #selection-gallery-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        
+        .selection-camera-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .selection-camera-card:hover {
+            transform: translateY(-3px);
+            border-color: #4CAF50;
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .selection-camera-card img {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            display: block;
+            background: #1a1a1a;
+        }
+        
+        .selection-camera-info {
+            padding: 8px;
+            color: white;
+        }
+        
+        .selection-camera-name {
+            font-weight: bold;
+            font-size: 0.8em;
+            margin-bottom: 3px;
+            color: #81C784;
+        }
+        
+        .box-select-btn {
+            background: #FF9800 !important;
+        }
+        
+        .box-select-btn:hover {
+            background: #F57C00 !important;
+        }
+        
+        .box-select-btn.active {
+            background: #4CAF50 !important;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+        
         /* Image Gallery Modal */
         #image-gallery {
             display: none;
@@ -661,6 +757,9 @@
             
             <button onclick="fitAllCameras()">📍 Fit All Cameras to View</button>
             <button onclick="clearSelection()" class="secondary">Clear Selection</button>
+            <button onclick="toggleBoxSelection()" class="box-select-btn" id="box-select-btn">
+                <span id="box-select-icon">📦</span> Box Select
+            </button>
             
             <h3 style="margin-top: 20px;">👁️ Visual Toggles</h3>
             <div class="visual-toggles">
@@ -749,6 +848,18 @@
         <div class="info-content" id="info-content"></div>
     </div>
     
+    <!-- Box Selection Rectangle -->
+    <div id="selection-box"></div>
+    
+    <!-- Selection Gallery (Bottom Bar) -->
+    <div id="selection-gallery">
+        <div id="selection-gallery-header">
+            <div id="selection-gallery-title">Selected Cameras (0)</div>
+            <button onclick="closeSelectionGallery()" style="background: #f44336; padding: 5px 15px; font-size: 1.2em;">×</button>
+        </div>
+        <div id="selection-gallery-content"></div>
+    </div>
+    
     <!-- Image Gallery (appears when clicking on point cloud) -->
     <div id="image-gallery">
         <div id="gallery-header">
@@ -780,6 +891,15 @@
         let searchRadius = 10;
         let queryPoint = null;
         let queryMarker = null;
+        
+        // Box selection variables
+        let boxSelectionMode = false;
+        let isDrawingBox = false;
+        let boxStartX = 0;
+        let boxStartY = 0;
+        let boxEndX = 0;
+        let boxEndY = 0;
+        let selectedCameras = [];
         
         // Configuration - OCC-ASC-003 dataset from Google Cloud Storage
         // Supports both .cams.xml (Agisoft) and .json (pre-processed) formats
@@ -824,6 +944,9 @@
             
             // Set up event handlers
             setupEventHandlers();
+            
+            // Set up box selection
+            setupBoxSelection();
             
             // Set up visual toggles
             setupVisualToggles();
@@ -2045,6 +2168,201 @@
             }
             
             console.log('[Visual Toggles] Setup complete');
+        }
+        
+        // ===== BOX SELECTION FUNCTIONS =====
+        
+        // Toggle box selection mode
+        function toggleBoxSelection() {
+            boxSelectionMode = !boxSelectionMode;
+            const btn = document.getElementById('box-select-btn');
+            const icon = document.getElementById('box-select-icon');
+            
+            if (boxSelectionMode) {
+                btn.classList.add('active');
+                icon.textContent = '✓';
+                console.log('[Box Select] Mode ENABLED - Draw a box to select cameras');
+                
+                // Change cursor
+                viewer.renderer.domElement.style.cursor = 'crosshair';
+            } else {
+                btn.classList.remove('active');
+                icon.textContent = '📦';
+                console.log('[Box Select] Mode DISABLED');
+                
+                // Reset cursor
+                viewer.renderer.domElement.style.cursor = 'default';
+            }
+        }
+        
+        // Setup box selection event handlers
+        function setupBoxSelection() {
+            const canvas = viewer.renderer.domElement;
+            const selectionBox = document.getElementById('selection-box');
+            
+            canvas.addEventListener('mousedown', (e) => {
+                if (!boxSelectionMode || e.button !== 0) return;
+                
+                isDrawingBox = true;
+                const rect = canvas.getBoundingClientRect();
+                boxStartX = e.clientX - rect.left;
+                boxStartY = e.clientY - rect.top;
+                boxEndX = boxStartX;
+                boxEndY = boxStartY;
+                
+                // Position the selection box
+                selectionBox.style.left = boxStartX + 'px';
+                selectionBox.style.top = boxStartY + 'px';
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.style.display = 'block';
+                
+                console.log('[Box Select] Started drawing at:', boxStartX, boxStartY);
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDrawingBox) return;
+                
+                const rect = canvas.getBoundingClientRect();
+                boxEndX = e.clientX - rect.left;
+                boxEndY = e.clientY - rect.top;
+                
+                // Update box dimensions
+                const x = Math.min(boxStartX, boxEndX);
+                const y = Math.min(boxStartY, boxEndY);
+                const width = Math.abs(boxEndX - boxStartX);
+                const height = Math.abs(boxEndY - boxStartY);
+                
+                selectionBox.style.left = x + 'px';
+                selectionBox.style.top = y + 'px';
+                selectionBox.style.width = width + 'px';
+                selectionBox.style.height = height + 'px';
+            });
+            
+            canvas.addEventListener('mouseup', (e) => {
+                if (!isDrawingBox) return;
+                
+                isDrawingBox = false;
+                selectionBox.style.display = 'none';
+                
+                // Find cameras in the selection box
+                const rect = canvas.getBoundingClientRect();
+                const x1 = Math.min(boxStartX, boxEndX);
+                const y1 = Math.min(boxStartY, boxEndY);
+                const x2 = Math.max(boxStartX, boxEndX);
+                const y2 = Math.max(boxStartY, boxEndY);
+                
+                console.log('[Box Select] Box drawn:', {x1, y1, x2, y2});
+                
+                selectCamerasInBox(x1, y1, x2, y2, rect);
+            });
+        }
+        
+        // Find and select cameras within the box
+        function selectCamerasInBox(x1, y1, x2, y2, canvasRect) {
+            const camera = viewer.scene.getActiveCamera();
+            selectedCameras = [];
+            
+            cameraMarkers.forEach((marker, index) => {
+                if (!marker.visible) return;
+                
+                // Project 3D position to 2D screen coordinates
+                const pos = marker.position.clone();
+                pos.project(camera);
+                
+                // Convert from normalized device coordinates to screen space
+                const screenX = ((pos.x + 1) / 2) * canvasRect.width;
+                const screenY = (-(pos.y - 1) / 2) * canvasRect.height;
+                
+                // Check if in box
+                if (screenX >= x1 && screenX <= x2 && screenY >= y1 && screenY <= y2) {
+                    // Check if behind camera (pos.z > 1 means behind)
+                    if (pos.z < 1) {
+                        selectedCameras.push({
+                            index: index,
+                            camera: cameras[index]
+                        });
+                    }
+                }
+            });
+            
+            console.log(`[Box Select] Selected ${selectedCameras.length} cameras`);
+            
+            if (selectedCameras.length > 0) {
+                displaySelectionGallery(selectedCameras);
+            } else {
+                console.log('[Box Select] No cameras in selection box');
+            }
+        }
+        
+        // Display selected cameras in bottom gallery
+        function displaySelectionGallery(selectedCams) {
+            const gallery = document.getElementById('selection-gallery');
+            const content = document.getElementById('selection-gallery-content');
+            const title = document.getElementById('selection-gallery-title');
+            
+            if (!gallery || !content || !title) return;
+            
+            title.textContent = `Selected Cameras (${selectedCams.length})`;
+            content.innerHTML = '';
+            
+            selectedCams.forEach(({ camera, index }) => {
+                const card = document.createElement('div');
+                card.className = 'selection-camera-card';
+                
+                const cameraName = camera.name || `Camera ${index + 1}`;
+                const imageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+                
+                card.innerHTML = `
+                    <img src="${imageURL}" alt="${cameraName}" loading="lazy"
+                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22%3E%3Crect fill=%22%23333%22 width=%22120%22 height=%2290%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2210%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                    <div class="selection-camera-info">
+                        <div class="selection-camera-name">${cameraName}</div>
+                    </div>
+                `;
+                
+                // Click to view full image
+                card.onclick = () => {
+                    viewFullImage(camera, index);
+                };
+                
+                content.appendChild(card);
+            });
+            
+            gallery.classList.add('visible');
+            console.log(`[Selection Gallery] Displayed ${selectedCams.length} cameras`);
+        }
+        
+        // View full image
+        function viewFullImage(camera, index) {
+            const fullViewer = document.getElementById('full-image-viewer');
+            const fullImage = document.getElementById('full-viewer-image');
+            const fullInfo = document.getElementById('full-viewer-info');
+            
+            if (!fullViewer || !fullImage || !fullInfo) return;
+            
+            const cameraName = camera.name || `Camera ${index + 1}`;
+            const imageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+            
+            fullImage.src = imageURL;
+            fullInfo.innerHTML = `
+                <h3>${cameraName}</h3>
+                <p><strong>Position:</strong> [${camera.position[0].toFixed(3)}, ${camera.position[1].toFixed(3)}, ${camera.position[2].toFixed(3)}]</p>
+                <p><strong>FOV:</strong> ${camera.fov.toFixed(1)}°</p>
+            `;
+            
+            fullViewer.classList.add('visible');
+            console.log(`[Full Viewer] Viewing ${cameraName}`);
+        }
+        
+        // Close selection gallery
+        function closeSelectionGallery() {
+            const gallery = document.getElementById('selection-gallery');
+            if (gallery) {
+                gallery.classList.remove('visible');
+                selectedCameras = [];
+                console.log('[Selection Gallery] Closed');
+            }
         }
         
         // Initialize when page loads - use setTimeout to ensure DOM is ready
