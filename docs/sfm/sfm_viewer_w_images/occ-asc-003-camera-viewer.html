@@ -461,13 +461,58 @@
             background: rgba(0,0,0,0.95);
             z-index: 3000;
             padding: 40px;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
         }
         
         #full-image-viewer.visible {
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+        }
+        
+        #close-full-viewer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            z-index: 3001;
+        }
+        
+        #close-full-viewer:hover {
+            background: #d32f2f;
+        }
+        
+        #full-viewer-image {
+            max-width: 90%;
+            max-height: 80%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        
+        #full-viewer-info {
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            max-width: 600px;
+        }
+        
+        #full-viewer-info h3 {
+            margin: 0 0 10px 0;
+            color: #4CAF50;
+        }
+        
+        #full-viewer-info p {
+            margin: 5px 0;
         }
         
         /* Sidebar Thumbnail Carousel */
@@ -779,6 +824,10 @@
                     <span class="toggle-indicator"></span>
                     <span>Query Point</span>
                 </div>
+                <div class="toggle-button" id="toggle-camera-path">
+                    <span class="toggle-indicator"></span>
+                    <span>Camera Path</span>
+                </div>
             </div>
         </div>
         
@@ -900,6 +949,10 @@
         let boxEndX = 0;
         let boxEndY = 0;
         let selectedCameras = [];
+        
+        // Camera path variables
+        let cameraPathLine = null;
+        let cameraPathVisible = false;
         
         // Configuration - OCC-ASC-003 dataset from Google Cloud Storage
         // Supports both .cams.xml (Agisoft) and .json (pre-processed) formats
@@ -1141,8 +1194,63 @@
             });
             console.log('[Camera Markers] Initial scale set to 0.5');
             
+            // Create camera path line
+            createCameraPath();
+            
             // Update LOD on each frame
             viewer.addEventListener('update', updateLOD);
+        }
+        
+        // Create camera path connecting all cameras in sequence
+        function createCameraPath() {
+            console.log('[Camera Path] Creating path line...');
+            
+            if (cameras.length < 2) {
+                console.log('[Camera Path] Not enough cameras for path');
+                return;
+            }
+            
+            // Sort cameras by name to get proper sequence
+            const sortedCameras = [...cameras].sort((a, b) => {
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                return nameA.localeCompare(nameB);
+            });
+            
+            // Create points for the line
+            const points = sortedCameras.map(camera => 
+                new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2])
+            );
+            
+            // Create the line geometry
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            // Create material with color
+            const material = new THREE.LineBasicMaterial({
+                color: 0x00BFFF, // Deep sky blue
+                linewidth: 2,
+                transparent: true,
+                opacity: 0.6
+            });
+            
+            // Create the line
+            cameraPathLine = new THREE.Line(geometry, material);
+            cameraPathLine.name = 'cameraPath';
+            cameraPathLine.visible = false; // Hidden by default
+            
+            // Add to scene
+            viewer.scene.scene.add(cameraPathLine);
+            
+            console.log(`[Camera Path] Created path with ${points.length} points`);
+        }
+        
+        // Toggle camera path visibility
+        function toggleCameraPath(visible) {
+            if (cameraPathLine) {
+                cameraPathLine.visible = visible;
+                cameraPathVisible = visible;
+                console.log(`[Camera Path] Path ${visible ? 'shown' : 'hidden'}`);
+            }
         }
         
         // Create camera frustum (viewing cone)
@@ -2167,6 +2275,17 @@
                 };
             }
             
+            // Camera path toggle
+            const pathToggle = document.getElementById('toggle-camera-path');
+            if (pathToggle) {
+                pathToggle.onclick = () => {
+                    const isActive = pathToggle.classList.contains('active');
+                    toggleCameraPath(!isActive);
+                    pathToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Camera path ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
             console.log('[Visual Toggles] Setup complete');
         }
         
@@ -2237,6 +2356,9 @@
                 selectionBox.style.top = y + 'px';
                 selectionBox.style.width = width + 'px';
                 selectionBox.style.height = height + 'px';
+                
+                // Highlight cameras in selection box in real-time
+                highlightCamerasInBox(x, y, x + width, y + height, rect);
             });
             
             canvas.addEventListener('mouseup', (e) => {
@@ -2255,6 +2377,75 @@
                 console.log('[Box Select] Box drawn:', {x1, y1, x2, y2});
                 
                 selectCamerasInBox(x1, y1, x2, y2, rect);
+                
+                // Clear the temporary highlighting
+                clearBoxHighlights();
+            });
+        }
+        
+        // Highlight cameras within the box (during drawing)
+        function highlightCamerasInBox(x1, y1, x2, y2, canvasRect) {
+            const camera = viewer.scene.getActiveCamera();
+            
+            cameraMarkers.forEach((marker, index) => {
+                if (!marker.visible) return;
+                
+                // Project 3D position to 2D screen coordinates
+                const pos = marker.position.clone();
+                pos.project(camera);
+                
+                // Convert from normalized device coordinates to screen space
+                const screenX = ((pos.x + 1) / 2) * canvasRect.width;
+                const screenY = (-(pos.y - 1) / 2) * canvasRect.height;
+                
+                // Check if in box and in front of camera
+                const inBox = (screenX >= x1 && screenX <= x2 && screenY >= y1 && screenY <= y2 && pos.z < 1);
+                
+                // Highlight cameras in the box
+                if (marker.userData.detailedMesh) {
+                    if (inBox) {
+                        marker.userData.detailedMesh.material.color.setHex(0xFFD700); // Gold
+                        marker.userData.detailedMesh.material.emissive = new THREE.Color(0xFFD700);
+                        marker.userData.detailedMesh.material.emissiveIntensity = 0.5;
+                    } else {
+                        marker.userData.detailedMesh.material.color.setHex(0x4CAF50); // Green
+                        marker.userData.detailedMesh.material.emissive = new THREE.Color(0x000000);
+                        marker.userData.detailedMesh.material.emissiveIntensity = 0;
+                    }
+                }
+                
+                if (marker.userData.simpleMesh) {
+                    if (inBox) {
+                        marker.userData.simpleMesh.material.color.setHex(0xFFD700);
+                    } else {
+                        marker.userData.simpleMesh.material.color.setHex(0x4CAF50);
+                    }
+                }
+                
+                if (marker.userData.pointMesh) {
+                    if (inBox) {
+                        marker.userData.pointMesh.material.color.setHex(0xFFD700);
+                    } else {
+                        marker.userData.pointMesh.material.color.setHex(0x4CAF50);
+                    }
+                }
+            });
+        }
+        
+        // Clear box selection highlights
+        function clearBoxHighlights() {
+            cameraMarkers.forEach((marker) => {
+                if (marker.userData.detailedMesh) {
+                    marker.userData.detailedMesh.material.color.setHex(0x4CAF50);
+                    marker.userData.detailedMesh.material.emissive = new THREE.Color(0x000000);
+                    marker.userData.detailedMesh.material.emissiveIntensity = 0;
+                }
+                if (marker.userData.simpleMesh) {
+                    marker.userData.simpleMesh.material.color.setHex(0x4CAF50);
+                }
+                if (marker.userData.pointMesh) {
+                    marker.userData.pointMesh.material.color.setHex(0x4CAF50);
+                }
             });
         }
         
@@ -2310,11 +2501,19 @@
                 const card = document.createElement('div');
                 card.className = 'selection-camera-card';
                 
-                const cameraName = camera.name || `Camera ${index + 1}`;
-                const imageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+                const cameraName = camera.name || `Camera_${index + 1}`;
+                
+                // Try thumbnail first, then full image
+                const thumbnailURL = THUMBNAIL_BASE_URL 
+                    ? `${THUMBNAIL_BASE_URL}/${cameraName}.JPG`
+                    : (IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '');
+                
+                const fullImageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+                
+                console.log(`[Selection Gallery] Adding ${cameraName}, thumbnail: ${thumbnailURL}`);
                 
                 card.innerHTML = `
-                    <img src="${imageURL}" alt="${cameraName}" loading="lazy"
+                    <img src="${thumbnailURL}" alt="${cameraName}" loading="lazy"
                          onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22%3E%3Crect fill=%22%23333%22 width=%22120%22 height=%2290%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2210%22%3ENo Image%3C/text%3E%3C/svg%3E'">
                     <div class="selection-camera-info">
                         <div class="selection-camera-name">${cameraName}</div>
@@ -2323,7 +2522,7 @@
                 
                 // Click to view full image
                 card.onclick = () => {
-                    viewFullImage(camera, index);
+                    viewFullImage(camera, index, fullImageURL, cameraName);
                 };
                 
                 content.appendChild(card);
@@ -2334,25 +2533,38 @@
         }
         
         // View full image
-        function viewFullImage(camera, index) {
+        function viewFullImage(camera, index, imageURL, cameraName) {
             const fullViewer = document.getElementById('full-image-viewer');
             const fullImage = document.getElementById('full-viewer-image');
             const fullInfo = document.getElementById('full-viewer-info');
             
-            if (!fullViewer || !fullImage || !fullInfo) return;
+            if (!fullViewer || !fullImage || !fullInfo) {
+                console.error('[Full Viewer] Required elements not found');
+                return;
+            }
             
-            const cameraName = camera.name || `Camera ${index + 1}`;
-            const imageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+            const displayName = cameraName || camera.name || `Camera ${index + 1}`;
             
-            fullImage.src = imageURL;
+            // Use provided URL or construct it
+            const finalImageURL = imageURL || (IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${displayName}.JPG` : '');
+            
+            console.log(`[Full Viewer] Opening ${displayName}, URL: ${finalImageURL}`);
+            
+            fullImage.src = finalImageURL;
+            fullImage.onerror = () => {
+                console.error(`[Full Viewer] Failed to load image: ${finalImageURL}`);
+                fullImage.alt = 'Image not available';
+            };
+            
             fullInfo.innerHTML = `
-                <h3>${cameraName}</h3>
+                <h3>${displayName}</h3>
                 <p><strong>Position:</strong> [${camera.position[0].toFixed(3)}, ${camera.position[1].toFixed(3)}, ${camera.position[2].toFixed(3)}]</p>
-                <p><strong>FOV:</strong> ${camera.fov.toFixed(1)}°</p>
+                <p><strong>FOV:</strong> ${camera.fov ? camera.fov.toFixed(1) : 'N/A'}°</p>
+                <p><strong>Aspect Ratio:</strong> ${camera.aspect ? camera.aspect.toFixed(2) : 'N/A'}</p>
             `;
             
             fullViewer.classList.add('visible');
-            console.log(`[Full Viewer] Viewing ${cameraName}`);
+            console.log(`[Full Viewer] Now showing ${displayName}`);
         }
         
         // Close selection gallery
