@@ -993,6 +993,25 @@
             viewer.scene.scene.add(cameraGroup);
             console.log(`Created ${cameraMarkers.length} camera markers with LOD`);
             
+            // Log sample camera orientations for debugging
+            console.log('\n=== [Camera Load] Sample camera orientations ===');
+            [0, Math.floor(cameras.length/2), cameras.length-1].forEach(i => {
+                if (i < cameras.length) {
+                    const cam = cameras[i];
+                    const quat = new THREE.Quaternion(cam.rotation[0], cam.rotation[1], cam.rotation[2], cam.rotation[3]);
+                    const up = new THREE.Vector3(0, 1, 0);
+                    up.applyQuaternion(quat);
+                    const fwd = new THREE.Vector3(0, 0, -1);
+                    fwd.applyQuaternion(quat);
+                    console.log(`Camera ${i} (${cam.name || 'unnamed'}):`);
+                    console.log(`  Position: [${cam.position[0].toFixed(3)}, ${cam.position[1].toFixed(3)}, ${cam.position[2].toFixed(3)}]`);
+                    console.log(`  Quaternion: [${cam.rotation[0].toFixed(3)}, ${cam.rotation[1].toFixed(3)}, ${cam.rotation[2].toFixed(3)}, ${cam.rotation[3].toFixed(3)}]`);
+                    console.log(`  Up vector: [${up.x.toFixed(3)}, ${up.y.toFixed(3)}, ${up.z.toFixed(3)}]`);
+                    console.log(`  Forward: [${fwd.x.toFixed(3)}, ${fwd.y.toFixed(3)}, ${fwd.z.toFixed(3)}]`);
+                }
+            });
+            console.log('=== [Camera Load] End sample orientations ===\n');
+            
             // Set initial scale to 0.5 to reduce clutter
             cameraMarkers.forEach(marker => {
                 marker.scale.setScalar(0.5);
@@ -1096,7 +1115,7 @@
         
         // Select camera
         function selectCamera(index) {
-            console.log('Selecting camera:', index);
+            console.log('\n=== [SelectCamera] Camera', index, 'selected ===');
             
             // Deselect previous
             if (selectedCameraIndex >= 0) {
@@ -1147,8 +1166,18 @@
         
         // Fly camera to selected position
         function flyToCamera(index) {
+            console.log('\n=== [FlyToCamera] Starting camera navigation ===');
+            console.log(`[FlyToCamera] Target camera index: ${index}`);
+            
             const camera = cameras[index];
             const pos = camera.position;
+            console.log(`[FlyToCamera] Camera position: [${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}, ${pos[2].toFixed(3)}]`);
+            
+            // Get current viewer camera state BEFORE changes
+            const viewerCam = viewer.scene.getActiveCamera();
+            console.log('[FlyToCamera] BEFORE - Viewer camera state:');
+            console.log(`  Position: [${viewerCam.position.x.toFixed(3)}, ${viewerCam.position.y.toFixed(3)}, ${viewerCam.position.z.toFixed(3)}]`);
+            console.log(`  Up vector: [${viewerCam.up.x.toFixed(3)}, ${viewerCam.up.y.toFixed(3)}, ${viewerCam.up.z.toFixed(3)}]`);
             
             // Calculate target position (move back from camera position)
             const offset = 10; // Distance behind camera
@@ -1160,42 +1189,56 @@
                 camera.rotation[2],
                 camera.rotation[3]
             );
+            console.log(`[FlyToCamera] Camera quaternion: [${camera.rotation[0].toFixed(3)}, ${camera.rotation[1].toFixed(3)}, ${camera.rotation[2].toFixed(3)}, ${camera.rotation[3].toFixed(3)}]`);
             
             const forward = new THREE.Vector3(0, 0, -1);
             forward.applyQuaternion(quat);
+            console.log(`[FlyToCamera] Forward vector: [${forward.x.toFixed(3)}, ${forward.y.toFixed(3)}, ${forward.z.toFixed(3)}]`);
             
             // Calculate up vector from quaternion to maintain proper orientation
             const up = new THREE.Vector3(0, 1, 0);
             up.applyQuaternion(quat);
+            console.log(`[FlyToCamera] Calculated up vector from quaternion: [${up.x.toFixed(3)}, ${up.y.toFixed(3)}, ${up.z.toFixed(3)}]`);
             
             const targetPos = new THREE.Vector3(
                 pos[0] - forward.x * offset,
                 pos[1] - forward.y * offset,
                 pos[2] - forward.z * offset
             );
+            console.log(`[FlyToCamera] Viewer target position (${offset}m behind camera): [${targetPos.x.toFixed(3)}, ${targetPos.y.toFixed(3)}, ${targetPos.z.toFixed(3)}]`);
             
             // Set camera position
             viewer.scene.view.position.set(targetPos.x, targetPos.y, targetPos.z);
             
-            // Store the current up vector before lookAt
-            const viewerCam = viewer.scene.getActiveCamera();
-            
             // Ensure up vector is set properly (default to world up if nearly vertical)
             const lookDir = new THREE.Vector3(pos[0] - targetPos.x, pos[1] - targetPos.y, pos[2] - targetPos.z);
             lookDir.normalize();
+            console.log(`[FlyToCamera] Look direction (normalized): [${lookDir.x.toFixed(3)}, ${lookDir.y.toFixed(3)}, ${lookDir.z.toFixed(3)}]`);
+            console.log(`[FlyToCamera] Look direction Y component: ${lookDir.y.toFixed(3)} (vertical threshold: 0.99)`);
             
             // Check if looking nearly straight up or down (prevent gimbal lock)
             const verticalThreshold = 0.99;
             if (Math.abs(lookDir.y) > verticalThreshold) {
                 // When looking nearly vertical, use a safe up vector
-                viewerCam.up.set(0, 0, -Math.sign(lookDir.y));
+                const safeUp = new THREE.Vector3(0, 0, -Math.sign(lookDir.y));
+                console.log(`[FlyToCamera] ⚠ Nearly vertical view detected! Using safe up vector: [${safeUp.x.toFixed(3)}, ${safeUp.y.toFixed(3)}, ${safeUp.z.toFixed(3)}]`);
+                viewerCam.up.copy(safeUp);
             } else {
                 // Use the calculated up vector from the camera quaternion
+                console.log(`[FlyToCamera] ✓ Normal view. Using calculated up vector from quaternion`);
                 viewerCam.up.copy(up);
             }
             
+            console.log(`[FlyToCamera] Setting up vector to: [${viewerCam.up.x.toFixed(3)}, ${viewerCam.up.y.toFixed(3)}, ${viewerCam.up.z.toFixed(3)}]`);
+            
             // Now do the lookAt with the proper up vector set
             viewer.scene.view.lookAt(pos[0], pos[1], pos[2]);
+            
+            // Log AFTER state
+            console.log('[FlyToCamera] AFTER - Viewer camera state:');
+            console.log(`  Position: [${viewerCam.position.x.toFixed(3)}, ${viewerCam.position.y.toFixed(3)}, ${viewerCam.position.z.toFixed(3)}]`);
+            console.log(`  Up vector: [${viewerCam.up.x.toFixed(3)}, ${viewerCam.up.y.toFixed(3)}, ${viewerCam.up.z.toFixed(3)}]`);
+            console.log('=== [FlyToCamera] Camera navigation complete ===\n');
         }
         
         // Show camera info panel
@@ -1321,8 +1364,14 @@
         
         // Apply spatial filter to show only nearest cameras
         function applySpatialFilter(point) {
-            console.log('=== [Spatial Query] Applying Spatial Filter ===');
+            console.log('\n=== [Spatial Query] Applying Spatial Filter ===');
             console.log('[Spatial Query] Click point:', point);
+            
+            // Log current viewer camera state when clicking
+            const viewerCam = viewer.scene.getActiveCamera();
+            console.log('[Spatial Query] Current viewer camera state AT CLICK:');
+            console.log(`  Position: [${viewerCam.position.x.toFixed(3)}, ${viewerCam.position.y.toFixed(3)}, ${viewerCam.position.z.toFixed(3)}]`);
+            console.log(`  Up vector: [${viewerCam.up.x.toFixed(3)}, ${viewerCam.up.y.toFixed(3)}, ${viewerCam.up.z.toFixed(3)}]`);
             
             spatialFilterActive = true;
             queryPoint = point;
