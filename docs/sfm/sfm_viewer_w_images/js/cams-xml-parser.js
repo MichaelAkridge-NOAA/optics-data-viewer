@@ -31,6 +31,13 @@ class CamsXMLParser {
     // Extract component transform (chunk transformation)
     this.transform = this.extractComponentTransform(xmlDoc);
     
+    // Debug component transform
+    if (this.transform) {
+      console.log('[Parser] Component transform found:', this.transform);
+    } else {
+      console.log('[Parser] No component transform found');
+    }
+    
     // Extract camera data
     this.cameras = this.extractCameras(xmlDoc);
     
@@ -221,6 +228,35 @@ class CamsXMLParser {
    */
   toPotreeFormat(imageBaseURL = '') {
     return this.cameras.map(camera => {
+      // Apply component transform to position (convert from chunk space to world space)
+      let worldPos = [...camera.position];
+      
+      if (this.transform) {
+        // Apply scale
+        const s = this.transform.scale || 1.0;
+        worldPos = [worldPos[0] * s, worldPos[1] * s, worldPos[2] * s];
+        
+        // Apply rotation (3x3 matrix multiplication)
+        if (this.transform.rotation) {
+          const R = this.transform.rotation;
+          const [x, y, z] = worldPos;
+          worldPos = [
+            R[0] * x + R[1] * y + R[2] * z,
+            R[3] * x + R[4] * y + R[5] * z,
+            R[6] * x + R[7] * y + R[8] * z
+          ];
+        }
+        
+        // Apply translation
+        if (this.transform.translation) {
+          const T = this.transform.translation;
+          worldPos = [
+            worldPos[0] + T[0],
+            worldPos[1] + T[1],
+            worldPos[2] + T[2]
+          ];
+        }
+      }
       // Calculate FOV from focal length if available
       let fov = 60; // default
       if (this.sensor && this.sensor.f && this.sensor.width) {
@@ -251,7 +287,7 @@ class CamsXMLParser {
         id: camera.id,
         name: camera.label,
         label: camera.label,
-        position: camera.position,
+        position: worldPos,  // Use world position after component transform
         rotation: quaternion,
         rotationMatrix: rotation,
         transform: camera.transform,
