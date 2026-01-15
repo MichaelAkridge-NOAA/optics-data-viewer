@@ -495,6 +495,54 @@
             object-fit: contain;
             border-radius: 8px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            cursor: zoom-in;
+            transition: transform 0.3s ease, max-width 0.3s ease, max-height 0.3s ease;
+            transform-origin: center center;
+        }
+        
+        #full-viewer-image.zoomed {
+            max-width: none;
+            max-height: none;
+            width: auto;
+            height: auto;
+            cursor: zoom-out;
+            transform: scale(1);
+        }
+        
+        #full-viewer-container {
+            position: relative;
+            max-width: 90%;
+            max-height: 80%;
+            overflow: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #full-viewer-container.zoomed {
+            max-width: 95%;
+            max-height: 90%;
+            overflow: auto;
+            cursor: move;
+        }
+        
+        #zoom-hint {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        #zoom-hint.visible {
+            opacity: 1;
         }
         
         #full-viewer-info {
@@ -921,7 +969,10 @@
     <!-- Full Image Viewer -->
     <div id="full-image-viewer">
         <button id="close-full-viewer">✕ Close</button>
-        <img id="full-viewer-image" src="" alt="Camera Image">
+        <div id="full-viewer-container">
+            <img id="full-viewer-image" src="" alt="Camera Image">
+        </div>
+        <div id="zoom-hint">Click image to zoom • Drag to pan when zoomed</div>
         <div id="full-viewer-info"></div>
     </div>
 
@@ -1188,11 +1239,11 @@
             });
             console.log('=== [Camera Load] End sample orientations ===\n');
             
-            // Set initial scale to 0.5 to reduce clutter
+            // Set initial scale to 0.2 to reduce clutter
             cameraMarkers.forEach(marker => {
-                marker.scale.setScalar(0.5);
+                marker.scale.setScalar(0.2);
             });
-            console.log('[Camera Markers] Initial scale set to 0.5');
+            console.log('[Camera Markers] Initial scale set to 0.2');
             
             // Create camera path line
             createCameraPath();
@@ -1239,12 +1290,12 @@
             cameraPathLine.visible = false; // Hidden by default
             
             // For better visibility on systems that don't support linewidth > 1,
-            // we could add spheres at each camera position
-            const sphereGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+            // we add small spheres at each camera position
+            const sphereGeometry = new THREE.SphereGeometry(0.03, 6, 6);
             const sphereMaterial = new THREE.MeshBasicMaterial({
                 color: 0x00BFFF,
                 transparent: true,
-                opacity: 0.7
+                opacity: 0.5
             });
             
             const sphereGroup = new THREE.Group();
@@ -2553,8 +2604,10 @@
             const fullViewer = document.getElementById('full-image-viewer');
             const fullImage = document.getElementById('full-viewer-image');
             const fullInfo = document.getElementById('full-viewer-info');
+            const fullContainer = document.getElementById('full-viewer-container');
+            const zoomHint = document.getElementById('zoom-hint');
             
-            if (!fullViewer || !fullImage || !fullInfo) {
+            if (!fullViewer || !fullImage || !fullInfo || !fullContainer) {
                 console.error('[Full Viewer] Required elements not found');
                 return;
             }
@@ -2566,7 +2619,100 @@
             
             console.log(`[Full Viewer] Opening ${displayName}, URL: ${finalImageURL}`);
             
+            // Reset zoom state
+            fullImage.classList.remove('zoomed');
+            fullContainer.classList.remove('zoomed');
+            fullContainer.scrollLeft = 0;
+            fullContainer.scrollTop = 0;
+            
             fullImage.src = finalImageURL;
+            fullImage.onerror = () => {
+                console.error(`[Full Viewer] Failed to load image: ${finalImageURL}`);
+                fullImage.alt = 'Image not available';
+            };
+            
+            // Show zoom hint briefly
+            if (zoomHint) {
+                zoomHint.classList.add('visible');
+                setTimeout(() => {
+                    zoomHint.classList.remove('visible');
+                }, 3000);
+            }
+            
+            fullInfo.innerHTML = `
+                <h3>${displayName}</h3>
+                <p><strong>Position:</strong> [${camera.position[0].toFixed(3)}, ${camera.position[1].toFixed(3)}, ${camera.position[2].toFixed(3)}]</p>
+                <p><strong>FOV:</strong> ${camera.fov ? camera.fov.toFixed(1) : 'N/A'}°</p>
+                <p><strong>Aspect Ratio:</strong> ${camera.aspect ? camera.aspect.toFixed(2) : 'N/A'}</p>
+            `;
+            
+            fullViewer.classList.add('visible');
+            console.log(`[Full Viewer] Now showing ${displayName}`);
+            
+            // Setup zoom functionality
+            setupImageZoom(fullImage, fullContainer);
+        }
+        
+        // Setup image zoom and pan functionality
+        function setupImageZoom(image, container) {
+            // Remove any existing listeners
+            const newImage = image.cloneNode(true);
+            image.parentNode.replaceChild(newImage, image);
+            
+            let isZoomed = false;
+            let isDragging = false;
+            let startX, startY, scrollLeft, scrollTop;
+            
+            // Click to toggle zoom
+            newImage.addEventListener('click', (e) => {
+                e.stopPropagation();
+                isZoomed = !isZoomed;
+                
+                if (isZoomed) {
+                    newImage.classList.add('zoomed');
+                    container.classList.add('zoomed');
+                    console.log('[Full Viewer] Zoomed in - click again or drag to pan');
+                } else {
+                    newImage.classList.remove('zoomed');
+                    container.classList.remove('zoomed');
+                    container.scrollLeft = 0;
+                    container.scrollTop = 0;
+                    console.log('[Full Viewer] Zoomed out');
+                }
+            });
+            
+            // Pan when zoomed
+            container.addEventListener('mousedown', (e) => {
+                if (!isZoomed) return;
+                isDragging = true;
+                container.style.cursor = 'grabbing';
+                startX = e.pageX - container.offsetLeft;
+                startY = e.pageY - container.offsetTop;
+                scrollLeft = container.scrollLeft;
+                scrollTop = container.scrollTop;
+            });
+            
+            container.addEventListener('mouseleave', () => {
+                isDragging = false;
+                if (isZoomed) container.style.cursor = 'move';
+            });
+            
+            container.addEventListener('mouseup', () => {
+                isDragging = false;
+                if (isZoomed) container.style.cursor = 'move';
+            });
+            
+            container.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const x = e.pageX - container.offsetLeft;
+                const y = e.pageY - container.offsetTop;
+                const walkX = (x - startX) * 2;
+                const walkY = (y - startY) * 2;
+                container.scrollLeft = scrollLeft - walkX;
+                container.scrollTop = scrollTop - walkY;
+            });
+        }
             fullImage.onerror = () => {
                 console.error(`[Full Viewer] Failed to load image: ${finalImageURL}`);
                 fullImage.alt = 'Image not available';
