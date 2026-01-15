@@ -1225,18 +1225,42 @@
             // Create the line geometry
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
             
-            // Create material with color
+            // Create material with thicker line using fat lines approach
             const material = new THREE.LineBasicMaterial({
                 color: 0x00BFFF, // Deep sky blue
-                linewidth: 2,
+                linewidth: 3, // May not work on all systems
                 transparent: true,
-                opacity: 0.6
+                opacity: 0.7
             });
             
             // Create the line
             cameraPathLine = new THREE.Line(geometry, material);
             cameraPathLine.name = 'cameraPath';
             cameraPathLine.visible = false; // Hidden by default
+            
+            // For better visibility on systems that don't support linewidth > 1,
+            // we could add spheres at each camera position
+            const sphereGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+            const sphereMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00BFFF,
+                transparent: true,
+                opacity: 0.7
+            });
+            
+            const sphereGroup = new THREE.Group();
+            sphereGroup.name = 'cameraPathSpheres';
+            sphereGroup.visible = false;
+            
+            points.forEach(point => {
+                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial.clone());
+                sphere.position.copy(point);
+                sphereGroup.add(sphere);
+            });
+            
+            viewer.scene.scene.add(sphereGroup);
+            
+            // Store reference to sphere group
+            cameraPathLine.userData.sphereGroup = sphereGroup;
             
             // Add to scene
             viewer.scene.scene.add(cameraPathLine);
@@ -1248,6 +1272,10 @@
         function toggleCameraPath(visible) {
             if (cameraPathLine) {
                 cameraPathLine.visible = visible;
+                // Also toggle the spheres
+                if (cameraPathLine.userData.sphereGroup) {
+                    cameraPathLine.userData.sphereGroup.visible = visible;
+                }
                 cameraPathVisible = visible;
                 console.log(`[Camera Path] Path ${visible ? 'shown' : 'hidden'}`);
             }
@@ -2401,33 +2429,20 @@
                 // Check if in box and in front of camera
                 const inBox = (screenX >= x1 && screenX <= x2 && screenY >= y1 && screenY <= y2 && pos.z < 1);
                 
-                // Highlight cameras in the box
+                // Highlight cameras in the box (don't modify emissive properties)
                 if (marker.userData.detailedMesh) {
-                    if (inBox) {
-                        marker.userData.detailedMesh.material.color.setHex(0xFFD700); // Gold
-                        marker.userData.detailedMesh.material.emissive = new THREE.Color(0xFFD700);
-                        marker.userData.detailedMesh.material.emissiveIntensity = 0.5;
-                    } else {
-                        marker.userData.detailedMesh.material.color.setHex(0x4CAF50); // Green
-                        marker.userData.detailedMesh.material.emissive = new THREE.Color(0x000000);
-                        marker.userData.detailedMesh.material.emissiveIntensity = 0;
-                    }
+                    marker.userData.detailedMesh.material.color.setHex(inBox ? 0xFFD700 : 0x4CAF50);
+                    marker.userData.detailedMesh.material.opacity = inBox ? 1.0 : 0.8;
                 }
                 
                 if (marker.userData.simpleMesh) {
-                    if (inBox) {
-                        marker.userData.simpleMesh.material.color.setHex(0xFFD700);
-                    } else {
-                        marker.userData.simpleMesh.material.color.setHex(0x4CAF50);
-                    }
+                    marker.userData.simpleMesh.material.color.setHex(inBox ? 0xFFD700 : 0x4CAF50);
+                    marker.userData.simpleMesh.material.opacity = inBox ? 1.0 : 0.8;
                 }
                 
                 if (marker.userData.pointMesh) {
-                    if (inBox) {
-                        marker.userData.pointMesh.material.color.setHex(0xFFD700);
-                    } else {
-                        marker.userData.pointMesh.material.color.setHex(0x4CAF50);
-                    }
+                    marker.userData.pointMesh.material.color.setHex(inBox ? 0xFFD700 : 0x4CAF50);
+                    marker.userData.pointMesh.material.opacity = inBox ? 1.0 : 0.9;
                 }
             });
         }
@@ -2437,14 +2452,15 @@
             cameraMarkers.forEach((marker) => {
                 if (marker.userData.detailedMesh) {
                     marker.userData.detailedMesh.material.color.setHex(0x4CAF50);
-                    marker.userData.detailedMesh.material.emissive = new THREE.Color(0x000000);
-                    marker.userData.detailedMesh.material.emissiveIntensity = 0;
+                    marker.userData.detailedMesh.material.opacity = 0.8;
                 }
                 if (marker.userData.simpleMesh) {
                     marker.userData.simpleMesh.material.color.setHex(0x4CAF50);
+                    marker.userData.simpleMesh.material.opacity = 0.8;
                 }
                 if (marker.userData.pointMesh) {
                     marker.userData.pointMesh.material.color.setHex(0x4CAF50);
+                    marker.userData.pointMesh.material.opacity = 0.9;
                 }
             });
         }
