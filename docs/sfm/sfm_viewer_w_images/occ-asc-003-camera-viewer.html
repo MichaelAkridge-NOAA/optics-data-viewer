@@ -853,6 +853,12 @@
             <button onclick="toggleBoxSelection()" class="box-select-btn" id="box-select-btn">
                 <span id="box-select-icon">📦</span> Box Select
             </button>
+            <button onclick="toggleViewLock()" class="secondary" id="view-lock-btn">
+                🔓 Lock View
+            </button>
+            <button onclick="topDownView()" style="background: #9C27B0;">
+                ⬇️ Top View
+            </button>
             
             <h3 style="margin-top: 20px;">👁️ Visual Toggles</h3>
             <div class="visual-toggles">
@@ -1004,6 +1010,9 @@
         // Camera path variables
         let cameraPathLine = null;
         let cameraPathVisible = false;
+        
+        // View lock variable
+        let viewLocked = false;
         
         // Configuration - OCC-ASC-003 dataset from Google Cloud Storage
         // Supports both .cams.xml (Agisoft) and .json (pre-processed) formats
@@ -2368,6 +2377,67 @@
             console.log('[Visual Toggles] Setup complete');
         }
         
+        // ===== VIEW CONTROL FUNCTIONS =====
+        
+        // Toggle view lock
+        function toggleViewLock() {
+            viewLocked = !viewLocked;
+            const btn = document.getElementById('view-lock-btn');
+            
+            if (viewLocked) {
+                viewer.scene.view.controls.enabled = false;
+                btn.textContent = '🔒 Unlock View';
+                btn.style.background = '#f44336';
+                console.log('[View Lock] Camera controls disabled');
+            } else {
+                viewer.scene.view.controls.enabled = true;
+                btn.textContent = '🔓 Lock View';
+                btn.style.background = '#2196F3';
+                console.log('[View Lock] Camera controls enabled');
+            }
+        }
+        
+        // Set top-down orthographic view
+        function topDownView() {
+            console.log('[Top View] Setting up top-down view...');
+            
+            // Calculate bounding box of all cameras and point cloud
+            const bbox = new THREE.Box3();
+            
+            // Add cameras to bbox
+            cameras.forEach(camera => {
+                bbox.expandByPoint(new THREE.Vector3(
+                    camera.position[0],
+                    camera.position[1],
+                    camera.position[2]
+                ));
+            });
+            
+            console.log('[Top View] Bounding box:', bbox);
+            
+            // Get center and size
+            const center = new THREE.Vector3();
+            bbox.getCenter(center);
+            const size = new THREE.Vector3();
+            bbox.getSize(size);
+            
+            // Calculate height above the scene
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const height = center.z + maxDim * 1.5;
+            
+            // Position camera above looking straight down
+            const viewerCam = viewer.scene.getActiveCamera();
+            viewerCam.position.set(center.x, center.y, height);
+            viewerCam.up.set(0, 1, 0);
+            viewerCam.lookAt(center.x, center.y, center.z);
+            
+            // Update viewer position
+            viewer.scene.view.position.copy(viewerCam.position);
+            
+            console.log(`[Top View] Camera positioned at [${viewerCam.position.x.toFixed(2)}, ${viewerCam.position.y.toFixed(2)}, ${viewerCam.position.z.toFixed(2)}]`);
+            console.log(`[Top View] Looking at center [${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)}]`);
+        }
+        
         // ===== BOX SELECTION FUNCTIONS =====
         
         // Toggle box selection mode
@@ -2383,6 +2453,9 @@
                 
                 // Change cursor
                 viewer.renderer.domElement.style.cursor = 'crosshair';
+                
+                // Disable camera controls to prevent view movement while drawing
+                viewer.scene.view.controls.enabled = false;
             } else {
                 btn.classList.remove('active');
                 icon.textContent = '📦';
@@ -2390,6 +2463,11 @@
                 
                 // Reset cursor
                 viewer.renderer.domElement.style.cursor = 'default';
+                
+                // Re-enable camera controls (unless manually locked)
+                if (!viewLocked) {
+                    viewer.scene.view.controls.enabled = true;
+                }
             }
         }
         
