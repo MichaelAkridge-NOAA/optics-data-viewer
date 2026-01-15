@@ -464,7 +464,7 @@
             
             <div class="control-row">
                 <label class="control-label">Camera Size</label>
-                <input type="range" id="camera-scale" min="0.1" max="5" step="0.1" value="1">
+                <input type="range" id="camera-scale" min="0.1" max="5" step="0.1" value="0.5">
             </div>
             
             <div class="control-row">
@@ -479,7 +479,7 @@
             
             <div class="control-row">
                 <label class="control-label">LOD Distance</label>
-                <input type="range" id="lod-distance" min="5" max="100" step="5" value="30">
+                <input type="range" id="lod-distance" min="20" max="200" step="10" value="100">
                 <span style="font-size: 0.8em; color: #999;">Simplify distant cameras</span>
             </div>
             
@@ -564,7 +564,7 @@
         let selectedCameraIndex = -1;
         let cameraGroup;
         let lodEnabled = true;
-        let lodDistance = 30;
+        let lodDistance = 100; // Increased for better performance with many cameras
         let showFrustums = true;
         let spatialFilterActive = false;
         let nearestCount = 10;
@@ -779,6 +779,12 @@
             
             viewer.scene.scene.add(cameraGroup);
             console.log(`Created ${cameraMarkers.length} camera markers with LOD`);
+            
+            // Set initial scale to 0.5 to reduce clutter
+            cameraMarkers.forEach(marker => {
+                marker.scale.setScalar(0.5);
+            });
+            console.log('[Camera Markers] Initial scale set to 0.5');
             
             // Update LOD on each frame
             viewer.addEventListener('update', updateLOD);
@@ -1001,6 +1007,30 @@
                     frustum.visible = showFrustums && (distance < lodDistance * 1.5 || lod.userData.cameraIndex === selectedCameraIndex);
                 }
             });
+        }
+        
+        // Update camera visibility based on distance from view
+        function updateCameraVisibilityByDistance(maxDistance) {
+            if (spatialFilterActive) {
+                console.log('[Controls] Spatial filter active, skipping distance filter');
+                return;
+            }
+            
+            const cameraPos = viewer.scene.getActiveCamera().position;
+            
+            cameraMarkers.forEach((marker, index) => {
+                const markerPos = marker.position;
+                const distance = cameraPos.distanceTo(markerPos);
+                marker.visible = distance <= maxDistance;
+            });
+            
+            const visibleCount = cameraMarkers.filter(m => m.visible).length;
+            const visibleCamsEl = document.getElementById('visible-cameras');
+            if (visibleCamsEl) {
+                visibleCamsEl.textContent = `All ${visibleCount} cameras shown`;
+            }
+            
+            console.log(`[Controls] ${visibleCount} cameras visible within ${maxDistance}m`);
         }
         
         // Filter/search cameras
@@ -1426,6 +1456,10 @@
                 });
             }
             
+            // Initial LOD distance set to higher value
+            lodDistance = 100; // Start with more simplified cameras
+            console.log('[Controls] Initial LOD distance set to:', lodDistance);
+            
             // Toggle frustums
             const frustumToggle = document.getElementById('toggle-frustums');
             if (frustumToggle) {
@@ -1535,9 +1569,10 @@
                 if (e.button === 0) { // Left click
                     console.log('[Click] Left click detected at screen coords:', e.clientX, e.clientY);
                     
+                    const rect = viewer.renderer.domElement.getBoundingClientRect();
                     const mouse = {
-                        x: (e.clientX / window.innerWidth) * 2 - 1,
-                        y: -(e.clientY / window.innerHeight) * 2 + 1
+                        x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+                        y: -((e.clientY - rect.top) / rect.height) * 2 + 1
                     };
                     
                     console.log('[Click] Normalized mouse coords:', mouse);
@@ -1545,29 +1580,33 @@
                     const raycaster = new THREE.Raycaster();
                     raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
                     
-                    // First, try to intersect with point cloud
+                    // First, try to intersect with point cloud using Potree's helper
                     let pointCloudHit = false;
                     console.log('[Click] Checking for point cloud intersection...');
                     
                     if (viewer.scene.pointclouds.length > 0) {
                         console.log(`[Click] Found ${viewer.scene.pointclouds.length} point cloud(s) in scene`);
                         
-                        viewer.scene.pointclouds.forEach((pc, index) => {
-                            const result = pc.pick(viewer, viewer.scene.getActiveCamera(), mouse, {
-                                pickWindowSize: 17,
-                                pickOutsideClipRegion: true
-                            });
+                        // Use Potree's getMousePointCloudIntersection utility
+                        try {
+                            const intersection = viewer.getIntersection(
+                                e.clientX,
+                                e.clientY,
+                                viewer.scene.pointclouds
+                            );
                             
-                            if (result && result.position) {
+                            if (intersection && intersection.position) {
                                 // Hit point cloud - apply spatial filter
-                                console.log(`[Click] ✓ Point cloud #${index} hit!`);
-                                console.log('[Click] Hit position:', result.position);
-                                applySpatialFilter(result.position);
+                                console.log('[Click] ✓ Point cloud hit!');
+                                console.log('[Click] Hit position:', intersection.position);
+                                applySpatialFilter(intersection.position);
                                 pointCloudHit = true;
                             } else {
-                                console.log(`[Click] ✗ Point cloud #${index} missed`);
+                                console.log('[Click] ✗ No point cloud intersection');
                             }
-                        });
+                        } catch (error) {
+                            console.log('[Click] Error during point cloud intersection:', error.message);
+                        }
                     } else {
                         console.log('[Click] ⚠ No point clouds in scene');
                     }
