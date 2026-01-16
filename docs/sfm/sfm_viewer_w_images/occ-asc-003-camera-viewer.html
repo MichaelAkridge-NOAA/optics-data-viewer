@@ -2399,7 +2399,9 @@
                 if (!boxSelectionMode || e.button !== 0) return;
                 
                 // Disable camera controls while drawing
-                viewer.scene.view.controls.enabled = false;
+                if (viewer.orbitControls) {
+                    viewer.orbitControls.enabled = false;
+                }
                 
                 isDrawingBox = true;
                 const rect = canvas.getBoundingClientRect();
@@ -2461,7 +2463,9 @@
                 clearBoxHighlights();
                 
                 // Re-enable camera controls
-                viewer.scene.view.controls.enabled = true;
+                if (viewer.orbitControls) {
+                    viewer.orbitControls.enabled = true;
+                }
                 
                 // Automatically exit box select mode
                 boxSelectionMode = false;
