@@ -290,7 +290,7 @@
             bottom: 0;
             left: 0;
             right: 380px;
-            height: 200px;
+            height: 450px;
             background: rgba(0, 0, 0, 0.95);
             border-top: 3px solid #4CAF50;
             z-index: 2000;
@@ -320,6 +320,34 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 10px;
+        }
+        
+        #gallery-resize-handle {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: rgba(76, 175, 80, 0.3);
+            cursor: ns-resize;
+            z-index: 2001;
+            transition: background 0.2s;
+        }
+        
+        #gallery-resize-handle:hover {
+            background: rgba(76, 175, 80, 0.6);
+        }
+        
+        #gallery-resize-handle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 2px;
         }
         
         .selection-camera-card {
@@ -879,53 +907,7 @@
             </div>
         </div>
         
-        <div class="control-section" style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3);">
-            <h3>🎯 Spatial Query</h3>
-            <p style="font-size: 0.85em; color: #999; margin: 0 0 10px 0;">Click on the point cloud to find nearby cameras</p>
-            
-            <div class="control-row">
-                <label class="control-label">Show Nearest</label>
-                <input type="range" id="nearest-count" min="5" max="50" step="5" value="10">
-                <span style="font-size: 0.8em; color: #4CAF50;" id="nearest-count-label">10 cameras</span>
-            </div>
-            
-            <div class="control-row">
-                <label class="control-label">Search Radius</label>
-                <input type="range" id="search-radius" min="1" max="20" step="1" value="10">
-                <span style="font-size: 0.8em; color: #4CAF50;" id="search-radius-label">10m</span>
-            </div>
-            
-            <!-- Sidebar Thumbnail Carousel -->
-            <div id="sidebar-thumbnail-carousel">
-                <div class="sidebar-carousel-header">
-                    <span id="sidebar-carousel-title">Nearby Cameras</span>
-                    <button class="sidebar-carousel-close" onclick="closeSidebarCarousel()">×</button>
-                </div>
-                <div class="sidebar-thumbnail-grid" id="sidebar-thumbnail-grid"></div>
-                <div class="sidebar-carousel-actions">
-                    <button onclick="viewSelectedImages()">View Selected</button>
-                    <button onclick="clearThumbnailSelection()">Clear</button>
-                </div>
-            </div>
-            
-            <div style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px; margin-top: 10px; font-size: 0.85em;">
-                <div>📍 <span id="query-point">No point selected</span></div>
-                <div>📷 <span id="visible-cameras">All 0 cameras shown</span></div>
-            </div>
-            
-            <button onclick="clearSpatialFilter()" style="margin-top: 10px; background: rgba(255, 152, 0, 0.2); border-color: rgba(255, 152, 0, 0.5);">Clear Filter & Show All</button>
-        </div>
-        
-        <div class="control-section">
-            <h3>Camera List</h3>
-            <input type="text" id="camera-search" placeholder="🔍 Search cameras..." style="width: 100%; padding: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(76, 175, 80, 0.3); border-radius: 4px; color: white;">
-            
-            <div id="camera-list" class="camera-list">
-                <div style="text-align: center; color: #666; padding: 20px;">
-                    Loading cameras...
-                </div>
-            </div>
-        </div>
+
         
         <div class="control-section">
             <h3>Point Cloud</h3>
@@ -950,6 +932,7 @@
     
     <!-- Selection Gallery (Bottom Bar) -->
     <div id="selection-gallery">
+        <div id="gallery-resize-handle"></div>
         <div id="selection-gallery-header">
             <div id="selection-gallery-title">Selected Cameras (0)</div>
             <button onclick="closeSelectionGallery()" style="background: #f44336; padding: 5px 15px; font-size: 1.2em;">×</button>
@@ -1058,6 +1041,9 @@
             // Set up visual toggles
             setupVisualToggles();
             
+            // Set up gallery resize
+            setupGalleryResize();
+            
             console.log('Initialization complete!');
         }
         
@@ -1140,6 +1126,7 @@
             // Create group for all cameras
             cameraGroup = new THREE.Group();
             cameraGroup.name = 'cameras';
+            cameraGroup.visible = false; // Hidden by default
             
             cameras.forEach((camera, index) => {
                 // Create LOD object for each camera
@@ -1385,9 +1372,13 @@
                     material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
                     
                     viewer.scene.addPointCloud(pointcloud);
+                    
+                    // Hide point cloud by default
+                    pointcloud.visible = false;
+                    
                     viewer.fitToScreen();
                     
-                    console.log('Point cloud loaded successfully');
+                    console.log('Point cloud loaded successfully (hidden by default)');
                 });
                 
             } catch (error) {
@@ -1848,6 +1839,7 @@
             sphere.add(ring);
             
             queryMarker = sphere;
+            queryMarker.visible = false; // Hidden by default
             viewer.scene.scene.add(queryMarker);
         }
         
@@ -2736,6 +2728,51 @@
                 selectedCameras = [];
                 console.log('[Selection Gallery] Closed');
             }
+        }
+        
+        // Setup gallery resize functionality
+        function setupGalleryResize() {
+            const handle = document.getElementById('gallery-resize-handle');
+            const gallery = document.getElementById('selection-gallery');
+            
+            if (!handle || !gallery) return;
+            
+            let isResizing = false;
+            let startY = 0;
+            let startHeight = 0;
+            
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startY = e.clientY;
+                startHeight = gallery.offsetHeight;
+                document.body.style.cursor = 'ns-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                const deltaY = startY - e.clientY; // Inverted because gallery is at bottom
+                let newHeight = startHeight + deltaY;
+                
+                // Set min and max height
+                const minHeight = 200;
+                const maxHeight = window.innerHeight - 100;
+                newHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
+                
+                gallery.style.height = newHeight + 'px';
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+            
+            console.log('[Gallery Resize] Resize functionality initialized');
         }
         
         // Initialize when page loads - use setTimeout to ensure DOM is ready
