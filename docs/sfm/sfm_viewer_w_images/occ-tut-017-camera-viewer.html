@@ -994,7 +994,7 @@
         // Configuration - OCC-TUT-017 dataset from Google Cloud Storage
         // Supports both .cams.xml (Agisoft) and .json (pre-processed) formats
         //const CAMERA_DATA_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/20250314_OCC-TUT-017_cameras_potree.json';
-        const CAMERA_XML_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/20250314_OCC-TUT-017_bkup.cams.xml'; // Missing semicolon added
+        const CAMERA_XML_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/2025_OCC-TUT-017_bkup.cams.xml'; // Missing semicolon added
         //const CAMERA_META_JSON = null; // Optional: Set to .meta.json file URL for image paths
         const POINT_CLOUD_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/cloud.js';
         const IMAGE_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/AMSM/TUT/OCC-TUT-017/2025/20250314_OCC-TUT-017_RA2501';
@@ -1050,7 +1050,7 @@
         // Load camera data - supports both .cams.xml and .json formats
         async function loadCameras() {
             try {
-                let camerasData = [];
+                let camerasData = []; // Initialize as empty array
                 
                 // Try loading from XML first if URL is provided
                 if (CAMERA_XML_URL && typeof CamsXMLParser !== 'undefined') {
@@ -1073,7 +1073,7 @@
                         console.log(`✓ Parsed ${camerasData.length} cameras from XML`);
                     } catch (xmlError) {
                         console.warn('Failed to load XML, trying JSON fallback:', xmlError);
-                        camerasData = null;
+                        camerasData = []; // Keep as empty array instead of null
                     }
                 }
                 
@@ -1097,8 +1097,14 @@
                     }
                 }
                 
-                // Store cameras
-                cameras = camerasData;
+                // Store cameras and validate
+                cameras = camerasData || [];
+                
+                // Check if any cameras were loaded
+                if (cameras.length === 0) {
+                    console.warn('⚠ No cameras loaded from any source');
+                    alert('Warning: No camera data could be loaded. Please check that CAMERA_XML_URL is valid and the parser is loaded.');
+                }
                 
                 // Update UI
                 console.log(`Total cameras loaded: ${cameras.length}`);
