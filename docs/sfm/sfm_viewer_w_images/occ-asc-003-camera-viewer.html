@@ -2398,6 +2398,10 @@
             canvas.addEventListener('mousedown', (e) => {
                 if (!boxSelectionMode || e.button !== 0) return;
                 
+                // Prevent default behavior and stop propagation to Potree
+                e.preventDefault();
+                e.stopPropagation();
+                
                 // Disable camera controls while drawing
                 if (viewer.orbitControls) {
                     viewer.orbitControls.enabled = false;
@@ -2423,6 +2427,10 @@
             canvas.addEventListener('mousemove', (e) => {
                 if (!isDrawingBox) return;
                 
+                // Prevent default behavior and stop propagation to Potree
+                e.preventDefault();
+                e.stopPropagation();
+                
                 const rect = canvas.getBoundingClientRect();
                 boxEndX = e.clientX - rect.left;
                 boxEndY = e.clientY - rect.top;
@@ -2444,6 +2452,10 @@
             
             canvas.addEventListener('mouseup', (e) => {
                 if (!isDrawingBox) return;
+                
+                // Prevent default behavior and stop propagation to Potree
+                e.preventDefault();
+                e.stopPropagation();
                 
                 isDrawingBox = false;
                 selectionBox.style.display = 'none';
