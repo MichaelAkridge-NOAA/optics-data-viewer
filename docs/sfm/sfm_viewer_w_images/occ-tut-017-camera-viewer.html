@@ -1079,18 +1079,22 @@
                 
                 // Fallback to JSON format if XML not loaded
                 if (!camerasData || camerasData.length === 0) {
-                    console.log('Loading cameras from JSON:', CAMERA_DATA_URL);
-                    updateLoadingStatus('Loading camera data...');
-                    
-                    const response = await fetch(CAMERA_DATA_URL);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    if (typeof CAMERA_DATA_URL !== 'undefined' && CAMERA_DATA_URL) {
+                        console.log('Loading cameras from JSON:', CAMERA_DATA_URL);
+                        updateLoadingStatus('Loading camera data...');
+                        
+                        const response = await fetch(CAMERA_DATA_URL);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const data = await response.json();
+                        camerasData = data.cameras || [];
+                        
+                        console.log(`✓ Loaded ${camerasData.length} cameras from JSON`);
+                    } else {
+                        console.log('No JSON fallback URL configured (CAMERA_DATA_URL is not defined)');
                     }
-                    
-                    const data = await response.json();
-                    camerasData = data.cameras || [];
-                    
-                    console.log(`✓ Loaded ${camerasData.length} cameras from JSON`);
                 }
                 
                 // Store cameras
