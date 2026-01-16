@@ -2380,9 +2380,6 @@
                 
                 // Change cursor
                 viewer.renderer.domElement.style.cursor = 'crosshair';
-                
-                // Disable camera controls to prevent view movement while drawing
-                viewer.scene.view.controls.enabled = false;
             } else {
                 btn.classList.remove('active');
                 icon.textContent = '📦';
@@ -2390,11 +2387,6 @@
                 
                 // Reset cursor
                 viewer.renderer.domElement.style.cursor = 'default';
-                
-                // Re-enable camera controls (unless manually locked)
-                if (!viewLocked) {
-                    viewer.scene.view.controls.enabled = true;
-                }
             }
         }
         
@@ -2405,6 +2397,9 @@
             
             canvas.addEventListener('mousedown', (e) => {
                 if (!boxSelectionMode || e.button !== 0) return;
+                
+                // Disable camera controls while drawing
+                viewer.scene.view.controls.enabled = false;
                 
                 isDrawingBox = true;
                 const rect = canvas.getBoundingClientRect();
@@ -2464,6 +2459,21 @@
                 
                 // Clear the temporary highlighting
                 clearBoxHighlights();
+                
+                // Re-enable camera controls
+                viewer.scene.view.controls.enabled = true;
+                
+                // Automatically exit box select mode
+                boxSelectionMode = false;
+                const btn = document.getElementById('box-select-btn');
+                const icon = document.getElementById('box-select-icon');
+                if (btn && icon) {
+                    btn.classList.remove('active');
+                    icon.textContent = '📦';
+                }
+                viewer.renderer.domElement.style.cursor = 'default';
+                
+                console.log('[Box Select] Selection complete - box select mode disabled, camera controls re-enabled');
             });
         }
         
