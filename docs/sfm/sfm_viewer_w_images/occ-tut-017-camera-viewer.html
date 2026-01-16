@@ -225,7 +225,7 @@
         #info-panel {
             position: absolute;
             top: 10px;
-            left: 10px;
+            left: 60px;
             background: rgba(0, 0, 0, 0.85);
             padding: 15px;
             border-radius: 8px;
@@ -1006,7 +1006,7 @@
         const CAMERA_XML_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/2025_OCC-TUT-017_bkup.cams.xml'; // Missing semicolon added
         const CAMERA_META_JSON = null; // Optional: Set to .meta.json file URL for image paths
         const POINT_CLOUD_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/cloud.js';
-        const IMAGE_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/AMSM/TUT/OCC-TUT-017/2025/20250314_OCC-TUT-017_RA2501';
+        const IMAGE_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/AMSM/TUT/OCC-TUT-017/2025/20250314_OCC-TUT-017_MP2504';
         const THUMBNAIL_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20250314_OCC-TUT-017/thumbnails';
 
         // Initialize viewer
@@ -1533,8 +1533,17 @@
             `;
             
             if (camera.image) {
-                html += `<br><strong>Image:</strong><br>
-                         <img src="${camera.image}" class="info-image" onerror="this.style.display='none'">`;
+                // Use thumbnail instead of full image
+                const cameraName = camera.name || `camera_${index}`;
+                const thumbnailUrl = `${THUMBNAIL_BASE_URL}/${cameraName}.JPG`;
+                const fullImageUrl = camera.image;
+                
+                html += `<br><strong>Image:</strong> <span style="font-size: 0.8em; color: #999;">(click to view full size)</span><br>
+                         <img src="${thumbnailUrl}" 
+                              class="info-image" 
+                              style="cursor: pointer;"
+                              onclick="window.open('${fullImageUrl}', '_blank')"
+                              onerror="this.src='${fullImageUrl}'; this.onerror=function(){this.style.display='none'}">`;
             }
             
             content.innerHTML = html;
