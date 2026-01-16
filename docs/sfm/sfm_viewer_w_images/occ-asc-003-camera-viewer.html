@@ -2395,17 +2395,24 @@
             const canvas = viewer.renderer.domElement;
             const selectionBox = document.getElementById('selection-box');
             
+            // Use capture phase (third parameter = true) to intercept events BEFORE Potree gets them
             canvas.addEventListener('mousedown', (e) => {
                 if (!boxSelectionMode || e.button !== 0) return;
                 
                 // Prevent default behavior and stop propagation to Potree
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                console.log('[Box Select] Mousedown intercepted - disabling controls');
+                console.log('[Box Select] Controls enabled before:', viewer.orbitControls?.enabled);
                 
                 // Disable camera controls while drawing
                 if (viewer.orbitControls) {
                     viewer.orbitControls.enabled = false;
                 }
+                
+                console.log('[Box Select] Controls enabled after:', viewer.orbitControls?.enabled);
                 
                 isDrawingBox = true;
                 const rect = canvas.getBoundingClientRect();
@@ -2422,7 +2429,7 @@
                 selectionBox.style.display = 'block';
                 
                 console.log('[Box Select] Started drawing at:', boxStartX, boxStartY);
-            });
+            }, true); // TRUE = capture phase
             
             canvas.addEventListener('mousemove', (e) => {
                 if (!isDrawingBox) return;
@@ -2430,6 +2437,7 @@
                 // Prevent default behavior and stop propagation to Potree
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
                 
                 const rect = canvas.getBoundingClientRect();
                 boxEndX = e.clientX - rect.left;
@@ -2448,7 +2456,7 @@
                 
                 // Highlight cameras in selection box in real-time
                 highlightCamerasInBox(x, y, x + width, y + height, rect);
-            });
+            }, true); // TRUE = capture phase
             
             canvas.addEventListener('mouseup', (e) => {
                 if (!isDrawingBox) return;
@@ -2456,6 +2464,9 @@
                 // Prevent default behavior and stop propagation to Potree
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                console.log('[Box Select] Mouseup intercepted - will re-enable controls');
                 
                 isDrawingBox = false;
                 selectionBox.style.display = 'none';
