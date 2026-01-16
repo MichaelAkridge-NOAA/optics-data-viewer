@@ -221,7 +221,7 @@
         
         #info-panel {
             position: absolute;
-            bottom: 10px;
+            top: 10px;
             left: 10px;
             background: rgba(0, 0, 0, 0.85);
             padding: 15px;
@@ -318,7 +318,7 @@
         
         #selection-gallery-content {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 10px;
         }
         
@@ -339,7 +339,7 @@
         
         .selection-camera-card img {
             width: 100%;
-            height: 90px;
+            height: 150px;
             object-fit: cover;
             display: block;
             background: #1a1a1a;
@@ -853,24 +853,18 @@
             <button onclick="toggleBoxSelection()" class="box-select-btn" id="box-select-btn">
                 <span id="box-select-icon">📦</span> Box Select
             </button>
-            <button onclick="toggleViewLock()" class="secondary" id="view-lock-btn">
-                🔓 Lock View
-            </button>
-            <button onclick="topDownView()" style="background: #9C27B0;">
-                ⬇️ Top View
-            </button>
             
             <h3 style="margin-top: 20px;">👁️ Visual Toggles</h3>
             <div class="visual-toggles">
-                <div class="toggle-button active" id="toggle-point-cloud">
+                <div class="toggle-button" id="toggle-point-cloud">
                     <span class="toggle-indicator"></span>
                     <span>Point Cloud</span>
                 </div>
-                <div class="toggle-button active" id="toggle-camera-markers">
+                <div class="toggle-button" id="toggle-camera-markers">
                     <span class="toggle-indicator"></span>
                     <span>Markers</span>
                 </div>
-                <div class="toggle-button active" id="toggle-frustum-vis">
+                <div class="toggle-button" id="toggle-frustum-vis">
                     <span class="toggle-indicator"></span>
                     <span>Frustums</span>
                 </div>
@@ -2379,65 +2373,6 @@
         
         // ===== VIEW CONTROL FUNCTIONS =====
         
-        // Toggle view lock
-        function toggleViewLock() {
-            viewLocked = !viewLocked;
-            const btn = document.getElementById('view-lock-btn');
-            
-            if (viewLocked) {
-                viewer.scene.view.controls.enabled = false;
-                btn.textContent = '🔒 Unlock View';
-                btn.style.background = '#f44336';
-                console.log('[View Lock] Camera controls disabled');
-            } else {
-                viewer.scene.view.controls.enabled = true;
-                btn.textContent = '🔓 Lock View';
-                btn.style.background = '#2196F3';
-                console.log('[View Lock] Camera controls enabled');
-            }
-        }
-        
-        // Set top-down orthographic view
-        function topDownView() {
-            console.log('[Top View] Setting up top-down view...');
-            
-            // Calculate bounding box of all cameras and point cloud
-            const bbox = new THREE.Box3();
-            
-            // Add cameras to bbox
-            cameras.forEach(camera => {
-                bbox.expandByPoint(new THREE.Vector3(
-                    camera.position[0],
-                    camera.position[1],
-                    camera.position[2]
-                ));
-            });
-            
-            console.log('[Top View] Bounding box:', bbox);
-            
-            // Get center and size
-            const center = new THREE.Vector3();
-            bbox.getCenter(center);
-            const size = new THREE.Vector3();
-            bbox.getSize(size);
-            
-            // Calculate height above the scene
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const height = center.z + maxDim * 1.5;
-            
-            // Position camera above looking straight down
-            const viewerCam = viewer.scene.getActiveCamera();
-            viewerCam.position.set(center.x, center.y, height);
-            viewerCam.up.set(0, 1, 0);
-            viewerCam.lookAt(center.x, center.y, center.z);
-            
-            // Update viewer position
-            viewer.scene.view.position.copy(viewerCam.position);
-            
-            console.log(`[Top View] Camera positioned at [${viewerCam.position.x.toFixed(2)}, ${viewerCam.position.y.toFixed(2)}, ${viewerCam.position.z.toFixed(2)}]`);
-            console.log(`[Top View] Looking at center [${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)}]`);
-        }
-        
         // ===== BOX SELECTION FUNCTIONS =====
         
         // Toggle box selection mode
@@ -2659,15 +2594,16 @@
                 
                 card.innerHTML = `
                     <img src="${thumbnailURL}" alt="${cameraName}" loading="lazy"
-                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22%3E%3Crect fill=%22%23333%22 width=%22120%22 height=%2290%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2210%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22%3E%3Crect fill=%22%23333%22 width=%22200%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2210%22%3ENo Image%3C/text%3E%3C/svg%3E'">
                     <div class="selection-camera-info">
                         <div class="selection-camera-name">${cameraName}</div>
                     </div>
                 `;
                 
-                // Click to view full image
+                // Click to open full image in new tab
                 card.onclick = () => {
-                    viewFullImage(camera, index, fullImageURL, cameraName);
+                    window.open(fullImageURL, '_blank');
+                    console.log(`[Selection Gallery] Opening ${cameraName} in new tab: ${fullImageURL}`);
                 };
                 
                 content.appendChild(card);
