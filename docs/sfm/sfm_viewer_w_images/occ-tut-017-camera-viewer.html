@@ -1013,12 +1013,23 @@
             
             // Set up camera controls
             viewer.setControls(viewer.orbitControls);
-            // Don't load default Potree GUI - we have a custom sidebar
-            // viewer.loadGUI(() => {
-            //     viewer.setLanguage('en');
-            // });
             
-            console.log('Viewer initialized');
+            // Load Potree GUI with sidebar
+            viewer.loadGUI(() => {
+                viewer.setLanguage('en');
+                $("#menu_scene").next().show();
+                $("#menu_tools").next().show();
+                
+                console.log('Potree GUI loaded');
+                
+                // Continue initialization after GUI is ready
+                initializeAfterGUI();
+            });
+        }
+        
+        // Continue initialization after GUI is loaded
+        async function initializeAfterGUI() {
+            console.log('Viewer initialized, loading data...');
             
             // Load cameras first
             updateLoadingStatus('Loading camera data...');
