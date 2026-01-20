@@ -909,8 +909,8 @@
             
             <div class="control-row">
                 <label class="control-label">Frustum Distance</label>
-                <input type="range" id="frustum-distance" min="1" max="20" step="0.5" value="5">
-                <span style="font-size: 0.8em; color: #999;" id="frustum-distance-value">5m</span>
+                <input type="range" id="frustum-distance" min="5" max="200" step="5" value="50">
+                <span style="font-size: 0.8em; color: #999;" id="frustum-distance-value">50m</span>
             </div>
             
             <div class="control-row">
@@ -1382,7 +1382,7 @@
             const fov = camera.fov || 60;
             const aspect = camera.aspect || 1.5;
             const near = 0.5;
-            const far = 5; // Extended for better visibility
+            const far = 50; // Scaled for point cloud coordinate system
             
             const frustumGroup = new THREE.Group();
             
@@ -1391,23 +1391,40 @@
             const farHeight = 2 * Math.tan(fovRad / 2) * far;
             const farWidth = farHeight * aspect;
             
-            // Create frustum pyramid vertices
+            // Calculate near plane dimensions
+            const nearHeight = 2 * Math.tan(fovRad / 2) * near;
+            const nearWidth = nearHeight * aspect;
+            
+            // Create frustum pyramid vertices (near + far planes)
             const vertices = new Float32Array([
                 // Origin (camera position)
                 0, 0, 0,
                 // Far plane corners
-                -farWidth/2, farHeight/2, -far,   // top-left
-                farWidth/2, farHeight/2, -far,    // top-right
-                farWidth/2, -farHeight/2, -far,   // bottom-right
-                -farWidth/2, -farHeight/2, -far   // bottom-left
+                -farWidth/2, farHeight/2, -far,   // top-left (1)
+                farWidth/2, farHeight/2, -far,    // top-right (2)
+                farWidth/2, -farHeight/2, -far,   // bottom-right (3)
+                -farWidth/2, -farHeight/2, -far,  // bottom-left (4)
+                // Near plane corners
+                -nearWidth/2, nearHeight/2, -near,   // top-left (5)
+                nearWidth/2, nearHeight/2, -near,    // top-right (6)
+                nearWidth/2, -nearHeight/2, -near,   // bottom-right (7)
+                -nearWidth/2, -nearHeight/2, -near,  // bottom-left (8)
+                // Center of far plane (9)
+                0, 0, -far
             ]);
             
-            // Create edges (lines from origin to corners and around far plane)
+            // Create edges (lines from origin to corners, rectangles, and cross-hairs)
             const indices = new Uint16Array([
-                // Lines from origin to corners
+                // Lines from origin to far corners
                 0, 1,  0, 2,  0, 3,  0, 4,
                 // Far plane rectangle
-                1, 2,  2, 3,  3, 4,  4, 1
+                1, 2,  2, 3,  3, 4,  4, 1,
+                // Near plane rectangle
+                5, 6,  6, 7,  7, 8,  8, 5,
+                // Cross-hairs on far plane (diagonals + center cross)
+                1, 3,  2, 4,
+                // Center line to show depth
+                0, 9
             ]);
             
             const geometry = new THREE.BufferGeometry();
@@ -1417,8 +1434,8 @@
             const lineMaterial = new THREE.LineBasicMaterial({
                 color: 0x2196F3,
                 transparent: true,
-                opacity: 0.6,
-                linewidth: 2
+                opacity: 0.8,
+                linewidth: 3
             });
             
             const frustumWireframe = new THREE.LineSegments(geometry, lineMaterial);
@@ -1443,7 +1460,7 @@
             const meshMaterial = new THREE.MeshBasicMaterial({
                 color: 0x2196F3,
                 transparent: true,
-                opacity: 0.1,
+                opacity: 0.2,
                 side: THREE.DoubleSide,
                 depthWrite: false
             });
