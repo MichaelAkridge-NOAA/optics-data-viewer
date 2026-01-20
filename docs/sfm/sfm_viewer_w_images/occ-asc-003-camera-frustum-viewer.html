@@ -1675,17 +1675,22 @@
                 forward = [vec.x, vec.y, vec.z];
             }
             
+            // Calculate horizontal FOV for display
+            const hFovRad = 2 * Math.atan(Math.tan(fovRad / 2) * camera.aspect);
+            const hFov = (hFovRad * 180 / Math.PI).toFixed(1);
+            
             let html = `
                 <strong>Position:</strong><br>
                 [${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}, ${pos[2].toFixed(3)}]<br><br>
                 
                 <strong>🎯 Field of View:</strong><br>
-                ${fov}° (${(fovRad * 180 / Math.PI).toFixed(1)}° exact)<br><br>
+                Vertical: ${fov}°<br>
+                Horizontal: ${hFov}°<br>
+                Aspect: ${camera.aspect.toFixed(2)}<br><br>
                 
                 <strong>📐 Frustum @ ${frustumDistance}m:</strong><br>
                 Width: ${farWidth.toFixed(2)}m<br>
-                Height: ${farHeight.toFixed(2)}m<br>
-                Aspect: ${camera.aspect.toFixed(2)} (${camera.aspect > 1 ? 'landscape' : 'portrait'})<br><br>
+                Height: ${farHeight.toFixed(2)}m<br><br>
                 
                 <strong>📍 Direction Vector:</strong><br>
                 [${forward[0].toFixed(3)}, ${forward[1].toFixed(3)}, ${forward[2].toFixed(3)}]<br><br>

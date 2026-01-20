@@ -1534,9 +1534,15 @@
             const pos = camera.position;
             const fov = camera.fov.toFixed(1);
             
+            // Calculate horizontal FOV
+            const fovRad = camera.fov * Math.PI / 180;
+            const hFovRad = 2 * Math.atan(Math.tan(fovRad / 2) * camera.aspect);
+            const hFov = (hFovRad * 180 / Math.PI).toFixed(1);
+            
             let html = `
                 <strong>Position:</strong> [${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}, ${pos[2].toFixed(3)}]<br>
-                <strong>FOV:</strong> ${fov}°<br>
+                <strong>Vertical FOV:</strong> ${fov}°<br>
+                <strong>Horizontal FOV:</strong> ${hFov}°<br>
                 <strong>Aspect:</strong> ${camera.aspect.toFixed(2)}<br>
             `;
             
