@@ -867,8 +867,9 @@
         <div style="background: rgba(76, 175, 80, 0.15); padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
             <div style="font-weight: bold; color: #4CAF50; margin-bottom: 5px;">✨ How to Use:</div>
             <div style="font-size: 0.85em; line-height: 1.4;">
-                Click anywhere on the point cloud to find cameras that can see that point. 
-                The top 10 cameras with the best view will open in the gallery!
+                <strong>Click</strong> on the point cloud to find cameras viewing that point.<br>
+                <strong>Ctrl+Click</strong> on a camera to find cameras viewing that location.<br>
+                <strong>Click</strong> on a camera to select it.
             </div>
         </div>
         
@@ -2246,32 +2247,51 @@
                     const raycaster = new THREE.Raycaster();
                     raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
                     
-                    // First, try to intersect with point cloud using Potree's helper
+                    // First, try to intersect with point cloud using Potree's raycasting
                     let pointCloudHit = false;
                     console.log('[Click] Checking for point cloud intersection...');
                     
                     if (viewer.scene.pointclouds.length > 0) {
                         console.log(`[Click] Found ${viewer.scene.pointclouds.length} point cloud(s) in scene`);
                         
-                        // Use Potree's getMousePointCloudIntersection utility
+                        // Use Potree's built-in raycasting
                         try {
-                            const intersection = viewer.getIntersection(
-                                e.clientX,
-                                e.clientY,
-                                viewer.scene.pointclouds
-                            );
+                            // Potree stores intersections in the scene
+                            const pointcloud = viewer.scene.pointclouds[0];
                             
-                            if (intersection && intersection.position) {
+                            // Use THREE raycaster to get approximate intersection
+                            // Then refine with Potree's octree if needed
+                            const intersects = raycaster.intersectObject(pointcloud, true);
+                            
+                            if (intersects.length > 0) {
+                                // Get intersection point from raycaster
+                                const hitPoint = intersects[0].point;
+                                
                                 // Hit point cloud - apply spatial filter
                                 console.log('[Click] ✓ Point cloud hit!');
-                                console.log('[Click] Hit position:', intersection.position);
-                                applySpatialFilter(intersection.position);
+                                console.log('[Click] Hit position:', hitPoint);
+                                applySpatialFilter(hitPoint);
                                 pointCloudHit = true;
                             } else {
-                                console.log('[Click] ✗ No point cloud intersection');
+                                console.log('[Click] ✗ No point cloud intersection from raycaster');
+                                
+                                // Fallback: try using Potree's pick method if available
+                                if (viewer.scene.pick) {
+                                    const pickResult = viewer.scene.pick(viewer.renderer, viewer.scene.getActiveCamera(), mouse, { 
+                                        pickClipped: false 
+                                    });
+                                    
+                                    if (pickResult && pickResult.position) {
+                                        console.log('[Click] ✓ Point cloud hit via Potree pick!');
+                                        console.log('[Click] Hit position:', pickResult.position);
+                                        applySpatialFilter(pickResult.position);
+                                        pointCloudHit = true;
+                                    }
+                                }
                             }
                         } catch (error) {
                             console.log('[Click] Error during point cloud intersection:', error.message);
+                            console.log('[Click] Try clicking directly on visible point cloud points');
                         }
                     } else {
                         console.log('[Click] ⚠ No point clouds in scene');
@@ -2291,8 +2311,19 @@
                             }
                             
                             if (object.userData.cameraIndex !== undefined) {
-                                console.log(`[Click] ✓ Camera marker clicked: index ${object.userData.cameraIndex}`);
-                                selectCamera(object.userData.cameraIndex);
+                                const cameraIndex = object.userData.cameraIndex;
+                                console.log(`[Click] ✓ Camera marker clicked: index ${cameraIndex}`);
+                                
+                                // Check if Ctrl key is held - if so, use camera position as query point
+                                if (e.ctrlKey) {
+                                    const camera = cameras[cameraIndex];
+                                    const camPos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
+                                    console.log('[Click] Ctrl+Click: Using camera position as query point');
+                                    applySpatialFilter(camPos);
+                                } else {
+                                    // Normal click - just select the camera
+                                    selectCamera(cameraIndex);
+                                }
                             } else {
                                 console.log('[Click] ✗ Camera marker has no index');
                             }
