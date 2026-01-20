@@ -1687,7 +1687,14 @@
             
             // Project to normalized image coordinates
             // Camera looks down -Z, with X right and Y up
-            const fovRad = (camera.fov || 60) * Math.PI / 180;
+            // Check if FOV is already in radians (< 6.28) or degrees (> 6.28)
+            let fovRad = camera.fov || 60;
+            if (fovRad > 6.28) {
+                // FOV is in degrees, convert to radians
+                fovRad = fovRad * Math.PI / 180;
+            }
+            // Otherwise FOV is already in radians
+            
             const aspect = camera.aspect || 1.5;
             
             // Calculate angular extents
@@ -1699,6 +1706,14 @@
             const angleY = Math.atan2(Math.abs(camSpacePoint.y), -camSpacePoint.z);
             
             const inFOV = angleX <= halfWidthAngle && angleY <= halfHeightAngle && camSpacePoint.z < -0.1;
+            
+            if (debug) {
+                console.log(`[Visibility] FOV: ${fovRad.toFixed(3)} rad (${(fovRad * 180 / Math.PI).toFixed(1)}°)`);
+                console.log(`[Visibility] Camera space point: [${camSpacePoint.x.toFixed(2)}, ${camSpacePoint.y.toFixed(2)}, ${camSpacePoint.z.toFixed(2)}]`);
+                console.log(`[Visibility] Half angles: width=${(halfWidthAngle * 180 / Math.PI).toFixed(1)}°, height=${(halfHeightAngle * 180 / Math.PI).toFixed(1)}°`);
+                console.log(`[Visibility] Point angles: X=${(angleX * 180 / Math.PI).toFixed(1)}°, Y=${(angleY * 180 / Math.PI).toFixed(1)}°`);
+                console.log(`[Visibility] In FOV: ${inFOV} (angleX <= halfWidth: ${angleX <= halfWidthAngle}, angleY <= halfHeight: ${angleY <= halfHeightAngle}, z < -0.1: ${camSpacePoint.z < -0.1})`);
+            }
             
             if (!inFOV) {
                 return { visible: false, score: 0, distance, centeredness: 0 };
