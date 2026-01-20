@@ -2341,108 +2341,123 @@
             if (statusEl) statusEl.textContent = message;
         }
         
-        // ===== SIDEBAR THUMBNAIL CAROUSEL FUNCTIONS =====
+        // ===== GALLERY FUNCTIONS =====
         
-        // Show sidebar thumbnail carousel with nearby cameras
+        // Show gallery with nearby cameras (reusing selection gallery)
         function showSidebarThumbnailCarousel(nearestCameras, clickPoint) {
-            console.log(`[Sidebar Carousel] Showing ${nearestCameras.length} cameras`);
+            console.log(`[Gallery] Showing ${nearestCameras.length} cameras in gallery`);
             
-            const carousel = document.getElementById('sidebar-thumbnail-carousel');
-            const grid = document.getElementById('sidebar-thumbnail-grid');
-            const title = document.getElementById('sidebar-carousel-title');
+            const gallery = document.getElementById('selection-gallery');
+            const content = document.getElementById('selection-gallery-content');
+            const title = document.getElementById('selection-gallery-title');
             
-            if (!carousel || !grid || !title) {
-                console.warn('[Sidebar Carousel] Elements not found');
+            if (!gallery || !content || !title) {
+                console.warn('[Gallery] Elements not found');
                 return;
             }
             
             // Set title
-            title.textContent = `${nearestCameras.length} Camera${nearestCameras.length > 1 ? 's' : ''} Viewing This Point`;
+            title.textContent = `📷 ${nearestCameras.length} Camera${nearestCameras.length > 1 ? 's' : ''} Viewing This Point`;
             
-            // Clear previous thumbnails
-            grid.innerHTML = '';
+            // Clear previous content
+            content.innerHTML = '';
             
-            // Create thumbnail items
+            // Create camera cards
             nearestCameras.forEach(({ camera, index, distance, score, centeredness, visible }, rank) => {
-                const thumbnailItem = document.createElement('div');
-                thumbnailItem.className = 'sidebar-thumbnail-item';
-                thumbnailItem.dataset.cameraIndex = index;
+                const card = document.createElement('div');
+                card.className = 'selection-camera-card';
                 
-                // Add ranking badge for top cameras
+                // Add special styling for top ranked cameras
                 if (rank < 3) {
-                    thumbnailItem.classList.add('top-ranked');
+                    card.style.border = '2px solid #FFD700';
+                    card.style.boxShadow = '0 0 10px rgba(255, 215, 0, 0.5)';
                 }
                 
-                // Get thumbnail URL
-                const cameraName = camera.name || `camera_${index}`;
+                // Get camera name and URLs
+                const cameraName = camera.name || `Camera_${index + 1}`;
                 const thumbnailURL = THUMBNAIL_BASE_URL 
                     ? `${THUMBNAIL_BASE_URL}/${cameraName}.JPG`
-                    : (camera.image || IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '');
+                    : (IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '');
+                const fullImageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
                 
-                // Create quality badge based on visibility score
-                let qualityBadge = '';
+                // Create quality badge HTML
+                let qualityBadgeHTML = '';
                 if (score !== undefined && visible) {
-                    const percentage = (score * 100).toFixed(0);
                     let badgeColor = '#4CAF50';
-                    let badgeLabel = 'Good View';
+                    let badgeLabel = 'Good';
+                    let badgeIcon = '✓';
                     if (score > 0.7) {
                         badgeColor = '#4CAF50';
                         badgeLabel = 'Excellent';
+                        badgeIcon = '⭐';
                     } else if (score > 0.4) {
                         badgeColor = '#FFC107';
                         badgeLabel = 'Good';
+                        badgeIcon = '✓';
                     } else {
                         badgeColor = '#FF9800';
                         badgeLabel = 'Fair';
+                        badgeIcon = '○';
                     }
-                    qualityBadge = `<div class="visibility-badge" style="background: ${badgeColor}; opacity: 0.9;">${badgeLabel}</div>`;
+                    qualityBadgeHTML = `
+                        <div style="position: absolute; top: 8px; left: 8px; background: ${badgeColor}; color: white; 
+                                    padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; 
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                            ${badgeIcon} ${badgeLabel}
+                        </div>
+                    `;
                 }
                 
-                thumbnailItem.innerHTML = `
-                    <img class="sidebar-thumbnail-img" src="${thumbnailURL}" alt="${cameraName}" loading="lazy" 
-                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%2280%22%3E%3Crect fill=%22%23333%22 width=%22100%22 height=%2280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2212%22%3ENo Image%3C/text%3E%3C/svg%3E'>
-                    ${qualityBadge}
-                    <div class="sidebar-thumbnail-label">${cameraName}</div>
-                    <div class="sidebar-thumbnail-distance">${distance.toFixed(1)}m away</div>
+                // Star badge for top 3
+                let starBadge = '';
+                if (rank < 3) {
+                    starBadge = `<div style="position: absolute; top: 8px; right: 8px; font-size: 20px; 
+                                             filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.8));">⭐</div>`;
+                }
+                
+                card.innerHTML = `
+                    <div style="position: relative;">
+                        <img src="${thumbnailURL}" alt="${cameraName}" loading="lazy"
+                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22%3E%3Crect fill=%22%23333%22 width=%22200%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2210%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                        ${qualityBadgeHTML}
+                        ${starBadge}
+                    </div>
+                    <div class="selection-camera-info">
+                        <div class="selection-camera-name">${cameraName}</div>
+                        <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                            ${distance.toFixed(1)}m away
+                            ${score !== undefined ? ` • Score: ${(score * 100).toFixed(0)}%` : ''}
+                        </div>
+                    </div>
                 `;
                 
-                // Handle thumbnail selection
-                thumbnailItem.onclick = (e) => {
-                    const isSelected = thumbnailItem.classList.contains('selected');
-                    
-                    if (!e.ctrlKey && !e.shiftKey) {
-                        // Clear other selections if not holding Ctrl
-                        grid.querySelectorAll('.sidebar-thumbnail-item.selected').forEach(item => {
-                            item.classList.remove('selected');
-                        });
+                // Click to open full image
+                card.onclick = () => {
+                    if (fullImageURL) {
+                        window.open(fullImageURL, '_blank');
+                        console.log(`[Gallery] Opening ${cameraName} in new tab`);
                     }
-                    
-                    thumbnailItem.classList.toggle('selected');
-                    
-                    // If single click and now selected, fly to camera
-                    if (!isSelected && !e.ctrlKey) {
-                        selectCamera(index);
-                        flyToCamera(index);
-                    }
-                    
-                    console.log(`[Sidebar Carousel] ${isSelected ? 'Deselected' : 'Selected'} camera: ${cameraName}`);
+                    // Also select the camera in 3D view
+                    selectCamera(index);
                 };
                 
-                grid.appendChild(thumbnailItem);
+                content.appendChild(card);
             });
             
-            // Show carousel
-            carousel.classList.add('visible');
+            // Show gallery
+            gallery.classList.add('visible');
+            gallery.style.display = 'block';
             
-            console.log('[Sidebar Carousel] Carousel displayed');
+            console.log(`[Gallery] ✓ Displayed ${nearestCameras.length} cameras in gallery`);
         }
         
-        // Close sidebar carousel
+        // Close sidebar carousel (reusing selection gallery)
         function closeSidebarCarousel() {
-            const carousel = document.getElementById('sidebar-thumbnail-carousel');
-            if (carousel) {
-                carousel.classList.remove('visible');
-                console.log('[Sidebar Carousel] Carousel closed');
+            const gallery = document.getElementById('selection-gallery');
+            if (gallery) {
+                gallery.classList.remove('visible');
+                gallery.style.display = 'none';
+                console.log('[Gallery] Gallery closed');
             }
         }
         
@@ -2960,8 +2975,14 @@
             const gallery = document.getElementById('selection-gallery');
             if (gallery) {
                 gallery.classList.remove('visible');
+                gallery.style.display = 'none';
                 selectedCameras = [];
                 console.log('[Selection Gallery] Closed');
+                
+                // Also clear spatial filter if active
+                if (spatialFilterActive) {
+                    clearSelection();
+                }
             }
         }
         
