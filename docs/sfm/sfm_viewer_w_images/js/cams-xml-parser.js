@@ -257,16 +257,12 @@ class CamsXMLParser {
           ];
         }
       }
-      // Calculate VERTICAL FOV from focal length if available
+      // Calculate FOV from focal length if available
       let fov = 60; // default
-      if (this.sensor && this.sensor.f && this.sensor.height) {
-        // Calculate VERTICAL FOV directly from focal length in pixels
-        // The visibility check expects vertical FOV, so we use sensor HEIGHT
-        // Vertical FOV = 2 * atan(sensor_height_pixels / (2 * focal_length_pixels))
-        const focalLengthPixels = this.sensor.f;
-        const sensorHeightPixels = this.sensor.height;
-        fov = 2 * Math.atan(sensorHeightPixels / (2 * focalLengthPixels)) * (180 / Math.PI);
-        console.log(`[CamsParser] VERTICAL FOV calculation: f=${focalLengthPixels}px, h=${sensorHeightPixels}px → FOV=${fov.toFixed(1)}°`);
+      if (this.sensor && this.sensor.f && this.sensor.width) {
+        const focalLengthMM = this.sensor.f;
+        const sensorWidthMM = this.sensor.width * 0.0038354; // pixel pitch
+        fov = 2 * Math.atan(sensorWidthMM / (2 * focalLengthMM)) * (180 / Math.PI);
       }
       
       // Calculate aspect ratio
