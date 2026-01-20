@@ -1635,14 +1635,32 @@
             toPoint.normalize();
             
             // Create camera orientation matrix from rotation data
-            // Camera rotation is stored as 3x3 matrix in row-major order
-            const rotMatrix = new THREE.Matrix4();
-            rotMatrix.set(
-                camera.rotation[0], camera.rotation[1], camera.rotation[2], 0,
-                camera.rotation[3], camera.rotation[4], camera.rotation[5], 0,
-                camera.rotation[6], camera.rotation[7], camera.rotation[8], 0,
-                0, 0, 0, 1
-            );
+            let rotMatrix = new THREE.Matrix4();
+            
+            // Check if rotation is quaternion (4 elements) or matrix (9 elements)
+            if (camera.rotation.length === 4) {
+                // Rotation is a quaternion [x, y, z, w]
+                const quat = new THREE.Quaternion(
+                    camera.rotation[0],
+                    camera.rotation[1],
+                    camera.rotation[2],
+                    camera.rotation[3]
+                );
+                rotMatrix.makeRotationFromQuaternion(quat);
+                if (debug) console.log('[Visibility] Using quaternion rotation');
+            } else if (camera.rotation.length === 9) {
+                // Rotation is a 3x3 matrix in row-major order
+                rotMatrix.set(
+                    camera.rotation[0], camera.rotation[1], camera.rotation[2], 0,
+                    camera.rotation[3], camera.rotation[4], camera.rotation[5], 0,
+                    camera.rotation[6], camera.rotation[7], camera.rotation[8], 0,
+                    0, 0, 0, 1
+                );
+                if (debug) console.log('[Visibility] Using 3x3 matrix rotation');
+            } else {
+                if (debug) console.log('[Visibility] Unknown rotation format, length:', camera.rotation.length);
+                return { visible: false, score: 0, distance, centeredness: 0 };
+            }
             
             // Camera forward direction (typically -Z in camera space, which is [0,0,-1])
             // Transform by rotation matrix to get world space direction
