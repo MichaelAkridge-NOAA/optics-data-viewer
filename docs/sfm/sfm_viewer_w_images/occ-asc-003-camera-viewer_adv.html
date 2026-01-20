@@ -1009,7 +1009,7 @@
         let spatialFilterActive = false;
         let nearestCount = 10;
         let searchRadius = 50; // Increased to 50m for better camera coverage
-        let fovTolerance = 3.0; // Multiply FOV by this to be more lenient (3x = include cameras pointing roughly at target)
+        let fovTolerance = 1.15; // Multiply FOV by this to be slightly more lenient (1.15x = 15% margin)
         let queryPoint = null;
         let queryMarker = null;
         

@@ -1026,7 +1026,7 @@
         let spatialFilterActive = false;
         let nearestCount = 10;
         let searchRadius = 50; // Increased to 50m for better camera coverage
-        let fovTolerance = 3.0; // Multiply FOV by this to be more lenient (3x = include cameras pointing roughly at target)
+        let fovTolerance = 1.15; // Multiply FOV by this to be slightly more lenient (1.15x = 15% margin)
         let queryPoint = null;
         let queryMarker = null;
         
@@ -1468,9 +1468,41 @@
             const frustumMesh = new THREE.Mesh(meshGeometry, meshMaterial);
             frustumGroup.add(frustumMesh);
             
+            // Add thumbnail plane at far end to show what camera sees
+            const planeGeometry = new THREE.PlaneGeometry(farWidth, farHeight);
+            const planeMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.3,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const thumbnailPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+            thumbnailPlane.position.set(0, 0, -far);
+            frustumGroup.add(thumbnailPlane);
+            
+            // Try to load camera image as texture
+            if (camera.image) {
+                const textureLoader = new THREE.TextureLoader();
+                textureLoader.load(
+                    camera.image,
+                    (texture) => {
+                        planeMaterial.map = texture;
+                        planeMaterial.opacity = 0.6;
+                        planeMaterial.needsUpdate = true;
+                    },
+                    undefined,
+                    (err) => {
+                        // If texture fails to load, keep the semi-transparent plane
+                        console.log('Could not load thumbnail for', camera.name);
+                    }
+                );
+            }
+            
             // Store references for easy toggling
             frustumGroup.userData.wireframe = frustumWireframe;
             frustumGroup.userData.mesh = frustumMesh;
+            frustumGroup.userData.thumbnailPlane = thumbnailPlane;
             frustumGroup.userData.fov = fov;
             frustumGroup.userData.aspect = aspect;
             
