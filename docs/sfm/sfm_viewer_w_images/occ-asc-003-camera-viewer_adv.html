@@ -1617,7 +1617,13 @@
         }
         
         // Check if a 3D point is visible in a camera's view frustum
-        function isPointVisibleInCamera(point, camera) {
+        function isPointVisibleInCamera(point, camera, debug = false) {
+            // Check if camera has required data
+            if (!camera.rotation || !camera.position) {
+                if (debug) console.log('[Visibility] Camera missing rotation or position data');
+                return { visible: false, score: 0, distance: 0, centeredness: 0 };
+            }
+            
             // Create camera position and rotation
             const camPos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
             
@@ -1644,6 +1650,12 @@
             
             // Check if point is in front of camera
             const dotProduct = toPoint.dot(forward);
+            if (debug) {
+                console.log(`[Visibility] Camera pos: [${camPos.x.toFixed(2)}, ${camPos.y.toFixed(2)}, ${camPos.z.toFixed(2)}]`);
+                console.log(`[Visibility] Forward: [${forward.x.toFixed(2)}, ${forward.y.toFixed(2)}, ${forward.z.toFixed(2)}]`);
+                console.log(`[Visibility] To point: [${toPoint.x.toFixed(2)}, ${toPoint.y.toFixed(2)}, ${toPoint.z.toFixed(2)}]`);
+                console.log(`[Visibility] Dot product: ${dotProduct.toFixed(3)} (need > 0.1)`);
+            }
             if (dotProduct < 0.1) { // Point is behind or too far to side
                 return { visible: false, score: 0, distance, centeredness: 0 };
             }
@@ -1692,12 +1704,28 @@
             console.log(`[Spatial Query] Finding cameras that can see point [${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)}]`);
             console.log(`[Spatial Query] Parameters: count=${count}, radius=${radius}m`);
             
+            // Test first camera with debug logging
+            if (cameras.length > 0) {
+                console.log('[Spatial Query] Testing first camera with debug:');
+                console.log('[Spatial Query] First camera data:', {
+                    name: cameras[0].name,
+                    position: cameras[0].position,
+                    rotation: cameras[0].rotation,
+                    fov: cameras[0].fov,
+                    aspect: cameras[0].aspect,
+                    hasRotation: !!cameras[0].rotation,
+                    rotationLength: cameras[0].rotation ? cameras[0].rotation.length : 0
+                });
+                const testResult = isPointVisibleInCamera(point, cameras[0], true);
+                console.log(`[Spatial Query] First camera result:`, testResult);
+            }
+            
             const cameraViews = cameras.map((camera, index) => {
                 const pos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
                 const dist = point.distanceTo(pos);
                 
                 // Check visibility in camera frustum
-                const visibility = isPointVisibleInCamera(point, camera);
+                const visibility = isPointVisibleInCamera(point, camera, false);
                 
                 return { 
                     index, 
@@ -2431,14 +2459,13 @@
                     </div>
                 `;
                 
-                // Click to open full image
+                // Click to open full image in viewer
                 card.onclick = () => {
-                    if (fullImageURL) {
-                        window.open(fullImageURL, '_blank');
-                        console.log(`[Gallery] Opening ${cameraName} in new tab`);
-                    }
-                    // Also select the camera in 3D view
+                    console.log(`[Gallery] Opening ${cameraName} in full viewer`);
+                    // Select the camera in 3D view
                     selectCamera(index);
+                    // Show full image in viewer
+                    showFullImage(camera, distance);
                 };
                 
                 content.appendChild(card);
