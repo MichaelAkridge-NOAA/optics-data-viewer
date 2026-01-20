@@ -1215,6 +1215,7 @@
                 // Add frustum lines (will be toggled based on settings)
                 const frustum = createCameraFrustum(camera);
                 frustum.name = 'frustum';
+                frustum.visible = false; // Hidden by default, shown only for cameras that see clicked point
                 cone.add(frustum);
                 
                 detailedGroup.add(cone);
@@ -1468,36 +1469,22 @@
             const frustumMesh = new THREE.Mesh(meshGeometry, meshMaterial);
             frustumGroup.add(frustumMesh);
             
-            // Add thumbnail plane at far end to show what camera sees
+            // Add thumbnail plane at far end (white placeholder - no texture loading for performance)
             const planeGeometry = new THREE.PlaneGeometry(farWidth, farHeight);
             const planeMaterial = new THREE.MeshBasicMaterial({
                 color: 0xffffff,
                 transparent: true,
-                opacity: 0.3,
+                opacity: 0.15,
                 side: THREE.DoubleSide,
                 depthWrite: false
             });
             const thumbnailPlane = new THREE.Mesh(planeGeometry, planeMaterial);
             thumbnailPlane.position.set(0, 0, -far);
+            thumbnailPlane.visible = false; // Hidden by default for performance
             frustumGroup.add(thumbnailPlane);
             
-            // Try to load camera image as texture
-            if (camera.image) {
-                const textureLoader = new THREE.TextureLoader();
-                textureLoader.load(
-                    camera.image,
-                    (texture) => {
-                        planeMaterial.map = texture;
-                        planeMaterial.opacity = 0.6;
-                        planeMaterial.needsUpdate = true;
-                    },
-                    undefined,
-                    (err) => {
-                        // If texture fails to load, keep the semi-transparent plane
-                        console.log('Could not load thumbnail for', camera.name);
-                    }
-                );
-            }
+            // Store image URL for potential lazy loading
+            thumbnailPlane.userData.imageUrl = camera.image;
             
             // Store references for easy toggling
             frustumGroup.userData.wireframe = frustumWireframe;
@@ -1519,25 +1506,40 @@
             const farHeight = 2 * Math.tan(fovRad / 2) * far;
             const farWidth = farHeight * aspect;
             
+            // Calculate near plane dimensions
+            const near = 0.5;
+            const nearHeight = 2 * Math.tan(fovRad / 2) * near;
+            const nearWidth = nearHeight * aspect;
+            
             // Update vertices
             const vertices = new Float32Array([
                 0, 0, 0,
                 -farWidth/2, farHeight/2, -far,
                 farWidth/2, farHeight/2, -far,
                 farWidth/2, -farHeight/2, -far,
-                -farWidth/2, -farHeight/2, -far
+                -farWidth/2, -farHeight/2, -far,
+                -nearWidth/2, nearHeight/2, -near,
+                nearWidth/2, nearHeight/2, -near,
+                nearWidth/2, -nearHeight/2, -near,
+                -nearWidth/2, -nearHeight/2, -near,
+                0, 0, -far
             ]);
             
-            // Update both wireframe and mesh
+            // Update geometries
             frustumGroup.traverse(child => {
-                if (child.geometry && child.geometry.attributes.position) {
+                if (child.geometry && child.geometry.attributes && child.geometry.attributes.position) {
                     child.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
                     child.geometry.attributes.position.needsUpdate = true;
-                    if (child.geometry.index) {
-                        child.geometry.computeBoundingSphere();
-                    }
+                    child.geometry.computeBoundingSphere();
                 }
             });
+            
+            // Update thumbnail plane position and size
+            const thumbnail = frustumGroup.userData.thumbnailPlane;
+            if (thumbnail) {
+                thumbnail.position.set(0, 0, -far);
+                thumbnail.scale.set(farWidth / thumbnail.geometry.parameters.width, farHeight / thumbnail.geometry.parameters.height, 1);
+            }
         }
         
         // Load point cloud
@@ -2019,6 +2021,9 @@
             
             console.log(`[Spatial Query] Found ${nearest.length} cameras that can see this point`);
             console.log('[Spatial Query] Camera indices:', Array.from(nearestIndices));
+            
+            // Show frustums only for these cameras with thumbnails and viewing rays
+            showFrustumsForCameras(Array.from(nearestIndices), point);
             
             // Update visibility in 3D and list
             const listContainer = document.getElementById('camera-list');
@@ -3291,6 +3296,21 @@
                 gallery.style.display = 'none';
                 selectedCameras = [];
                 console.log('[Selection Gallery] Closed');
+                
+                // Hide all frustums and viewing rays
+                cameraMarkers.forEach(lod => {
+                    const frustum = lod.userData.detailedMesh?.getObjectByName('frustum');
+                    if (frustum) {
+                        frustum.visible = false;
+                        // Hide thumbnail
+                        const thumbnail = frustum.userData.thumbnailPlane;
+                        if (thumbnail) thumbnail.visible = false;
+                    }
+                });
+                if (viewingRays) {
+                    viewer.scene.scene.remove(viewingRays);
+                    viewingRays = null;
+                }
                 
                 // Also clear spatial filter if active
                 if (spatialFilterActive) {
