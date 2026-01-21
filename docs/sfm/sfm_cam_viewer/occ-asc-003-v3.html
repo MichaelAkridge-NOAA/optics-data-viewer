@@ -1,0 +1,3406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>OCC-ASC-003 Camera Viewer - Point Cloud + Cameras</title>
+    <meta name="description" content="View OCC-ASC-003 cameras aligned with point cloud">
+    <meta name="author" content="NOAA">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    
+    <link rel="stylesheet" type="text/css" href="../../build/potree/potree.css">
+    <link rel="stylesheet" type="text/css" href="../../libs/jquery-ui/jquery-ui.min.css">
+    <link rel="stylesheet" type="text/css" href="../../libs/openlayers3/ol.css">
+    <link rel="stylesheet" type="text/css" href="../../libs/spectrum/spectrum.css">
+    <link rel="stylesheet" type="text/css" href="../../libs/jstree/themes/mixed/style.css">
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #potree_render_area {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        #potree_sidebar_container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 350px;
+            max-height: calc(100% - 20px);
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 8px;
+            padding: 15px;
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        
+        #potree_sidebar_container h2 {
+            margin: 0 0 15px 0;
+            color: #4CAF50;
+            font-size: 1.3em;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 8px;
+        }
+        
+        #potree_sidebar_container h3 {
+            margin: 15px 0 10px 0;
+            color: #81C784;
+            font-size: 1.1em;
+        }
+        
+        .control-section {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+        
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .control-label {
+            color: #ccc;
+            font-size: 0.9em;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:active {
+            background: #3d8b40;
+        }
+        
+        button.secondary {
+            background: #2196F3;
+        }
+        
+        button.secondary:hover {
+            background: #0b7dda;
+        }
+        
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .stat-box {
+            background: rgba(76, 175, 80, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #4CAF50;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .stat-label {
+            font-size: 0.8em;
+            color: #999;
+            margin-top: 3px;
+        }
+        
+        .camera-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        
+        .camera-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid #2196F3;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85em;
+        }
+        
+        .camera-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-left-color: #4CAF50;
+            transform: translateX(3px);
+        }
+        
+        .camera-item.selected {
+            background: rgba(76, 175, 80, 0.2);
+            border-left-color: #FFD700;
+        }
+        
+        .camera-name {
+            font-weight: bold;
+            color: #81C784;
+        }
+        
+        .camera-coords {
+            font-size: 0.8em;
+            color: #999;
+            margin-top: 3px;
+        }
+        
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            color: white;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #4CAF50;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            max-width: 400px;
+            display: none;
+        }
+        
+        #info-panel.visible {
+            display: block;
+        }
+        
+        .info-title {
+            font-size: 1.1em;
+            color: #4CAF50;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .info-content {
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        
+        .info-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #4CAF50;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #45a049;
+        }
+        
+        /* Box Selection Tool */
+        #selection-box {
+            position: absolute;
+            border: 2px dashed #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+            pointer-events: none;
+            z-index: 999;
+            display: none;
+        }
+        
+        #selection-gallery {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 380px;
+            height: 450px;
+            background: rgba(0, 0, 0, 0.95);
+            border-top: 3px solid #4CAF50;
+            z-index: 2000;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        #selection-gallery.visible {
+            display: block;
+        }
+        
+        #selection-gallery-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: white;
+        }
+        
+        #selection-gallery-title {
+            font-size: 1.1em;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        #selection-gallery-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        
+        #gallery-resize-handle {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: rgba(76, 175, 80, 0.3);
+            cursor: ns-resize;
+            z-index: 2001;
+            transition: background 0.2s;
+        }
+        
+        #gallery-resize-handle:hover {
+            background: rgba(76, 175, 80, 0.6);
+        }
+        
+        #gallery-resize-handle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 2px;
+        }
+        
+        .selection-camera-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .selection-camera-card:hover {
+            transform: translateY(-3px);
+            border-color: #4CAF50;
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .selection-camera-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            display: block;
+            background: #1a1a1a;
+        }
+        
+        .selection-camera-info {
+            padding: 8px;
+            color: white;
+        }
+        
+        .selection-camera-name {
+            font-weight: bold;
+            font-size: 0.8em;
+            margin-bottom: 3px;
+            color: #81C784;
+        }
+        
+        .box-select-btn {
+            background: #FF9800 !important;
+        }
+        
+        .box-select-btn:hover {
+            background: #F57C00 !important;
+        }
+        
+        .box-select-btn.active {
+            background: #4CAF50 !important;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+        
+        /* Image Gallery Modal */
+        #image-gallery {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 380px;
+            max-height: 45vh;
+            background: rgba(0, 0, 0, 0.95);
+            border-radius: 10px;
+            padding: 20px;
+            z-index: 2000;
+            overflow-y: auto;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.7);
+        }
+        
+        #image-gallery.visible {
+            display: block;
+        }
+        
+        #gallery-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            color: white;
+        }
+        
+        #gallery-title {
+            font-size: 1.2em;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        #gallery-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 15px;
+        }
+        
+        .gallery-camera-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .gallery-camera-card:hover {
+            transform: translateY(-5px);
+            border-color: #4CAF50;
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .gallery-camera-card img {
+            width: 100%;
+            height: 110px;
+            object-fit: cover;
+            display: block;
+            background: #1a1a1a;
+        }
+        
+        .gallery-camera-info {
+            padding: 10px;
+            color: white;
+        }
+        
+        .gallery-camera-name {
+            font-weight: bold;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+            color: #81C784;
+        }
+        
+        .gallery-camera-distance {
+            font-size: 0.75em;
+            color: #999;
+        }
+        
+        /* Full Image Viewer */
+        #full-image-viewer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 3000;
+            padding: 40px;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        
+        #full-image-viewer.visible {
+            display: flex;
+        }
+        
+        #close-full-viewer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            z-index: 3001;
+        }
+        
+        #close-full-viewer:hover {
+            background: #d32f2f;
+        }
+        
+        #full-viewer-image {
+            max-width: 90%;
+            max-height: 80%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            cursor: zoom-in;
+            transition: transform 0.3s ease, max-width 0.3s ease, max-height 0.3s ease;
+            transform-origin: center center;
+            position: relative;
+            z-index: 1;
+        }
+        
+        #full-viewer-image.zoomed {
+            max-width: none;
+            max-height: none;
+            width: auto;
+            height: auto;
+            cursor: zoom-out;
+            transform: scale(1);
+        }
+        
+        #full-viewer-container {
+            position: relative;
+            max-width: 90%;
+            max-height: 80%;
+            overflow: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #full-viewer-container.zoomed {
+            max-width: 95%;
+            max-height: 90%;
+            overflow: auto;
+            cursor: move;
+        }
+        
+        #point-intercept-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #zoom-hint {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        #zoom-hint.visible {
+            opacity: 1;
+        }
+        
+        #full-viewer-info {
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            max-width: 600px;
+        }
+        
+        #full-viewer-info h3 {
+            margin: 0 0 10px 0;
+            color: #4CAF50;
+        }
+        
+        #full-viewer-info p {
+            margin: 5px 0;
+        }
+        
+        /* Point intercept overlay on full image */
+        #point-intercept-overlay {
+            position: absolute;
+            pointer-events: none;
+            z-index: 3002;
+        }
+        
+        .intercept-marker {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            margin-left: -20px;
+            margin-top: -20px;
+            border: 3px solid #FF9800;
+            border-radius: 50%;
+            background: rgba(255, 152, 0, 0.2);
+            box-shadow: 0 0 20px rgba(255, 152, 0, 0.8), 0 0 40px rgba(255, 152, 0, 0.5);
+            animation: pulse-marker 2s ease-in-out infinite;
+        }
+        
+        .intercept-marker::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: #FF9800;
+            border-radius: 50%;
+        }
+        
+        .intercept-marker::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            margin-left: -30px;
+            margin-top: -30px;
+            border: 2px solid rgba(255, 152, 0, 0.3);
+            border-radius: 50%;
+        }
+        
+        .intercept-crosshair {
+            position: absolute;
+            pointer-events: none;
+        }
+        
+        .intercept-crosshair::before,
+        .intercept-crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 152, 0, 0.6);
+        }
+        
+        .intercept-crosshair::before {
+            width: 2px;
+            height: 100vh;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .intercept-crosshair::after {
+            width: 100vw;
+            height: 2px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        @keyframes pulse-marker {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.15);
+                opacity: 0.8;
+            }
+        }
+        
+        .intercept-label {
+            position: absolute;
+            top: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 152, 0, 0.95);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-weight: bold;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        
+        /* Sidebar Thumbnail Carousel */
+        #sidebar-thumbnail-carousel {
+            background: rgba(40, 40, 50, 0.95);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        #sidebar-thumbnail-carousel.visible {
+            display: block;
+        }
+        
+        .sidebar-carousel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        
+        .sidebar-carousel-close {
+            background: rgba(231, 76, 60, 0.8);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-carousel-close:hover {
+            background: rgba(231, 76, 60, 1);
+            transform: scale(1.1);
+        }
+        
+        .sidebar-thumbnail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        
+        .sidebar-thumbnail-item {
+            position: relative;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(60, 60, 70, 0.6);
+        }
+        
+        .sidebar-thumbnail-item:hover {
+            border-color: #4CAF50;
+            transform: scale(1.05);
+        }
+        
+        .sidebar-thumbnail-item.selected {
+            border-color: #FFD700;
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+        }
+        
+        .sidebar-thumbnail-img {
+            width: 100%;
+            height: 80px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .sidebar-thumbnail-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            font-size: 10px;
+            padding: 4px;
+            text-align: center;
+        }
+        
+        .sidebar-thumbnail-distance {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(76, 175, 80, 0.9);
+            color: #fff;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        
+        .visibility-badge {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            color: #fff;
+            font-size: 9px;
+            padding: 3px 7px;
+            border-radius: 3px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .sidebar-thumbnail-item.top-ranked {
+            border-color: #FFD700;
+        }
+        
+        .sidebar-thumbnail-item.top-ranked::before {
+            content: '⭐';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            font-size: 14px;
+            z-index: 1;
+            filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.8));
+        }
+        
+        .sidebar-carousel-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+        }
+        
+        .sidebar-carousel-actions button {
+            background: rgba(76, 175, 80, 0.8);
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s ease;
+        }
+        
+        .sidebar-carousel-actions button:hover {
+            background: rgba(76, 175, 80, 1);
+            transform: translateY(-2px);
+        }
+        
+        .sidebar-carousel-actions button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Visual toggle section */
+        .visual-toggles {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        
+        .toggle-button {
+            background: rgba(60, 60, 70, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #aaa;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .toggle-button:hover {
+            background: rgba(80, 80, 90, 0.8);
+            color: #fff;
+        }
+        
+        .toggle-button.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+        
+        .toggle-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #666;
+            transition: background 0.2s;
+        }
+        
+        .toggle-button.active .toggle-indicator {
+            background: #4CAF50;
+        }
+        
+        #full-viewer-image {
+            max-width: 90%;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+        }
+        
+        #full-viewer-info {
+            color: white;
+            margin-top: 20px;
+            text-align: center;
+            max-width: 600px;
+        }
+        
+        #full-viewer-info h2 {
+            color: #4CAF50;
+            margin: 0 0 10px 0;
+        }
+        
+        #close-full-viewer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            z-index: 3001;
+        }
+        
+        #close-full-viewer:hover {
+            background: #d32f2f;
+        }
+    </style>
+    
+    <script src="../../libs/jquery/jquery-3.1.1.min.js"></script>
+    <script src="../../libs/spectrum/spectrum.js"></script>
+    <script src="../../libs/jquery-ui/jquery-ui.min.js"></script>
+    <script src="../../libs/three.js/build/three.min.js"></script>
+    <script src="../../libs/three.js/extra/lines.js"></script>
+    <script src="../../libs/other/BinaryHeap.js"></script>
+    <script src="../../libs/tween/tween.min.js"></script>
+    <script src="../../libs/d3/d3.js"></script>
+    <script src="../../libs/proj4/proj4.js"></script>
+    <script src="../../libs/openlayers3/ol.js"></script>
+    <script src="../../libs/i18next/i18next.js"></script>
+    <script src="../../libs/jstree/jstree.js"></script>
+    <script src="../../build/potree/potree.js"></script>
+    <script src="../../libs/plasio/js/laslaz.js"></script>
+    
+    <!-- Camera XML Parser for Agisoft .cams.xml files -->
+    <script src="js/cams-xml-parser.js"></script>
+</head>
+<body>
+    <div id="potree_render_area"></div>
+    
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading Point Cloud and Cameras...</div>
+        <div id="loading-status" style="margin-top: 10px; font-size: 0.9em; color: #999;"></div>
+    </div>
+    
+    <div id="potree_sidebar_container">
+        <h2>📷 OCC-ASC-003 Camera Viewer</h2>
+        
+        <div style="background: rgba(76, 175, 80, 0.15); padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
+            <div style="font-weight: bold; color: #4CAF50; margin-bottom: 5px;">✨ How to Use:</div>
+            <div style="font-size: 0.85em; line-height: 1.4;">
+                <strong>Click</strong> on the point cloud to find cameras viewing that point.<br>
+                <strong>Ctrl+Click</strong> on a camera to find cameras viewing that location.<br>
+                <strong>Click</strong> on a camera to select it.
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-value" id="camera-count">0</div>
+                <div class="stat-label">Cameras</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="selected-camera">-</div>
+                <div class="stat-label">Selected</div>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <h3>Camera Visualization</h3>
+            
+            <div class="control-row">
+                <label class="control-label">Show Cameras</label>
+                <input type="checkbox" id="toggle-cameras" checked>
+            </div>
+            
+            <div class="control-row">
+                <label class="control-label">Camera Size</label>
+                <input type="range" id="camera-scale" min="0.1" max="5" step="0.1" value="0.5">
+            </div>
+            
+            <div class="control-row">
+                <label class="control-label">Camera Color</label>
+                <input type="color" id="camera-color" value="#4CAF50">
+            </div>
+            
+            <div class="control-row">
+                <label class="control-label">Show Frustums</label>
+                <input type="checkbox" id="toggle-frustums" checked>
+            </div>
+            
+            <div class="control-row">
+                <label class="control-label">LOD Distance</label>
+                <input type="range" id="lod-distance" min="20" max="200" step="10" value="100">
+                <span style="font-size: 0.8em; color: #999;">Simplify distant cameras</span>
+            </div>
+            
+            <button onclick="fitAllCameras()">📍 Fit All Cameras to View</button>
+            <button onclick="clearSelection()" class="secondary">Clear Selection</button>
+            <button onclick="toggleBoxSelection()" class="box-select-btn" id="box-select-btn">
+                <span id="box-select-icon">📦</span> Box Select
+            </button>
+            
+            <h3 style="margin-top: 20px;">👁️ Visual Toggles</h3>
+            <div class="visual-toggles">
+                <div class="toggle-button" id="toggle-point-cloud">
+                    <span class="toggle-indicator"></span>
+                    <span>Point Cloud</span>
+                </div>
+                <div class="toggle-button" id="toggle-camera-markers">
+                    <span class="toggle-indicator"></span>
+                    <span>Markers</span>
+                </div>
+                <div class="toggle-button" id="toggle-frustum-vis">
+                    <span class="toggle-indicator"></span>
+                    <span>Frustums</span>
+                </div>
+                <div class="toggle-button" id="toggle-query-marker">
+                    <span class="toggle-indicator"></span>
+                    <span>Query Point</span>
+                </div>
+                <div class="toggle-button" id="toggle-camera-path">
+                    <span class="toggle-indicator"></span>
+                    <span>Camera Path</span>
+                </div>
+            </div>
+        </div>
+        
+
+        
+        <div class="control-section">
+            <h3>Point Cloud</h3>
+            <div class="control-row">
+                <label class="control-label">Point Budget</label>
+                <input type="range" id="point-budget" min="100000" max="5000000" step="100000" value="1000000">
+            </div>
+            <div class="control-row">
+                <label class="control-label">Point Size</label>
+                <input type="range" id="point-size" min="0.5" max="5" step="0.1" value="1">
+            </div>
+        </div>
+    </div>
+    
+    <div id="info-panel">
+        <div class="info-title" id="info-title">Camera Info</div>
+        <div class="info-content" id="info-content"></div>
+    </div>
+    
+    <!-- Box Selection Rectangle -->
+    <div id="selection-box"></div>
+    
+    <!-- Selection Gallery (Bottom Bar) -->
+    <div id="selection-gallery">
+        <div id="gallery-resize-handle"></div>
+        <div id="selection-gallery-header">
+            <div id="selection-gallery-title">Selected Cameras (0)</div>
+            <button onclick="closeSelectionGallery()" style="background: #f44336; padding: 5px 15px; font-size: 1.2em;">×</button>
+        </div>
+        <div id="selection-gallery-content"></div>
+    </div>
+    
+    <!-- Image Gallery (appears when clicking on point cloud) -->
+    <div id="image-gallery">
+        <div id="gallery-header">
+            <div id="gallery-title">📷 Nearby Camera Images</div>
+            <button id="close-gallery" style="width: auto; margin: 0; padding: 8px 16px;">✕ Close</button>
+        </div>
+        <div id="gallery-content"></div>
+    </div>
+    
+    <!-- Full Image Viewer -->
+    <div id="full-image-viewer">
+        <button id="close-full-viewer">✕ Close</button>
+        <div id="full-viewer-container">
+            <img id="full-viewer-image" src="" alt="Camera Image">
+            <div id="point-intercept-overlay"></div>
+        </div>
+        <div id="zoom-hint">Click image to zoom • Drag to pan when zoomed • Orange marker shows click point</div>
+        <div id="full-viewer-info"></div>
+    </div>
+
+    <script>
+        // Global variables
+        let viewer;
+        let cameras = [];
+        let cameraMarkers = [];
+        let selectedCameraIndex = -1;
+        let cameraGroup;
+        let lodEnabled = true;
+        let lodDistance = 100; // Increased for better performance with many cameras
+        let showFrustums = true;
+        let spatialFilterActive = false;
+        let nearestCount = 10;
+        let searchRadius = 50; // Increased to 50m for better camera coverage
+        let queryPoint = null;
+        let queryMarker = null;
+        
+        // Box selection variables
+        let boxSelectionMode = false;
+        let isDrawingBox = false;
+        let boxStartX = 0;
+        let boxStartY = 0;
+        let boxEndX = 0;
+        let boxEndY = 0;
+        let selectedCameras = [];
+        
+        // Camera path variables
+        let cameraPathLine = null;
+        let cameraPathVisible = false;
+        
+        // View lock variable
+        let viewLocked = false;
+        
+        // Configuration - OCC-ASC-003 dataset from Google Cloud Storage
+        // Supports both .cams.xml (Agisoft) and .json (pre-processed) formats
+        const CAMERA_DATA_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_cameras_potree.json';
+        const CAMERA_XML_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/20220724_OCC-ASC-003_RA2201.cams.xml'; // Missing semicolon added
+        const CAMERA_META_JSON = null; // Optional: Set to .meta.json file URL for image paths
+        const POINT_CLOUD_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/cloud.js';
+        const IMAGE_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/Photogrammetric%20Imagery/Fixed_Sites/MARI/ASC/OCC-ASC-003/2022/20220724_OCC-ASC-003_RA2201';
+        const THUMBNAIL_BASE_URL = 'https://storage.googleapis.com/nmfs_odp_pifsc/PIFSC/ESD/ARP/data_management/temp/sfm_test/20220724_OCC-ASC-003/thumbnails';
+        
+        // Initialize viewer
+        async function initViewer() {
+            console.log('Initializing OCC-ASC-003 Camera Viewer...');
+            
+            // Create Potree viewer
+            viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+            viewer.setEDLEnabled(true);
+            viewer.setFOV(60);
+            viewer.setPointBudget(10000000);
+            viewer.loadSettingsFromURL();
+            
+            // Set up camera controls
+            viewer.setControls(viewer.orbitControls);
+            // Don't load default Potree GUI - we have a custom sidebar
+            // viewer.loadGUI(() => {
+            //     viewer.setLanguage('en');
+            // });
+            
+            console.log('Viewer initialized');
+            
+            // Load cameras first
+            updateLoadingStatus('Loading camera data...');
+            await loadCameras();
+            
+            // Then load point cloud (if available)
+            updateLoadingStatus('Loading point cloud...');
+            await loadPointCloud();
+            
+            // Hide loading overlay
+            const overlayEl = document.getElementById('loading-overlay');
+            if (overlayEl) overlayEl.style.display = 'none';
+            
+            // Set up event handlers
+            setupEventHandlers();
+            
+            // Set up box selection
+            setupBoxSelection();
+            
+            // Set up visual toggles
+            setupVisualToggles();
+            
+            // Set up gallery resize
+            setupGalleryResize();
+            
+            console.log('Initialization complete!');
+        }
+        
+        // Load camera data - supports both .cams.xml and .json formats
+        async function loadCameras() {
+            try {
+                let camerasData = [];
+                
+                // Try loading from XML first if URL is provided
+                if (CAMERA_XML_URL && typeof CamsXMLParser !== 'undefined') {
+                    console.log('Loading cameras from XML:', CAMERA_XML_URL);
+                    updateLoadingStatus('Parsing Agisoft camera XML...');
+                    
+                    try {
+                        const parser = new CamsXMLParser();
+                        
+                        // Load with meta.json if available
+                        if (CAMERA_META_JSON) {
+                            await parser.loadWithMetaJSON(CAMERA_XML_URL, CAMERA_META_JSON);
+                        } else {
+                            await parser.loadFromURL(CAMERA_XML_URL);
+                        }
+                        
+                        // Convert to Potree-compatible format
+                        camerasData = parser.toPotreeFormat(IMAGE_BASE_URL);
+                        
+                        console.log(`✓ Parsed ${camerasData.length} cameras from XML`);
+                    } catch (xmlError) {
+                        console.warn('Failed to load XML, trying JSON fallback:', xmlError);
+                        camerasData = null;
+                    }
+                }
+                
+                // Fallback to JSON format if XML not loaded
+                if (!camerasData || camerasData.length === 0) {
+                    console.log('Loading cameras from JSON:', CAMERA_DATA_URL);
+                    updateLoadingStatus('Loading camera data...');
+                    
+                    const response = await fetch(CAMERA_DATA_URL);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    camerasData = data.cameras || [];
+                    
+                    console.log(`✓ Loaded ${camerasData.length} cameras from JSON`);
+                }
+                
+                // Store cameras
+                cameras = camerasData;
+                
+                // Update UI
+                console.log(`Total cameras loaded: ${cameras.length}`);
+                const cameraCountEl = document.getElementById('camera-count');
+                if (cameraCountEl) cameraCountEl.textContent = cameras.length;
+                
+                const visibleCamsEl = document.getElementById('visible-cameras');
+                if (visibleCamsEl) visibleCamsEl.textContent = `All ${cameras.length} cameras shown`;
+                
+                // Create camera visualizations
+                createCameraMarkers();
+                
+                // Populate camera list
+                populateCameraList();
+                
+                // Fit cameras to view
+                setTimeout(() => fitAllCameras(), 500);
+                
+            } catch (error) {
+                console.error('Error loading cameras:', error);
+                alert('Failed to load camera data: ' + error.message);
+            }
+        }
+        
+        // Create 3D camera markers with LOD system
+        function createCameraMarkers() {
+            console.log('Creating camera markers with LOD...');
+            
+            // Create group for all cameras
+            cameraGroup = new THREE.Group();
+            cameraGroup.name = 'cameras';
+            cameraGroup.visible = false; // Hidden by default
+            
+            cameras.forEach((camera, index) => {
+                // Create LOD object for each camera
+                const lod = new THREE.LOD();
+                
+                // LOD Level 0 (close): Detailed cone with frustum
+                const detailedGroup = new THREE.Group();
+                const coneGeometry = new THREE.ConeGeometry(0.3, 0.8, 8); // More segments
+                const coneMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x4CAF50,
+                    transparent: true,
+                    opacity: 0.8,
+                    depthTest: true,
+                    depthWrite: true,
+                    side: THREE.DoubleSide
+                });
+                const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+                
+                // Rotate camera to point in the right direction
+                if (camera.rotation) {
+                    const quat = new THREE.Quaternion(
+                        camera.rotation[0],
+                        camera.rotation[1],
+                        camera.rotation[2],
+                        camera.rotation[3]
+                    );
+                    cone.setRotationFromQuaternion(quat);
+                    cone.rotateX(Math.PI / 2);
+                }
+                
+                // Add frustum lines (will be toggled based on settings)
+                const frustum = createCameraFrustum(camera);
+                frustum.name = 'frustum';
+                cone.add(frustum);
+                
+                detailedGroup.add(cone);
+                lod.addLevel(detailedGroup, 0);
+                
+                // LOD Level 1 (medium): Simple cone, no frustum
+                const simpleConeGeometry = new THREE.ConeGeometry(0.3, 0.8, 4); // Fewer segments
+                const simpleCone = new THREE.Mesh(simpleConeGeometry, coneMaterial.clone());
+                if (camera.rotation) {
+                    const quat = new THREE.Quaternion(
+                        camera.rotation[0],
+                        camera.rotation[1],
+                        camera.rotation[2],
+                        camera.rotation[3]
+                    );
+                    simpleCone.setRotationFromQuaternion(quat);
+                    simpleCone.rotateX(Math.PI / 2);
+                }
+                lod.addLevel(simpleCone, lodDistance);
+                
+                // LOD Level 2 (far): Just a point/sphere
+                const pointGeometry = new THREE.SphereGeometry(0.2, 4, 4);
+                const pointMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x4CAF50,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                const point = new THREE.Mesh(pointGeometry, pointMaterial);
+                lod.addLevel(point, lodDistance * 2);
+                
+                // Position camera
+                const pos = camera.position;
+                lod.position.set(pos[0], pos[1], pos[2]);
+                
+                // Store reference
+                lod.userData = {
+                    cameraIndex: index,
+                    camera: camera,
+                    detailedMesh: cone,
+                    simpleMesh: simpleCone,
+                    pointMesh: point
+                };
+                
+                cameraMarkers.push(lod);
+                cameraGroup.add(lod);
+            });
+            
+            viewer.scene.scene.add(cameraGroup);
+            console.log(`Created ${cameraMarkers.length} camera markers with LOD`);
+            
+            // Log sample camera orientations for debugging
+            console.log('\n=== [Camera Load] Sample camera orientations ===');
+            [0, Math.floor(cameras.length/2), cameras.length-1].forEach(i => {
+                if (i < cameras.length) {
+                    const cam = cameras[i];
+                    const quat = new THREE.Quaternion(cam.rotation[0], cam.rotation[1], cam.rotation[2], cam.rotation[3]);
+                    const up = new THREE.Vector3(0, 1, 0);
+                    up.applyQuaternion(quat);
+                    const fwd = new THREE.Vector3(0, 0, -1);
+                    fwd.applyQuaternion(quat);
+                    console.log(`Camera ${i} (${cam.name || 'unnamed'}):`);
+                    console.log(`  Position: [${cam.position[0].toFixed(3)}, ${cam.position[1].toFixed(3)}, ${cam.position[2].toFixed(3)}]`);
+                    console.log(`  Quaternion: [${cam.rotation[0].toFixed(3)}, ${cam.rotation[1].toFixed(3)}, ${cam.rotation[2].toFixed(3)}, ${cam.rotation[3].toFixed(3)}]`);
+                    console.log(`  Up vector: [${up.x.toFixed(3)}, ${up.y.toFixed(3)}, ${up.z.toFixed(3)}]`);
+                    console.log(`  Forward: [${fwd.x.toFixed(3)}, ${fwd.y.toFixed(3)}, ${fwd.z.toFixed(3)}]`);
+                }
+            });
+            console.log('=== [Camera Load] End sample orientations ===\n');
+            
+            // Set initial scale to 0.2 to reduce clutter
+            cameraMarkers.forEach(marker => {
+                marker.scale.setScalar(0.2);
+            });
+            console.log('[Camera Markers] Initial scale set to 0.2');
+            
+            // Create camera path line
+            createCameraPath();
+            
+            // Update LOD on each frame
+            viewer.addEventListener('update', updateLOD);
+        }
+        
+        // Create camera path connecting all cameras in sequence
+        function createCameraPath() {
+            console.log('[Camera Path] Creating path line...');
+            
+            if (cameras.length < 2) {
+                console.log('[Camera Path] Not enough cameras for path');
+                return;
+            }
+            
+            // Sort cameras by name to get proper sequence
+            const sortedCameras = [...cameras].sort((a, b) => {
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                return nameA.localeCompare(nameB);
+            });
+            
+            // Create points for the line
+            const points = sortedCameras.map(camera => 
+                new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2])
+            );
+            
+            // Create the line geometry
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            // Create material with thicker line using fat lines approach
+            const material = new THREE.LineBasicMaterial({
+                color: 0x00BFFF, // Deep sky blue
+                linewidth: 3, // May not work on all systems
+                transparent: true,
+                opacity: 0.7
+            });
+            
+            // Create the line
+            cameraPathLine = new THREE.Line(geometry, material);
+            cameraPathLine.name = 'cameraPath';
+            cameraPathLine.visible = false; // Hidden by default
+            
+            // For better visibility on systems that don't support linewidth > 1,
+            // we add small spheres at each camera position
+            const sphereGeometry = new THREE.SphereGeometry(0.03, 6, 6);
+            const sphereMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00BFFF,
+                transparent: true,
+                opacity: 0.5
+            });
+            
+            const sphereGroup = new THREE.Group();
+            sphereGroup.name = 'cameraPathSpheres';
+            sphereGroup.visible = false;
+            
+            points.forEach(point => {
+                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial.clone());
+                sphere.position.copy(point);
+                sphereGroup.add(sphere);
+            });
+            
+            viewer.scene.scene.add(sphereGroup);
+            
+            // Store reference to sphere group
+            cameraPathLine.userData.sphereGroup = sphereGroup;
+            
+            // Add to scene
+            viewer.scene.scene.add(cameraPathLine);
+            
+            console.log(`[Camera Path] Created path with ${points.length} points`);
+        }
+        
+        // Toggle camera path visibility
+        function toggleCameraPath(visible) {
+            if (cameraPathLine) {
+                cameraPathLine.visible = visible;
+                // Also toggle the spheres
+                if (cameraPathLine.userData.sphereGroup) {
+                    cameraPathLine.userData.sphereGroup.visible = visible;
+                }
+                cameraPathVisible = visible;
+                console.log(`[Camera Path] Path ${visible ? 'shown' : 'hidden'}`);
+            }
+        }
+        
+        // Create camera frustum (viewing cone)
+        function createCameraFrustum(camera) {
+            const fov = camera.fov || 60;
+            const aspect = camera.aspect || 1.5;
+            const near = 0.5;
+            const far = 3;
+            
+            // Create frustum helper
+            const tempCamera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+            const helper = new THREE.CameraHelper(tempCamera);
+            
+            // Update the helper geometry
+            helper.update();
+            
+            // Create line segments from helper geometry
+            const geometry = helper.geometry;
+            const material = new THREE.LineBasicMaterial({
+                color: 0x4CAF50,
+                transparent: true,
+                opacity: 0.5
+            });
+            
+            const lines = new THREE.LineSegments(geometry, material);
+            
+            return lines;
+        }
+        
+        // Load point cloud
+        async function loadPointCloud() {
+            try {
+                console.log('Attempting to load point cloud from:', POINT_CLOUD_URL);
+                
+                // Check if point cloud file exists
+                const testResponse = await fetch(POINT_CLOUD_URL, { method: 'HEAD' }).catch(() => null);
+                
+                if (!testResponse || !testResponse.ok) {
+                    console.warn('Point cloud not found at:', POINT_CLOUD_URL);
+                    console.log('Viewer will show cameras only');
+                    return;
+                }
+                
+                // Load point cloud
+                Potree.loadPointCloud(POINT_CLOUD_URL, "OCC-ASC-003", e => {
+                    let pointcloud = e.pointcloud;
+                    let material = pointcloud.material;
+                    
+                    material.size = 0.5;
+                    material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+                    
+                    viewer.scene.addPointCloud(pointcloud);
+                    
+                    // Point cloud visible by default
+                    pointcloud.visible = true;
+                    
+                    viewer.fitToScreen();
+                    
+                    console.log('Point cloud loaded successfully (visible by default)');
+                });
+                
+            } catch (error) {
+                console.warn('Could not load point cloud:', error);
+                console.log('Viewer will show cameras only');
+            }
+        }
+        
+        // Populate camera list in sidebar
+        function populateCameraList() {
+            const listContainer = document.getElementById('camera-list');
+            if (!listContainer) return;
+            
+            listContainer.innerHTML = '';
+            
+            cameras.forEach((camera, index) => {
+                const item = document.createElement('div');
+                item.className = 'camera-item';
+                item.dataset.index = index;
+                
+                const name = document.createElement('div');
+                name.className = 'camera-name';
+                name.textContent = camera.name || `Camera ${index + 1}`;
+                
+                const coords = document.createElement('div');
+                coords.className = 'camera-coords';
+                const pos = camera.position;
+                coords.textContent = `[${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}, ${pos[2].toFixed(2)}]`;
+                
+                item.appendChild(name);
+                item.appendChild(coords);
+                
+                item.onclick = () => selectCamera(index);
+                
+                listContainer.appendChild(item);
+            });
+        }
+        
+        // Select camera
+        function selectCamera(index) {
+            console.log('\n=== [SelectCamera] Camera', index, 'selected ===');
+            
+            // Deselect previous
+            if (selectedCameraIndex >= 0) {
+                const prevItem = document.querySelector(`.camera-item[data-index="${selectedCameraIndex}"]`);
+                if (prevItem) prevItem.classList.remove('selected');
+                
+                const prevMarker = cameraMarkers[selectedCameraIndex];
+                if (prevMarker && prevMarker.userData.detailedMesh) {
+                    prevMarker.userData.detailedMesh.material.color.setHex(0x4CAF50);
+                    prevMarker.userData.detailedMesh.material.opacity = 0.8;
+                    if (prevMarker.userData.simpleMesh) {
+                        prevMarker.userData.simpleMesh.material.color.setHex(0x4CAF50);
+                        prevMarker.userData.simpleMesh.material.opacity = 0.8;
+                    }
+                    if (prevMarker.userData.pointMesh) {
+                        prevMarker.userData.pointMesh.material.color.setHex(0x4CAF50);
+                    }
+                }
+            }
+            
+            // Select new
+            selectedCameraIndex = index;
+            const item = document.querySelector(`.camera-item[data-index="${index}"]`);
+            if (item) item.classList.add('selected');
+            
+            const marker = cameraMarkers[index];
+            if (marker && marker.userData.detailedMesh) {
+                marker.userData.detailedMesh.material.color.setHex(0xFFD700);
+                marker.userData.detailedMesh.material.opacity = 1.0;
+                if (marker.userData.simpleMesh) {
+                    marker.userData.simpleMesh.material.color.setHex(0xFFD700);
+                    marker.userData.simpleMesh.material.opacity = 1.0;
+                }
+                if (marker.userData.pointMesh) {
+                    marker.userData.pointMesh.material.color.setHex(0xFFD700);
+                }
+            }
+            
+            const selectedEl = document.getElementById('selected-camera');
+            if (selectedEl) selectedEl.textContent = cameras[index].name || index;
+            
+            // Fly to camera
+            flyToCamera(index);
+            
+            // Show info panel
+            showCameraInfo(index);
+        }
+        
+        // Fly camera to selected position
+        function flyToCamera(index) {
+            console.log('\n=== [FlyToCamera] Camera selected - NOT moving viewer camera ===');
+            console.log(`[FlyToCamera] Selected camera index: ${index}`);
+            
+            const camera = cameras[index];
+            const pos = camera.position;
+            console.log(`[FlyToCamera] Camera position: [${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}, ${pos[2].toFixed(3)}]`);
+            console.log('[FlyToCamera] Viewer camera will remain at current position/orientation');
+            
+            // Don't move the viewer camera at all - just highlight and show info
+            // This prevents any orientation/flipping issues
+        }
+        
+        // Show camera info panel
+        function showCameraInfo(index) {
+            const camera = cameras[index];
+            const panel = document.getElementById('info-panel');
+            const title = document.getElementById('info-title');
+            const content = document.getElementById('info-content');
+            
+            if (!panel || !title || !content) return;
+            
+            title.textContent = camera.name || `Camera ${index + 1}`;
+            
+            const pos = camera.position;
+            const fov = camera.fov.toFixed(1);
+            
+            let html = `
+                <strong>Position:</strong> [${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}, ${pos[2].toFixed(3)}]<br>
+                <strong>FOV:</strong> ${fov}°<br>
+                <strong>Aspect:</strong> ${camera.aspect.toFixed(2)}<br>
+            `;
+            
+            if (camera.image) {
+                html += `<br><strong>Image:</strong><br>
+                         <img src="${camera.image}" class="info-image" onerror="this.style.display='none'">`;
+            }
+            
+            content.innerHTML = html;
+            panel.classList.add('visible');
+        }
+        
+        // Update LOD for all cameras based on distance from viewer
+        function updateLOD() {
+            if (!lodEnabled || !viewer.scene.view) return;
+            
+            const cameraPosition = viewer.scene.view.position;
+            
+            cameraMarkers.forEach(lod => {
+                lod.update(viewer.scene.getActiveCamera());
+                
+                // Toggle frustum visibility based on settings and distance
+                const frustum = lod.userData.detailedMesh?.children.find(c => c.name === 'frustum');
+                if (frustum) {
+                    const distance = cameraPosition.distanceTo(lod.position);
+                    frustum.visible = showFrustums && (distance < lodDistance * 1.5 || lod.userData.cameraIndex === selectedCameraIndex);
+                }
+            });
+        }
+        
+        // Update camera visibility based on distance from view
+        function updateCameraVisibilityByDistance(maxDistance) {
+            if (spatialFilterActive) {
+                console.log('[Controls] Spatial filter active, skipping distance filter');
+                return;
+            }
+            
+            const cameraPos = viewer.scene.getActiveCamera().position;
+            
+            cameraMarkers.forEach((marker, index) => {
+                const markerPos = marker.position;
+                const distance = cameraPos.distanceTo(markerPos);
+                marker.visible = distance <= maxDistance;
+            });
+            
+            const visibleCount = cameraMarkers.filter(m => m.visible).length;
+            const visibleCamsEl = document.getElementById('visible-cameras');
+            if (visibleCamsEl) {
+                visibleCamsEl.textContent = `All ${visibleCount} cameras shown`;
+            }
+            
+            console.log(`[Controls] ${visibleCount} cameras visible within ${maxDistance}m`);
+        }
+        
+        // Filter/search cameras
+        function filterCameras(searchText) {
+            const listContainer = document.getElementById('camera-list');
+            if (!listContainer) return;
+            
+            const items = listContainer.querySelectorAll('.camera-item');
+            let visibleCount = 0;
+            
+            items.forEach((item, index) => {
+                const camera = cameras[index];
+                const cameraName = (camera.name || `Camera ${index + 1}`).toLowerCase();
+                const matches = cameraName.includes(searchText.toLowerCase());
+                
+                item.style.display = matches ? 'flex' : 'none';
+                
+                // Also hide/show 3D marker
+                if (cameraMarkers[index]) {
+                    cameraMarkers[index].visible = matches;
+                }
+                
+                if (matches) visibleCount++;
+            });
+            
+            console.log(`Filtered to ${visibleCount} cameras`);
+        }
+        
+        // Check if a 3D point is visible in a camera's view frustum
+        function isPointVisibleInCamera(point, camera, debug = false) {
+            // Check if camera has required data
+            if (!camera.rotation || !camera.position) {
+                if (debug) console.log('[Visibility] Camera missing rotation or position data');
+                return { visible: false, score: 0, distance: 0, centeredness: 0 };
+            }
+            
+            // Create camera position and rotation
+            const camPos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
+            
+            // Get direction from camera to point
+            const toPoint = new THREE.Vector3().subVectors(point, camPos);
+            const distance = toPoint.length();
+            
+            // Normalize direction
+            toPoint.normalize();
+            
+            // Create camera orientation matrix from rotation data
+            let rotMatrix = new THREE.Matrix4();
+            
+            // Check if rotation is quaternion (4 elements) or matrix (9 elements)
+            if (camera.rotation.length === 4) {
+                // Rotation is a quaternion [x, y, z, w]
+                const quat = new THREE.Quaternion(
+                    camera.rotation[0],
+                    camera.rotation[1],
+                    camera.rotation[2],
+                    camera.rotation[3]
+                );
+                rotMatrix.makeRotationFromQuaternion(quat);
+                if (debug) console.log('[Visibility] Using quaternion rotation');
+            } else if (camera.rotation.length === 9) {
+                // Rotation is a 3x3 matrix in row-major order
+                rotMatrix.set(
+                    camera.rotation[0], camera.rotation[1], camera.rotation[2], 0,
+                    camera.rotation[3], camera.rotation[4], camera.rotation[5], 0,
+                    camera.rotation[6], camera.rotation[7], camera.rotation[8], 0,
+                    0, 0, 0, 1
+                );
+                if (debug) console.log('[Visibility] Using 3x3 matrix rotation');
+            } else {
+                if (debug) console.log('[Visibility] Unknown rotation format, length:', camera.rotation.length);
+                return { visible: false, score: 0, distance, centeredness: 0 };
+            }
+            
+            // Camera forward direction (typically -Z in camera space, which is [0,0,-1])
+            // Transform by rotation matrix to get world space direction
+            const forward = new THREE.Vector3(0, 0, -1).applyMatrix4(rotMatrix).normalize();
+            
+            // Check if point is in front of camera
+            const dotProduct = toPoint.dot(forward);
+            if (debug) {
+                console.log(`[Visibility] Camera pos: [${camPos.x.toFixed(2)}, ${camPos.y.toFixed(2)}, ${camPos.z.toFixed(2)}]`);
+                console.log(`[Visibility] Forward: [${forward.x.toFixed(2)}, ${forward.y.toFixed(2)}, ${forward.z.toFixed(2)}]`);
+                console.log(`[Visibility] To point: [${toPoint.x.toFixed(2)}, ${toPoint.y.toFixed(2)}, ${toPoint.z.toFixed(2)}]`);
+                console.log(`[Visibility] Dot product: ${dotProduct.toFixed(3)} (need > 0.1)`);
+            }
+            if (dotProduct < 0.1) { // Point is behind or too far to side
+                return { visible: false, score: 0, distance, centeredness: 0 };
+            }
+            
+            // Transform point to camera space for FOV checking
+            const camSpacePoint = new THREE.Vector3().subVectors(point, camPos);
+            
+            // Create inverse rotation to transform world to camera space
+            const invRotMatrix = rotMatrix.clone().transpose();
+            camSpacePoint.applyMatrix4(invRotMatrix);
+            
+            // Project to normalized image coordinates
+            // Camera looks down -Z, with X right and Y up
+            // Check if FOV is already in radians (< 6.28) or degrees (> 6.28)
+            let fovRad = camera.fov || 60;
+            if (fovRad > 6.28) {
+                // FOV is in degrees, convert to radians
+                fovRad = fovRad * Math.PI / 180;
+            }
+            // Otherwise FOV is already in radians
+            
+            const aspect = camera.aspect || 1.5;
+            
+            // Calculate angular extents
+            const halfHeightAngle = fovRad / 2;
+            const halfWidthAngle = Math.atan(Math.tan(halfHeightAngle) * aspect);
+            
+            // Check if point is within FOV
+            const angleX = Math.atan2(Math.abs(camSpacePoint.x), -camSpacePoint.z);
+            const angleY = Math.atan2(Math.abs(camSpacePoint.y), -camSpacePoint.z);
+            
+            const inFOV = angleX <= halfWidthAngle && angleY <= halfHeightAngle && camSpacePoint.z < -0.1;
+            
+            if (debug) {
+                console.log(`[Visibility] FOV: ${fovRad.toFixed(3)} rad (${(fovRad * 180 / Math.PI).toFixed(1)}°)`);
+                console.log(`[Visibility] Camera space point: [${camSpacePoint.x.toFixed(2)}, ${camSpacePoint.y.toFixed(2)}, ${camSpacePoint.z.toFixed(2)}]`);
+                console.log(`[Visibility] Half angles: width=${(halfWidthAngle * 180 / Math.PI).toFixed(1)}°, height=${(halfHeightAngle * 180 / Math.PI).toFixed(1)}°`);
+                console.log(`[Visibility] Point angles: X=${(angleX * 180 / Math.PI).toFixed(1)}°, Y=${(angleY * 180 / Math.PI).toFixed(1)}°`);
+                console.log(`[Visibility] In FOV: ${inFOV} (angleX <= halfWidth: ${angleX <= halfWidthAngle}, angleY <= halfHeight: ${angleY <= halfHeightAngle}, z < -0.1: ${camSpacePoint.z < -0.1})`);
+            }
+            
+            if (!inFOV) {
+                return { visible: false, score: 0, distance, centeredness: 0 };
+            }
+            
+            // Calculate how centered the point is (0 = edge, 1 = center)
+            const normalizedX = angleX / halfWidthAngle; // 0 to 1
+            const normalizedY = angleY / halfHeightAngle; // 0 to 1
+            const centeredness = 1.0 - Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY) / Math.sqrt(2);
+            
+            // Score: favor centered views at moderate distances
+            // Higher score = better view of the point
+            const distanceScore = Math.max(0, 1.0 - (distance / 50)); // Penalize very far cameras
+            const score = centeredness * 0.7 + distanceScore * 0.3;
+            
+            return { visible: true, score, distance, centeredness };
+        }
+        
+        // Spatial query: Find cameras that can see a point
+        function findNearestCameras(point, count, radius) {
+            console.log(`[Spatial Query] Finding cameras that can see point [${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)}]`);
+            console.log(`[Spatial Query] Parameters: count=${count}, radius=${radius}m`);
+            
+            // Test first camera with debug logging
+            if (cameras.length > 0) {
+                console.log('[Spatial Query] Testing first camera with debug:');
+                console.log('[Spatial Query] First camera data:', {
+                    name: cameras[0].name,
+                    position: cameras[0].position,
+                    rotation: cameras[0].rotation,
+                    fov: cameras[0].fov,
+                    aspect: cameras[0].aspect,
+                    hasRotation: !!cameras[0].rotation,
+                    rotationLength: cameras[0].rotation ? cameras[0].rotation.length : 0
+                });
+                const testResult = isPointVisibleInCamera(point, cameras[0], true);
+                console.log(`[Spatial Query] First camera result:`, testResult);
+            }
+            
+            const cameraViews = cameras.map((camera, index) => {
+                const pos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
+                const dist = point.distanceTo(pos);
+                
+                // Check visibility in camera frustum
+                const visibility = isPointVisibleInCamera(point, camera, false);
+                
+                return { 
+                    index, 
+                    distance: dist, 
+                    camera,
+                    visible: visibility.visible,
+                    score: visibility.score,
+                    centeredness: visibility.centeredness
+                };
+            });
+            
+            // Filter: cameras that can see the point and are within radius
+            const visibleCameras = cameraViews.filter(c => c.visible && c.distance <= radius);
+            
+            console.log(`[Spatial Query] ${visibleCameras.length} cameras can see this point (within ${radius}m radius)`);
+            
+            if (visibleCameras.length > 0) {
+                // Sort by visibility score (best view first)
+                visibleCameras.sort((a, b) => b.score - a.score);
+                
+                console.log('[Spatial Query] Top cameras by visibility score:');
+                visibleCameras.slice(0, Math.min(5, count)).forEach(c => {
+                    console.log(`  Camera ${c.index}: score=${c.score.toFixed(3)}, centeredness=${c.centeredness.toFixed(3)}, dist=${c.distance.toFixed(1)}m`);
+                });
+                
+                // Take top N by score
+                const result = visibleCameras.slice(0, count);
+                console.log(`[Spatial Query] Returning top ${result.length} cameras with best view`);
+                return result;
+            } else {
+                // Fallback: no cameras can see it, use distance only
+                console.log('[Spatial Query] No cameras can see this point, falling back to distance only');
+                const withinRadius = cameraViews.filter(d => d.distance <= radius);
+                withinRadius.sort((a, b) => a.distance - b.distance);
+                
+                const result = withinRadius.slice(0, count);
+                console.log(`[Spatial Query] Returning top ${result.length} nearest cameras by distance`);
+                return result;
+            }
+        }
+        
+        // Apply spatial filter to show only nearest cameras
+        function applySpatialFilter(point) {
+            console.log('\n=== [Spatial Query] Applying Spatial Filter ===');
+            console.log('[Spatial Query] Click point:', point);
+            
+            // Log current viewer camera state when clicking
+            const viewerCam = viewer.scene.getActiveCamera();
+            console.log('[Spatial Query] Current viewer camera state AT CLICK:');
+            console.log(`  Position: [${viewerCam.position.x.toFixed(3)}, ${viewerCam.position.y.toFixed(3)}, ${viewerCam.position.z.toFixed(3)}]`);
+            console.log(`  Up vector: [${viewerCam.up.x.toFixed(3)}, ${viewerCam.up.y.toFixed(3)}, ${viewerCam.up.z.toFixed(3)}]`);
+            
+            spatialFilterActive = true;
+            queryPoint = point;
+            
+            // Find nearest cameras
+            const nearest = findNearestCameras(point, nearestCount, searchRadius);
+            const nearestIndices = new Set(nearest.map(n => n.index));
+            
+            console.log(`[Spatial Query] Found ${nearest.length} cameras that can see this point`);
+            console.log('[Spatial Query] Camera indices:', Array.from(nearestIndices));
+            
+            // Update visibility in 3D and list
+            const listContainer = document.getElementById('camera-list');
+            if (listContainer) {
+                const items = listContainer.querySelectorAll('.camera-item');
+                items.forEach((item, index) => {
+                    const isNear = nearestIndices.has(index);
+                    item.style.display = isNear ? 'flex' : 'none';
+                    
+                    // Update 3D marker visibility
+                    if (cameraMarkers[index]) {
+                        cameraMarkers[index].visible = isNear;
+                    }
+                });
+            }
+            
+            // Update UI
+            const queryPointEl = document.getElementById('query-point');
+            if (queryPointEl) {
+                queryPointEl.textContent = `[${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)}]`;
+            }
+            
+            const visibleCamsEl = document.getElementById('visible-cameras');
+            if (visibleCamsEl) {
+                visibleCamsEl.textContent = `${nearest.length} of ${cameras.length} cameras shown`;
+            }
+            
+            // Add visual marker at query point
+            createQueryMarker(point);
+            
+            // Don't auto-fit view - it causes camera to flip orientation
+            // User can manually fly to camera if needed
+            
+            console.log('=== [Spatial Query] Filter Applied ===');
+            
+            // Show sidebar thumbnail carousel instead of full modal
+            showSidebarThumbnailCarousel(nearest, point);
+        }
+        
+        // Display image gallery with nearby cameras
+        function displayImageGallery(nearestCameras, clickPoint) {
+            console.log(`[Gallery] Displaying ${nearestCameras.length} cameras in gallery`);
+            
+            const gallery = document.getElementById('gallery-content');
+            gallery.innerHTML = '';
+            
+            document.getElementById('gallery-title').textContent = 
+                `📷 ${nearestCameras.length} Camera${nearestCameras.length > 1 ? 's' : ''} Viewing This Point`;
+            
+            nearestCameras.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'gallery-camera-card';
+                
+                // Create thumbnail/image
+                const img = document.createElement('img');
+                
+                // Try thumbnail first, fallback to full image
+                const cameraName = item.camera.name || `camera_${item.index}`;
+                let imageUrl = item.camera.image;
+                
+                // If thumbnail base URL is available, try to use it
+                if (THUMBNAIL_BASE_URL && cameraName) {
+                    img.src = `${THUMBNAIL_BASE_URL}/${cameraName}_thumb.jpg`;
+                    // Fallback to full image if thumbnail fails
+                    img.onerror = () => {
+                        if (imageUrl) {
+                            img.src = imageUrl;
+                            img.onerror = () => {
+                                img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23333" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="white" font-family="Arial" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
+                            };
+                        } else {
+                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23333" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="white" font-family="Arial" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
+                        }
+                    };
+                } else if (imageUrl) {
+                    img.src = imageUrl;
+                    img.onerror = () => {
+                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23333" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="white" font-family="Arial" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
+                    };
+                } else {
+                    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23333" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="white" font-family="Arial" font-size="14"%3ENo Image%3C/text%3E%3C/svg%3E';
+                }
+                
+                img.alt = item.camera.name || `Camera ${item.index + 1}`;
+                
+                const info = document.createElement('div');
+                info.className = 'gallery-camera-info';
+                
+                const name = document.createElement('div');
+                name.className = 'gallery-camera-name';
+                name.textContent = item.camera.name || `Camera ${item.index + 1}`;
+                
+                const distance = document.createElement('div');
+                distance.className = 'gallery-camera-distance';
+                
+                // Add visibility score if available
+                let distanceText = `${item.distance.toFixed(2)}m away`;
+                if (item.score !== undefined && item.visible) {
+                    const qualityText = item.score > 0.7 ? '⭐ Excellent view' : item.score > 0.4 ? '✓ Good view' : '○ Fair view';
+                    distanceText = `${distanceText} • ${qualityText}`;
+                }
+                distance.textContent = distanceText;
+                
+                info.appendChild(name);
+                info.appendChild(distance);
+                
+                card.appendChild(img);
+                card.appendChild(info);
+                
+                // Click handler to view full image
+                card.onclick = () => {
+                    selectCamera(item.index);
+                    showFullImage(item.camera, item.distance, clickPoint);
+                };
+                
+                gallery.appendChild(card);
+            });
+            
+            // Show gallery
+            document.getElementById('image-gallery').classList.add('visible');
+            console.log('[Gallery] ✓ Gallery displayed');
+        }
+        
+        // Show full image viewer
+        function showFullImage(camera, distance, clickPoint = null) {
+            console.log('[Viewer] Opening full image for:', camera.name);
+            if (clickPoint) {
+                console.log('[Viewer] Click point to overlay:', clickPoint);
+            }
+            
+            const viewer = document.getElementById('full-image-viewer');
+            const img = document.getElementById('full-viewer-image');
+            const info = document.getElementById('full-viewer-info');
+            const overlay = document.getElementById('point-intercept-overlay');
+            
+            // Construct full image URL
+            let imageUrl = camera.image;
+            if (!imageUrl && IMAGE_BASE_URL && camera.name) {
+                // Try to construct from base URL and camera name
+                imageUrl = `${IMAGE_BASE_URL}/${camera.name}.JPG`;
+            }
+            
+            // Clear previous overlay
+            if (overlay) {
+                overlay.innerHTML = '';
+            }
+            
+            img.src = imageUrl || '';
+            img.onerror = () => {
+                console.warn('[Viewer] Failed to load image:', imageUrl);
+                img.alt = 'Image not available';
+            };
+            
+            // When image loads, project the click point onto it
+            img.onload = () => {
+                if (clickPoint && overlay && camera.transform) {
+                    projectPointOntoImage(clickPoint, camera, img, overlay);
+                }
+            };
+            
+            const pos = camera.position;
+            let infoHTML = `
+                <h2>${camera.name || 'Camera'}</h2>
+                <p><strong>Distance from click point:</strong> ${distance.toFixed(2)}m</p>
+                <p><strong>Position:</strong> [${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}, ${pos[2].toFixed(2)}]</p>
+                <p><strong>FOV:</strong> ${camera.fov ? camera.fov.toFixed(1) + '°' : 'N/A'}</p>
+            `;
+            
+            if (clickPoint) {
+                infoHTML += `<p><strong>Clicked Point:</strong> [${clickPoint.x.toFixed(2)}, ${clickPoint.y.toFixed(2)}, ${clickPoint.z.toFixed(2)}]</p>`;
+            }
+            
+            info.innerHTML = infoHTML;
+            
+            viewer.classList.add('visible');
+        }
+        
+        /**
+         * Project a 3D point cloud point onto a 2D camera image
+         * This shows where the clicked point appears in the photo
+         */
+        function projectPointOntoImage(point3D, camera, imageElement, overlayElement) {
+            console.log('[Projection] Projecting point onto image...');
+            console.log('[Projection] 3D Point:', point3D);
+            console.log('[Projection] Camera:', camera.name);
+            
+            // Get camera transform matrix (4x4 row-major from Agisoft)
+            const transform = camera.transform;
+            if (!transform || transform.length !== 16) {
+                console.warn('[Projection] Invalid camera transform matrix');
+                return;
+            }
+            
+            // Extract camera position (translation part of transform matrix)
+            const camPos = new THREE.Vector3(
+                transform[3],
+                transform[7],
+                transform[11]
+            );
+            
+            // Extract rotation matrix (3x3 from the 4x4)
+            const R = new THREE.Matrix3();
+            R.set(
+                transform[0], transform[1], transform[2],
+                transform[4], transform[5], transform[6],
+                transform[8], transform[9], transform[10]
+            );
+            
+            // Convert point to camera space
+            // First translate to camera origin
+            const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
+            
+            // Apply rotation (transform to camera's local coordinate system)
+            // Note: Agisoft cameras look down -Z axis
+            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
+            
+            console.log('[Projection] Point in camera space:', pointCam);
+            
+            // Check if point is in front of camera (negative Z in camera space for Agisoft)
+            if (pointCam.z > 0) {
+                console.warn('[Projection] Point is behind camera');
+                // Still show it, but with a warning indicator
+            }
+            
+            // Get camera intrinsics
+            const fov = camera.fov || 60;
+            const aspect = camera.aspect || 1.5;
+            
+            // Calculate image dimensions
+            const imgWidth = imageElement.naturalWidth || imageElement.width;
+            const imgHeight = imageElement.naturalHeight || imageElement.height;
+            
+            if (imgWidth === 0 || imgHeight === 0) {
+                console.warn('[Projection] Image dimensions not available yet');
+                return;
+            }
+            
+            console.log('[Projection] Image size:', imgWidth, 'x', imgHeight);
+            console.log('[Projection] FOV:', fov, 'Aspect:', aspect);
+            
+            // Simple perspective projection
+            // For pinhole camera: x_image = f * X / Z, y_image = f * Y / Z
+            // FOV relates to focal length: f = imageHeight / (2 * tan(fov/2))
+            const fovRad = (fov * Math.PI) / 180;
+            const f = (imgHeight / 2) / Math.tan(fovRad / 2);
+            
+            // Project to image plane (negate Z for Agisoft convention)
+            const depth = -pointCam.z;
+            if (depth <= 0.1) {
+                console.warn('[Projection] Point too close or behind camera');
+                return;
+            }
+            
+            const x_proj = (-pointCam.x / depth) * f;
+            const y_proj = (-pointCam.y / depth) * f;
+            
+            // Convert to pixel coordinates (origin at center, flip Y)
+            const x_pixel = imgWidth / 2 + x_proj;
+            const y_pixel = imgHeight / 2 - y_proj;
+            
+            console.log('[Projection] Projected pixel coords:', x_pixel.toFixed(1), y_pixel.toFixed(1));
+            
+            // Check if point is within image bounds (with some margin for display)
+            const margin = 100; // Show marker even slightly outside
+            const isVisible = x_pixel >= -margin && x_pixel <= imgWidth + margin &&
+                            y_pixel >= -margin && y_pixel <= imgHeight + margin;
+            
+            if (!isVisible) {
+                console.warn('[Projection] Point projects outside image bounds');
+                // Still show it with an indicator
+            }
+            
+            // Position overlay to match image dimensions
+            const updateOverlayPosition = () => {
+                const rect = imageElement.getBoundingClientRect();
+                overlayElement.style.width = rect.width + 'px';
+                overlayElement.style.height = rect.height + 'px';
+                overlayElement.style.top = '50%';
+                overlayElement.style.left = '50%';
+                overlayElement.style.transform = 'translate(-50%, -50%)';
+            };
+            
+            updateOverlayPosition();
+            
+            // Create marker at projected location
+            const marker = document.createElement('div');
+            marker.className = 'intercept-marker';
+            
+            // Add label
+            const label = document.createElement('div');
+            label.className = 'intercept-label';
+            label.textContent = isVisible ? 'Click Point' : 'Click Point (outside view)';
+            marker.appendChild(label);
+            
+            // Position marker relative to overlay (which matches image size)
+            // Calculate percentage position
+            const scaleX = 1.0;  // Overlay is already sized to match image
+            const scaleY = 1.0;
+            
+            const displayX = x_pixel * scaleX;
+            const displayY = y_pixel * scaleY;
+            
+            marker.style.left = displayX + 'px';
+            marker.style.top = displayY + 'px';
+            
+            // Add crosshairs if point is visible in image
+            if (isVisible) {
+                const crosshair = document.createElement('div');
+                crosshair.className = 'intercept-crosshair';
+                crosshair.style.left = displayX + 'px';
+                crosshair.style.top = displayY + 'px';
+                overlayElement.appendChild(crosshair);
+            }
+            
+            overlayElement.appendChild(marker);
+            
+            console.log('[Projection] ✓ Marker placed at overlay coords:', displayX.toFixed(1), displayY.toFixed(1));
+            
+            // Update marker position on window resize or image size change
+            const updateMarkerPosition = () => {
+                updateOverlayPosition();
+                // Markers are positioned relative to overlay, so no need to update them
+            };
+            
+            // Store update function for resize events
+            imageElement._updateMarker = updateMarkerPosition;
+        }
+        
+        // Clear spatial filter and show all cameras
+        function clearSpatialFilter() {
+            console.log('[Spatial Query] Clearing spatial filter - showing all cameras');
+            
+            spatialFilterActive = false;
+            queryPoint = null;
+            
+            // Show all cameras
+            const listContainer = document.getElementById('camera-list');
+            if (listContainer) {
+                const items = listContainer.querySelectorAll('.camera-item');
+                items.forEach((item, index) => {
+                    item.style.display = 'flex';
+                    if (cameraMarkers[index]) {
+                        cameraMarkers[index].visible = true;
+                    }
+                });
+            }
+            
+            // Remove query marker
+            if (queryMarker) {
+                viewer.scene.scene.remove(queryMarker);
+                queryMarker = null;
+            }
+            
+            // Update UI
+            const queryPointEl = document.getElementById('query-point');
+            if (queryPointEl) queryPointEl.textContent = 'No point selected';
+            
+            const visibleCamsEl = document.getElementById('visible-cameras');
+            if (visibleCamsEl) visibleCamsEl.textContent = `All ${cameras.length} cameras shown`;
+            
+            // Close gallery
+            document.getElementById('image-gallery').classList.remove('visible');
+            
+            console.log('[Spatial Query] ✓ All cameras now visible');
+        }
+        
+        // Create visual marker at query point
+        function createQueryMarker(point) {
+            // Remove old marker
+            if (queryMarker) {
+                viewer.scene.scene.remove(queryMarker);
+            }
+            
+            // Create sphere at clicked point
+            const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xFF9800,
+                transparent: true,
+                opacity: 0.7
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.copy(point);
+            
+            // Add radius ring
+            const ringGeometry = new THREE.RingGeometry(searchRadius - 0.1, searchRadius, 32);
+            const ringMaterial = new THREE.MeshBasicMaterial({
+                color: 0xFF9800,
+                transparent: true,
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            ring.rotation.x = Math.PI / 2;
+            sphere.add(ring);
+            
+            queryMarker = sphere;
+            queryMarker.visible = false; // Hidden by default
+            viewer.scene.scene.add(queryMarker);
+        }
+        
+        // Fit view to specific cameras
+        function fitCamerasToView(indices) {
+            if (indices.length === 0) return;
+            
+            const box = new THREE.Box3();
+            indices.forEach(index => {
+                const camera = cameras[index];
+                const pos = camera.position;
+                box.expandByPoint(new THREE.Vector3(pos[0], pos[1], pos[2]));
+            });
+            
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z, 1);
+            
+            const distance = maxDim * 3;
+            viewer.scene.view.position.set(
+                center.x + distance * 0.5,
+                center.y + distance * 0.5,
+                center.z + distance * 0.5
+            );
+            viewer.scene.view.lookAt(center.x, center.y, center.z);
+        }
+        
+        // Fit all cameras to view
+        function fitAllCameras() {
+            if (cameras.length === 0) return;
+            
+            // Calculate bounding box
+            const box = new THREE.Box3();
+            
+            cameras.forEach(camera => {
+                const pos = camera.position;
+                box.expandByPoint(new THREE.Vector3(pos[0], pos[1], pos[2]));
+            });
+            
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            
+            // Position camera to see all
+            const distance = maxDim * 2;
+            viewer.scene.view.position.set(
+                center.x + distance * 0.5,
+                center.y + distance * 0.5,
+                center.z + distance * 0.5
+            );
+            viewer.scene.view.lookAt(center.x, center.y, center.z);
+            
+            console.log('Fitted all cameras to view');
+        }
+        
+        // Clear selection
+        function clearSelection() {
+            if (selectedCameraIndex >= 0) {
+                const item = document.querySelector(`.camera-item[data-index="${selectedCameraIndex}"]`);
+                if (item) item.classList.remove('selected');
+                
+                const marker = cameraMarkers[selectedCameraIndex];
+                if (marker && marker.userData.detailedMesh) {
+                    marker.userData.detailedMesh.material.color.setHex(0x4CAF50);
+                    marker.userData.detailedMesh.material.opacity = 0.8;
+                    if (marker.userData.simpleMesh) {
+                        marker.userData.simpleMesh.material.color.setHex(0x4CAF50);
+                        marker.userData.simpleMesh.material.opacity = 0.8;
+                    }
+                    if (marker.userData.pointMesh) {
+                        marker.userData.pointMesh.material.color.setHex(0x4CAF50);
+                    }
+                }
+            }
+            
+            selectedCameraIndex = -1;
+            const selectedEl = document.getElementById('selected-camera');
+            if (selectedEl) selectedEl.textContent = '-';
+            const panelEl = document.getElementById('info-panel');
+            if (panelEl) panelEl.classList.remove('visible');
+        }
+        
+        // Set up event handlers
+        function setupEventHandlers() {
+            // Toggle cameras
+            const toggleEl = document.getElementById('toggle-cameras');
+            if (toggleEl) {
+                toggleEl.addEventListener('change', (e) => {
+                    cameraGroup.visible = e.target.checked;
+                });
+            }
+            
+            // Camera scale
+            const scaleEl = document.getElementById('camera-scale');
+            if (scaleEl) {
+                scaleEl.addEventListener('input', (e) => {
+                    const scale = parseFloat(e.target.value);
+                    cameraMarkers.forEach(marker => {
+                        marker.scale.setScalar(scale);
+                    });
+                });
+            }
+            
+            // Camera color
+            const colorEl = document.getElementById('camera-color');
+            if (colorEl) {
+                colorEl.addEventListener('input', (e) => {
+                    const color = new THREE.Color(e.target.value);
+                    cameraMarkers.forEach((marker, index) => {
+                        if (index !== selectedCameraIndex && marker.userData.detailedMesh) {
+                            marker.userData.detailedMesh.material.color.copy(color);
+                            if (marker.userData.simpleMesh) {
+                                marker.userData.simpleMesh.material.color.copy(color);
+                            }
+                            if (marker.userData.pointMesh) {
+                                marker.userData.pointMesh.material.color.copy(color);
+                            }
+                        }
+                    });
+                });
+            }
+            
+            // Point budget
+            const budgetEl = document.getElementById('point-budget');
+            if (budgetEl) {
+                budgetEl.addEventListener('input', (e) => {
+                    viewer.setPointBudget(parseInt(e.target.value));
+                });
+            }
+            
+            // Point size
+            const sizeEl = document.getElementById('point-size');
+            if (sizeEl) {
+                sizeEl.addEventListener('input', (e) => {
+                    viewer.scene.pointclouds.forEach(pc => {
+                        pc.material.size = parseFloat(e.target.value);
+                    });
+                });
+            }
+            
+            // Initial LOD distance set to higher value
+            lodDistance = 100; // Start with more simplified cameras
+            console.log('[Controls] Initial LOD distance set to:', lodDistance);
+            
+            // Toggle frustums
+            const frustumToggle = document.getElementById('toggle-frustums');
+            if (frustumToggle) {
+                frustumToggle.addEventListener('change', (e) => {
+                    showFrustums = e.target.checked;
+                    updateLOD(); // Force update
+                });
+            }
+            
+            // LOD distance
+            const lodSlider = document.getElementById('lod-distance');
+            if (lodSlider) {
+                lodSlider.addEventListener('input', (e) => {
+                    lodDistance = parseFloat(e.target.value);
+                    // Update LOD levels
+                    cameraMarkers.forEach(lod => {
+                        if (lod.levels && lod.levels.length >= 2) {
+                            lod.levels[1].distance = lodDistance;
+                            lod.levels[2].distance = lodDistance * 2;
+                        }
+                    });
+                });
+            }
+            
+            // Camera search
+            const searchInput = document.getElementById('camera-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    if (!spatialFilterActive) {
+                        filterCameras(e.target.value);
+                    }
+                });
+            }
+            
+            // Nearest count slider
+            const nearestSlider = document.getElementById('nearest-count');
+            const nearestLabel = document.getElementById('nearest-count-label');
+            if (nearestSlider && nearestLabel) {
+                nearestSlider.addEventListener('input', (e) => {
+                    nearestCount = parseInt(e.target.value);
+                    nearestLabel.textContent = `${nearestCount} cameras`;
+                    console.log(`[Controls] Nearest count changed to: ${nearestCount}`);
+                    
+                    // Re-apply filter if active
+                    if (spatialFilterActive && queryPoint) {
+                        console.log('[Controls] Re-applying spatial filter with new count');
+                        applySpatialFilter(queryPoint);
+                    }
+                });
+            }
+            
+            // Search radius slider
+            const radiusSlider = document.getElementById('search-radius');
+            const radiusLabel = document.getElementById('search-radius-label');
+            if (radiusSlider && radiusLabel) {
+                radiusSlider.addEventListener('input', (e) => {
+                    searchRadius = parseFloat(e.target.value);
+                    radiusLabel.textContent = `${searchRadius}m`;
+                    console.log(`[Controls] Search radius changed to: ${searchRadius}m`);
+                    
+                    // Re-apply filter if active
+                    if (spatialFilterActive && queryPoint) {
+                        console.log('[Controls] Re-applying spatial filter with new radius');
+                        applySpatialFilter(queryPoint);
+                    }
+                });
+            }
+            
+            // Gallery close button
+            const closeGallery = document.getElementById('close-gallery');
+            if (closeGallery) {
+                closeGallery.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.getElementById('image-gallery').classList.remove('visible');
+                    console.log('[Gallery] Gallery closed by user');
+                });
+            }
+            
+            // Full image viewer close button
+            const closeFullViewer = document.getElementById('close-full-viewer');
+            if (closeFullViewer) {
+                closeFullViewer.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.getElementById('full-image-viewer').classList.remove('visible');
+                    console.log('[Viewer] Full image viewer closed');
+                });
+            }
+            
+            // Update marker position on window resize
+            window.addEventListener('resize', () => {
+                const img = document.getElementById('full-viewer-image');
+                if (img && img._updateMarker) {
+                    img._updateMarker();
+                }
+            });
+            
+            // Close full viewer on escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    const fullViewer = document.getElementById('full-image-viewer');
+                    const gallery = document.getElementById('image-gallery');
+                    
+                    if (fullViewer.classList.contains('visible')) {
+                        fullViewer.classList.remove('visible');
+                        console.log('[Viewer] Full image viewer closed with ESC');
+                    } else if (gallery.classList.contains('visible')) {
+                        gallery.classList.remove('visible');
+                        console.log('[Gallery] Gallery closed with ESC');
+                    }
+                }
+            });
+            
+            // Click on 3D scene - prioritize point cloud, then cameras
+            viewer.renderer.domElement.addEventListener('mousedown', (e) => {
+                if (e.button === 0) { // Left click
+                    console.log('[Click] Left click detected at screen coords:', e.clientX, e.clientY);
+                    
+                    const rect = viewer.renderer.domElement.getBoundingClientRect();
+                    const mouse = {
+                        x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+                        y: -((e.clientY - rect.top) / rect.height) * 2 + 1
+                    };
+                    
+                    console.log('[Click] Normalized mouse coords:', mouse);
+                    
+                    const raycaster = new THREE.Raycaster();
+                    raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
+                    
+                    // First, try to intersect with point cloud using Potree's raycasting
+                    let pointCloudHit = false;
+                    console.log('[Click] Checking for point cloud intersection...');
+                    
+                    if (viewer.scene.pointclouds.length > 0) {
+                        console.log(`[Click] Found ${viewer.scene.pointclouds.length} point cloud(s) in scene`);
+                        
+                        // Use Potree's built-in raycasting
+                        try {
+                            // Potree stores intersections in the scene
+                            const pointcloud = viewer.scene.pointclouds[0];
+                            
+                            // Use THREE raycaster to get approximate intersection
+                            // Then refine with Potree's octree if needed
+                            const intersects = raycaster.intersectObject(pointcloud, true);
+                            
+                            if (intersects.length > 0) {
+                                // Get intersection point from raycaster
+                                const hitPoint = intersects[0].point;
+                                
+                                // Hit point cloud - apply spatial filter
+                                console.log('[Click] ✓ Point cloud hit!');
+                                console.log('[Click] Hit position:', hitPoint);
+                                applySpatialFilter(hitPoint);
+                                pointCloudHit = true;
+                            } else {
+                                console.log('[Click] ✗ No point cloud intersection from raycaster');
+                                
+                                // Fallback: try using Potree's pick method if available
+                                if (viewer.scene.pick) {
+                                    const pickResult = viewer.scene.pick(viewer.renderer, viewer.scene.getActiveCamera(), mouse, { 
+                                        pickClipped: false 
+                                    });
+                                    
+                                    if (pickResult && pickResult.position) {
+                                        console.log('[Click] ✓ Point cloud hit via Potree pick!');
+                                        console.log('[Click] Hit position:', pickResult.position);
+                                        applySpatialFilter(pickResult.position);
+                                        pointCloudHit = true;
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.log('[Click] Error during point cloud intersection:', error.message);
+                            console.log('[Click] Try clicking directly on visible point cloud points');
+                        }
+                    } else {
+                        console.log('[Click] ⚠ No point clouds in scene');
+                    }
+                    
+                    // If no point cloud hit, check for camera markers
+                    if (!pointCloudHit) {
+                        console.log('[Click] No point cloud hit, checking camera markers...');
+                        
+                        const intersects = raycaster.intersectObjects(cameraMarkers, true);
+                        console.log(`[Click] Found ${intersects.length} camera marker intersections`);
+                        
+                        if (intersects.length > 0) {
+                            let object = intersects[0].object;
+                            while (object.parent && !object.userData.cameraIndex && object.userData.cameraIndex !== 0) {
+                                object = object.parent;
+                            }
+                            
+                            if (object.userData.cameraIndex !== undefined) {
+                                const cameraIndex = object.userData.cameraIndex;
+                                console.log(`[Click] ✓ Camera marker clicked: index ${cameraIndex}`);
+                                
+                                // Check if Ctrl key is held - if so, use camera position as query point
+                                if (e.ctrlKey) {
+                                    const camera = cameras[cameraIndex];
+                                    const camPos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
+                                    console.log('[Click] Ctrl+Click: Using camera position as query point');
+                                    applySpatialFilter(camPos);
+                                } else {
+                                    // Normal click - just select the camera
+                                    selectCamera(cameraIndex);
+                                }
+                            } else {
+                                console.log('[Click] ✗ Camera marker has no index');
+                            }
+                        } else {
+                            console.log('[Click] ✗ Clicked empty space');
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update loading status
+        function updateLoadingStatus(message) {
+            const statusEl = document.getElementById('loading-status');
+            if (statusEl) statusEl.textContent = message;
+        }
+        
+        // ===== GALLERY FUNCTIONS =====
+        
+        // Show gallery with nearby cameras (reusing selection gallery)
+        function showSidebarThumbnailCarousel(nearestCameras, clickPoint) {
+            console.log(`[Gallery] Showing ${nearestCameras.length} cameras in gallery`);
+            
+            const gallery = document.getElementById('selection-gallery');
+            const content = document.getElementById('selection-gallery-content');
+            const title = document.getElementById('selection-gallery-title');
+            
+            if (!gallery || !content || !title) {
+                console.warn('[Gallery] Elements not found');
+                return;
+            }
+            
+            // Set title
+            title.textContent = `📷 ${nearestCameras.length} Camera${nearestCameras.length > 1 ? 's' : ''} Viewing This Point`;
+            
+            // Clear previous content
+            content.innerHTML = '';
+            
+            // Create camera cards
+            nearestCameras.forEach(({ camera, index, distance, score, centeredness, visible }, rank) => {
+                const card = document.createElement('div');
+                card.className = 'selection-camera-card';
+                
+                // Add special styling for top ranked cameras
+                if (rank < 3) {
+                    card.style.border = '2px solid #FFD700';
+                    card.style.boxShadow = '0 0 10px rgba(255, 215, 0, 0.5)';
+                }
+                
+                // Get camera name and URLs
+                const cameraName = camera.name || `Camera_${index + 1}`;
+                const thumbnailURL = THUMBNAIL_BASE_URL 
+                    ? `${THUMBNAIL_BASE_URL}/${cameraName}.JPG`
+                    : (IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '');
+                const fullImageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+                
+                // Create quality badge HTML
+                let qualityBadgeHTML = '';
+                if (score !== undefined && visible) {
+                    let badgeColor = '#4CAF50';
+                    let badgeLabel = 'Good';
+                    let badgeIcon = '✓';
+                    if (score > 0.7) {
+                        badgeColor = '#4CAF50';
+                        badgeLabel = 'Excellent';
+                        badgeIcon = '⭐';
+                    } else if (score > 0.4) {
+                        badgeColor = '#FFC107';
+                        badgeLabel = 'Good';
+                        badgeIcon = '✓';
+                    } else {
+                        badgeColor = '#FF9800';
+                        badgeLabel = 'Fair';
+                        badgeIcon = '○';
+                    }
+                    qualityBadgeHTML = `
+                        <div style="position: absolute; top: 8px; left: 8px; background: ${badgeColor}; color: white; 
+                                    padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; 
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                            ${badgeIcon} ${badgeLabel}
+                        </div>
+                    `;
+                }
+                
+                // Star badge for top 3
+                let starBadge = '';
+                if (rank < 3) {
+                    starBadge = `<div style="position: absolute; top: 8px; right: 8px; font-size: 20px; 
+                                             filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.8));">⭐</div>`;
+                }
+                
+                card.innerHTML = `
+                    <div style="position: relative;">
+                        <img src="${thumbnailURL}" alt="${cameraName}" loading="lazy"
+                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22%3E%3Crect fill=%22%23333%22 width=%22200%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2210%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                        ${qualityBadgeHTML}
+                        ${starBadge}
+                    </div>
+                    <div class="selection-camera-info">
+                        <div class="selection-camera-name">${cameraName}</div>
+                        <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                            ${distance.toFixed(1)}m away
+                            ${score !== undefined ? ` • Score: ${(score * 100).toFixed(0)}%` : ''}
+                        </div>
+                    </div>
+                `;
+                
+                // Click to open full image in viewer
+                card.onclick = () => {
+                    console.log(`[Gallery] Opening ${cameraName} in full viewer`);
+                    // Select the camera in 3D view
+                    selectCamera(index);
+                    // Show full image in viewer with click point overlay
+                    showFullImage(camera, distance, clickPoint);
+                };
+                
+                content.appendChild(card);
+            });
+            
+            // Show gallery
+            gallery.classList.add('visible');
+            gallery.style.display = 'block';
+            
+            console.log(`[Gallery] ✓ Displayed ${nearestCameras.length} cameras in gallery`);
+        }
+        
+        // Close sidebar carousel (reusing selection gallery)
+        function closeSidebarCarousel() {
+            const gallery = document.getElementById('selection-gallery');
+            if (gallery) {
+                gallery.classList.remove('visible');
+                gallery.style.display = 'none';
+                console.log('[Gallery] Gallery closed');
+            }
+        }
+        
+        // View selected images in full size
+        function viewSelectedImages() {
+            const grid = document.getElementById('sidebar-thumbnail-grid');
+            if (!grid) return;
+            
+            const selectedItems = grid.querySelectorAll('.sidebar-thumbnail-item.selected');
+            
+            if (selectedItems.length === 0) {
+                alert('Please select at least one camera thumbnail first.');
+                return;
+            }
+            
+            if (selectedItems.length > 5) {
+                if (!confirm(`This will open ${selectedItems.length} images in new tabs. Continue?`)) {
+                    return;
+                }
+            }
+            
+            // Open full resolution images
+            selectedItems.forEach((item, idx) => {
+                const cameraIndex = parseInt(item.dataset.cameraIndex);
+                const camera = cameras[cameraIndex];
+                if (camera) {
+                    const cameraName = camera.name || `camera_${cameraIndex}`;
+                    const fullImageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+                    
+                    setTimeout(() => {
+                        window.open(fullImageURL, '_blank');
+                    }, idx * 100); // Stagger opens slightly
+                }
+            });
+            
+            console.log(`[Sidebar Carousel] Opening ${selectedItems.length} full resolution images`);
+        }
+        
+        // Clear thumbnail selection
+        function clearThumbnailSelection() {
+            const grid = document.getElementById('sidebar-thumbnail-grid');
+            if (grid) {
+                grid.querySelectorAll('.sidebar-thumbnail-item.selected').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                console.log('[Sidebar Carousel] Selection cleared');
+            }
+        }
+        
+        // ===== VISUAL TOGGLE FUNCTIONS =====
+        
+        // Setup visual toggle buttons
+        function setupVisualToggles() {
+            // Point cloud toggle
+            const pcToggle = document.getElementById('toggle-point-cloud');
+            if (pcToggle) {
+                pcToggle.onclick = () => {
+                    const isActive = pcToggle.classList.contains('active');
+                    viewer.scene.pointclouds.forEach(pc => {
+                        pc.visible = !isActive;
+                    });
+                    pcToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Point cloud ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            // Camera markers toggle
+            const markersToggle = document.getElementById('toggle-camera-markers');
+            if (markersToggle) {
+                markersToggle.onclick = () => {
+                    const isActive = markersToggle.classList.contains('active');
+                    if (cameraGroup) {
+                        cameraGroup.visible = !isActive;
+                    }
+                    markersToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Camera markers ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            // Frustums toggle
+            const frustumToggle = document.getElementById('toggle-frustum-vis');
+            if (frustumToggle) {
+                frustumToggle.onclick = () => {
+                    const isActive = frustumToggle.classList.contains('active');
+                    showFrustums = !isActive;
+                    updateLOD(); // Force update
+                    frustumToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Frustums ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            // Query marker toggle
+            const queryToggle = document.getElementById('toggle-query-marker');
+            if (queryToggle) {
+                queryToggle.onclick = () => {
+                    const isActive = queryToggle.classList.contains('active');
+                    if (queryMarker) {
+                        queryMarker.visible = !isActive;
+                    }
+                    queryToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Query marker ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            // Camera path toggle
+            const pathToggle = document.getElementById('toggle-camera-path');
+            if (pathToggle) {
+                pathToggle.onclick = () => {
+                    const isActive = pathToggle.classList.contains('active');
+                    toggleCameraPath(!isActive);
+                    pathToggle.classList.toggle('active');
+                    console.log(`[Visual Toggle] Camera path ${isActive ? 'hidden' : 'shown'}`);
+                };
+            }
+            
+            console.log('[Visual Toggles] Setup complete');
+        }
+        
+        // ===== VIEW CONTROL FUNCTIONS =====
+        
+        // ===== BOX SELECTION FUNCTIONS =====
+        
+        // Toggle box selection mode
+        function toggleBoxSelection() {
+            boxSelectionMode = !boxSelectionMode;
+            const btn = document.getElementById('box-select-btn');
+            const icon = document.getElementById('box-select-icon');
+            
+            if (boxSelectionMode) {
+                btn.classList.add('active');
+                icon.textContent = '✓';
+                console.log('[Box Select] Mode ENABLED - Draw a box to select cameras');
+                
+                // Change cursor
+                viewer.renderer.domElement.style.cursor = 'crosshair';
+            } else {
+                btn.classList.remove('active');
+                icon.textContent = '📦';
+                console.log('[Box Select] Mode DISABLED');
+                
+                // Reset cursor
+                viewer.renderer.domElement.style.cursor = 'default';
+            }
+        }
+        
+        // Setup box selection event handlers
+        function setupBoxSelection() {
+            const canvas = viewer.renderer.domElement;
+            const selectionBox = document.getElementById('selection-box');
+            
+            // Use capture phase (third parameter = true) to intercept events BEFORE Potree gets them
+            canvas.addEventListener('mousedown', (e) => {
+                if (!boxSelectionMode || e.button !== 0) return;
+                
+                // Prevent default behavior and stop propagation to Potree
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                console.log('[Box Select] Mousedown intercepted - disabling controls');
+                console.log('[Box Select] Controls enabled before:', viewer.orbitControls?.enabled);
+                
+                // Disable camera controls while drawing
+                if (viewer.orbitControls) {
+                    viewer.orbitControls.enabled = false;
+                }
+                
+                console.log('[Box Select] Controls enabled after:', viewer.orbitControls?.enabled);
+                
+                isDrawingBox = true;
+                const rect = canvas.getBoundingClientRect();
+                boxStartX = e.clientX - rect.left;
+                boxStartY = e.clientY - rect.top;
+                boxEndX = boxStartX;
+                boxEndY = boxStartY;
+                
+                // Position the selection box
+                selectionBox.style.left = boxStartX + 'px';
+                selectionBox.style.top = boxStartY + 'px';
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.style.display = 'block';
+                
+                console.log('[Box Select] Started drawing at:', boxStartX, boxStartY);
+            }, true); // TRUE = capture phase
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDrawingBox) return;
+                
+                // Prevent default behavior and stop propagation to Potree
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                const rect = canvas.getBoundingClientRect();
+                boxEndX = e.clientX - rect.left;
+                boxEndY = e.clientY - rect.top;
+                
+                // Update box dimensions
+                const x = Math.min(boxStartX, boxEndX);
+                const y = Math.min(boxStartY, boxEndY);
+                const width = Math.abs(boxEndX - boxStartX);
+                const height = Math.abs(boxEndY - boxStartY);
+                
+                selectionBox.style.left = x + 'px';
+                selectionBox.style.top = y + 'px';
+                selectionBox.style.width = width + 'px';
+                selectionBox.style.height = height + 'px';
+                
+                // Highlight cameras in selection box in real-time
+                highlightCamerasInBox(x, y, x + width, y + height, rect);
+            }, true); // TRUE = capture phase
+            
+            canvas.addEventListener('mouseup', (e) => {
+                if (!isDrawingBox) return;
+                
+                // Prevent default behavior and stop propagation to Potree
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                console.log('[Box Select] Mouseup intercepted - will re-enable controls');
+                
+                isDrawingBox = false;
+                selectionBox.style.display = 'none';
+                
+                // Find cameras in the selection box
+                const rect = canvas.getBoundingClientRect();
+                const x1 = Math.min(boxStartX, boxEndX);
+                const y1 = Math.min(boxStartY, boxEndY);
+                const x2 = Math.max(boxStartX, boxEndX);
+                const y2 = Math.max(boxStartY, boxEndY);
+                
+                console.log('[Box Select] Box drawn:', {x1, y1, x2, y2});
+                
+                selectCamerasInBox(x1, y1, x2, y2, rect);
+                
+                // Clear the temporary highlighting
+                clearBoxHighlights();
+                
+                // Re-enable camera controls
+                if (viewer.orbitControls) {
+                    viewer.orbitControls.enabled = true;
+                }
+                
+                // Automatically exit box select mode
+                boxSelectionMode = false;
+                const btn = document.getElementById('box-select-btn');
+                const icon = document.getElementById('box-select-icon');
+                if (btn && icon) {
+                    btn.classList.remove('active');
+                    icon.textContent = '📦';
+                }
+                viewer.renderer.domElement.style.cursor = 'default';
+                
+                console.log('[Box Select] Selection complete - box select mode disabled, camera controls re-enabled');
+            });
+        }
+        
+        // Highlight cameras within the box (during drawing)
+        function highlightCamerasInBox(x1, y1, x2, y2, canvasRect) {
+            const camera = viewer.scene.getActiveCamera();
+            
+            cameraMarkers.forEach((marker, index) => {
+                if (!marker.visible) return;
+                
+                // Project 3D position to 2D screen coordinates
+                const pos = marker.position.clone();
+                pos.project(camera);
+                
+                // Convert from normalized device coordinates to screen space
+                const screenX = ((pos.x + 1) / 2) * canvasRect.width;
+                const screenY = (-(pos.y - 1) / 2) * canvasRect.height;
+                
+                // Check if in box and in front of camera
+                const inBox = (screenX >= x1 && screenX <= x2 && screenY >= y1 && screenY <= y2 && pos.z < 1);
+                
+                // Highlight cameras in the box (don't modify emissive properties)
+                if (marker.userData.detailedMesh) {
+                    marker.userData.detailedMesh.material.color.setHex(inBox ? 0xFFD700 : 0x4CAF50);
+                    marker.userData.detailedMesh.material.opacity = inBox ? 1.0 : 0.8;
+                }
+                
+                if (marker.userData.simpleMesh) {
+                    marker.userData.simpleMesh.material.color.setHex(inBox ? 0xFFD700 : 0x4CAF50);
+                    marker.userData.simpleMesh.material.opacity = inBox ? 1.0 : 0.8;
+                }
+                
+                if (marker.userData.pointMesh) {
+                    marker.userData.pointMesh.material.color.setHex(inBox ? 0xFFD700 : 0x4CAF50);
+                    marker.userData.pointMesh.material.opacity = inBox ? 1.0 : 0.9;
+                }
+            });
+        }
+        
+        // Clear box selection highlights
+        function clearBoxHighlights() {
+            cameraMarkers.forEach((marker) => {
+                if (marker.userData.detailedMesh) {
+                    marker.userData.detailedMesh.material.color.setHex(0x4CAF50);
+                    marker.userData.detailedMesh.material.opacity = 0.8;
+                }
+                if (marker.userData.simpleMesh) {
+                    marker.userData.simpleMesh.material.color.setHex(0x4CAF50);
+                    marker.userData.simpleMesh.material.opacity = 0.8;
+                }
+                if (marker.userData.pointMesh) {
+                    marker.userData.pointMesh.material.color.setHex(0x4CAF50);
+                    marker.userData.pointMesh.material.opacity = 0.9;
+                }
+            });
+        }
+        
+        // Find and select cameras within the box
+        function selectCamerasInBox(x1, y1, x2, y2, canvasRect) {
+            const camera = viewer.scene.getActiveCamera();
+            selectedCameras = [];
+            
+            cameraMarkers.forEach((marker, index) => {
+                if (!marker.visible) return;
+                
+                // Project 3D position to 2D screen coordinates
+                const pos = marker.position.clone();
+                pos.project(camera);
+                
+                // Convert from normalized device coordinates to screen space
+                const screenX = ((pos.x + 1) / 2) * canvasRect.width;
+                const screenY = (-(pos.y - 1) / 2) * canvasRect.height;
+                
+                // Check if in box
+                if (screenX >= x1 && screenX <= x2 && screenY >= y1 && screenY <= y2) {
+                    // Check if behind camera (pos.z > 1 means behind)
+                    if (pos.z < 1) {
+                        selectedCameras.push({
+                            index: index,
+                            camera: cameras[index]
+                        });
+                    }
+                }
+            });
+            
+            console.log(`[Box Select] Selected ${selectedCameras.length} cameras`);
+            
+            if (selectedCameras.length > 0) {
+                displaySelectionGallery(selectedCameras);
+            } else {
+                console.log('[Box Select] No cameras in selection box');
+            }
+        }
+        
+        // Display selected cameras in bottom gallery
+        function displaySelectionGallery(selectedCams) {
+            const gallery = document.getElementById('selection-gallery');
+            const content = document.getElementById('selection-gallery-content');
+            const title = document.getElementById('selection-gallery-title');
+            
+            if (!gallery || !content || !title) return;
+            
+            title.textContent = `Selected Cameras (${selectedCams.length})`;
+            content.innerHTML = '';
+            
+            selectedCams.forEach(({ camera, index }) => {
+                const card = document.createElement('div');
+                card.className = 'selection-camera-card';
+                
+                const cameraName = camera.name || `Camera_${index + 1}`;
+                
+                // Try thumbnail first, then full image
+                const thumbnailURL = THUMBNAIL_BASE_URL 
+                    ? `${THUMBNAIL_BASE_URL}/${cameraName}.JPG`
+                    : (IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '');
+                
+                const fullImageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+                
+                console.log(`[Selection Gallery] Adding ${cameraName}, thumbnail: ${thumbnailURL}`);
+                
+                card.innerHTML = `
+                    <img src="${thumbnailURL}" alt="${cameraName}" loading="lazy"
+                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22%3E%3Crect fill=%22%23333%22 width=%22200%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2210%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                    <div class="selection-camera-info">
+                        <div class="selection-camera-name">${cameraName}</div>
+                    </div>
+                `;
+                
+                // Click to open full image in new tab
+                card.onclick = () => {
+                    window.open(fullImageURL, '_blank');
+                    console.log(`[Selection Gallery] Opening ${cameraName} in new tab: ${fullImageURL}`);
+                };
+                
+                content.appendChild(card);
+            });
+            
+            gallery.classList.add('visible');
+            console.log(`[Selection Gallery] Displayed ${selectedCams.length} cameras`);
+        }
+        
+        // View full image
+        function viewFullImage(camera, index, imageURL, cameraName) {
+            const fullViewer = document.getElementById('full-image-viewer');
+            const fullImage = document.getElementById('full-viewer-image');
+            const fullInfo = document.getElementById('full-viewer-info');
+            const fullContainer = document.getElementById('full-viewer-container');
+            const zoomHint = document.getElementById('zoom-hint');
+            
+            if (!fullViewer || !fullImage || !fullInfo || !fullContainer) {
+                console.error('[Full Viewer] Required elements not found');
+                return;
+            }
+            
+            const displayName = cameraName || camera.name || `Camera ${index + 1}`;
+            
+            // Use provided URL or construct it
+            const finalImageURL = imageURL || (IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${displayName}.JPG` : '');
+            
+            console.log(`[Full Viewer] Opening ${displayName}, URL: ${finalImageURL}`);
+            
+            // Reset zoom state
+            fullImage.classList.remove('zoomed');
+            fullContainer.classList.remove('zoomed');
+            fullContainer.scrollLeft = 0;
+            fullContainer.scrollTop = 0;
+            
+            fullImage.src = finalImageURL;
+            fullImage.onerror = () => {
+                console.error(`[Full Viewer] Failed to load image: ${finalImageURL}`);
+                fullImage.alt = 'Image not available';
+            };
+            
+            // Show zoom hint briefly
+            if (zoomHint) {
+                zoomHint.classList.add('visible');
+                setTimeout(() => {
+                    zoomHint.classList.remove('visible');
+                }, 3000);
+            }
+            
+            fullInfo.innerHTML = `
+                <h3>${displayName}</h3>
+                <p><strong>Position:</strong> [${camera.position[0].toFixed(3)}, ${camera.position[1].toFixed(3)}, ${camera.position[2].toFixed(3)}]</p>
+                <p><strong>FOV:</strong> ${camera.fov ? camera.fov.toFixed(1) : 'N/A'}°</p>
+                <p><strong>Aspect Ratio:</strong> ${camera.aspect ? camera.aspect.toFixed(2) : 'N/A'}</p>
+            `;
+            
+            fullViewer.classList.add('visible');
+            console.log(`[Full Viewer] Now showing ${displayName}`);
+            
+            // Setup zoom functionality
+            setupImageZoom(fullImage, fullContainer);
+        }
+        
+        // Setup image zoom and pan functionality
+        function setupImageZoom(image, container) {
+            // Remove any existing listeners
+            const newImage = image.cloneNode(true);
+            image.parentNode.replaceChild(newImage, image);
+            
+            let isZoomed = false;
+            let isDragging = false;
+            let startX, startY, scrollLeft, scrollTop;
+            
+            // Click to toggle zoom
+            newImage.addEventListener('click', (e) => {
+                e.stopPropagation();
+                isZoomed = !isZoomed;
+                
+                if (isZoomed) {
+                    newImage.classList.add('zoomed');
+                    container.classList.add('zoomed');
+                    console.log('[Full Viewer] Zoomed in - click again or drag to pan');
+                } else {
+                    newImage.classList.remove('zoomed');
+                    container.classList.remove('zoomed');
+                    container.scrollLeft = 0;
+                    container.scrollTop = 0;
+                    console.log('[Full Viewer] Zoomed out');
+                }
+            });
+            
+            // Pan when zoomed
+            container.addEventListener('mousedown', (e) => {
+                if (!isZoomed) return;
+                isDragging = true;
+                container.style.cursor = 'grabbing';
+                startX = e.pageX - container.offsetLeft;
+                startY = e.pageY - container.offsetTop;
+                scrollLeft = container.scrollLeft;
+                scrollTop = container.scrollTop;
+            });
+            
+            container.addEventListener('mouseleave', () => {
+                isDragging = false;
+                if (isZoomed) container.style.cursor = 'move';
+            });
+            
+            container.addEventListener('mouseup', () => {
+                isDragging = false;
+                if (isZoomed) container.style.cursor = 'move';
+            });
+            
+            container.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const x = e.pageX - container.offsetLeft;
+                const y = e.pageY - container.offsetTop;
+                const walkX = (x - startX) * 2;
+                const walkY = (y - startY) * 2;
+                container.scrollLeft = scrollLeft - walkX;
+                container.scrollTop = scrollTop - walkY;
+            });
+        }
+        
+        // Close selection gallery
+        function closeSelectionGallery() {
+            const gallery = document.getElementById('selection-gallery');
+            if (gallery) {
+                gallery.classList.remove('visible');
+                gallery.style.display = 'none';
+                selectedCameras = [];
+                console.log('[Selection Gallery] Closed');
+                
+                // Also clear spatial filter if active
+                if (spatialFilterActive) {
+                    clearSelection();
+                }
+            }
+        }
+        
+        // Setup gallery resize functionality
+        function setupGalleryResize() {
+            const handle = document.getElementById('gallery-resize-handle');
+            const gallery = document.getElementById('selection-gallery');
+            
+            if (!handle || !gallery) return;
+            
+            let isResizing = false;
+            let startY = 0;
+            let startHeight = 0;
+            
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startY = e.clientY;
+                startHeight = gallery.offsetHeight;
+                document.body.style.cursor = 'ns-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                const deltaY = startY - e.clientY; // Inverted because gallery is at bottom
+                let newHeight = startHeight + deltaY;
+                
+                // Set min and max height
+                const minHeight = 200;
+                const maxHeight = window.innerHeight - 100;
+                newHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
+                
+                gallery.style.height = newHeight + 'px';
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+            
+            console.log('[Gallery Resize] Resize functionality initialized');
+        }
+        
+        // Initialize when page loads - use setTimeout to ensure DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initViewer().catch(error => {
+                    console.error('Failed to initialize viewer:', error);
+                    alert('Failed to initialize viewer. Check console for details.');
+                });
+            });
+        } else {
+            // DOM already loaded
+            initViewer().catch(error => {
+                console.error('Failed to initialize viewer:', error);
+                alert('Failed to initialize viewer. Check console for details.');
+            });
+        }
+    </script>
+</body>
+</html>
