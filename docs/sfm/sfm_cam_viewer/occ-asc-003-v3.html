@@ -558,13 +558,13 @@
         
         #point-intercept-overlay {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 10;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: block;
         }
         
         #zoom-hint {
@@ -617,11 +617,12 @@
             height: 40px;
             margin-left: -20px;
             margin-top: -20px;
-            border: 3px solid #FF9800;
+            border: 4px solid #FF9800;
             border-radius: 50%;
-            background: rgba(255, 152, 0, 0.2);
-            box-shadow: 0 0 20px rgba(255, 152, 0, 0.8), 0 0 40px rgba(255, 152, 0, 0.5);
+            background: rgba(255, 152, 0, 0.3);
+            box-shadow: 0 0 20px rgba(255, 152, 0, 0.9), 0 0 40px rgba(255, 152, 0, 0.6), 0 0 60px rgba(255, 152, 0, 0.4);
             animation: pulse-marker 2s ease-in-out infinite;
+            z-index: 100;
         }
         
         .intercept-marker::before {
@@ -630,10 +631,11 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             background: #FF9800;
             border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 152, 0, 1);
         }
         
         .intercept-marker::after {
@@ -2107,10 +2109,26 @@
             
             // When image loads, project the click point onto it
             img.onload = () => {
+                console.log('[Viewer] Image loaded, natural size:', img.naturalWidth, 'x', img.naturalHeight);
+                if (clickPoint && overlay && camera.transform) {
+                    console.log('[Viewer] Calling projectPointOntoImage...');
+                    projectPointOntoImage(clickPoint, camera, img, overlay);
+                } else {
+                    console.log('[Viewer] Skipping projection:', {
+                        hasClickPoint: !!clickPoint,
+                        hasOverlay: !!overlay,
+                        hasTransform: !!camera.transform
+                    });
+                }
+            };
+            
+            // Also try projecting if image is already loaded (cached)
+            if (img.complete && img.naturalWidth > 0) {
+                console.log('[Viewer] Image already loaded, projecting immediately');
                 if (clickPoint && overlay && camera.transform) {
                     projectPointOntoImage(clickPoint, camera, img, overlay);
                 }
-            };
+            }
             
             const pos = camera.position;
             let infoHTML = `
@@ -2292,11 +2310,19 @@
             // Position overlay to match image dimensions
             const updateOverlayPosition = () => {
                 const rect = imageElement.getBoundingClientRect();
+                const container = imageElement.parentElement;
+                const containerRect = container.getBoundingClientRect();
+                
+                // Calculate image position within container
+                const offsetLeft = (containerRect.width - rect.width) / 2;
+                const offsetTop = (containerRect.height - rect.height) / 2;
+                
                 overlayElement.style.width = rect.width + 'px';
                 overlayElement.style.height = rect.height + 'px';
-                overlayElement.style.top = '50%';
-                overlayElement.style.left = '50%';
-                overlayElement.style.transform = 'translate(-50%, -50%)';
+                overlayElement.style.left = offsetLeft + 'px';
+                overlayElement.style.top = offsetTop + 'px';
+                
+                console.log('[Overlay] Positioned at:', offsetLeft, offsetTop, 'Size:', rect.width, rect.height);
             };
             
             updateOverlayPosition();
@@ -2334,11 +2360,13 @@
             overlayElement.appendChild(marker);
             
             console.log('[Projection] ✓ Marker placed at overlay coords:', displayX.toFixed(1), displayY.toFixed(1));
+            console.log('[Projection] Marker visibility check - isVisible:', isVisible, 'x_pixel:', x_pixel.toFixed(1), 'y_pixel:', y_pixel.toFixed(1));
             
             // Update marker position on window resize or image size change
             const updateMarkerPosition = () => {
                 updateOverlayPosition();
-                // Markers are positioned relative to overlay, so no need to update them
+                // Markers are positioned relative to overlay, so they move with it
+                console.log('[Projection] Overlay position updated');
             };
             
             // Store update function for resize events
@@ -2413,8 +2441,10 @@
             sphere.add(ring);
             
             queryMarker = sphere;
-            queryMarker.visible = false; // Hidden by default
+            queryMarker.visible = true; // Show marker at clicked point
             viewer.scene.scene.add(queryMarker);
+            
+            console.log('[Query Marker] Orange marker added at point:', point);
         }
         
         // Fit view to specific cameras
