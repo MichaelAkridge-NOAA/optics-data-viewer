@@ -31,7 +31,8 @@
             left: 0;
         }
         
-        #potree_sidebar_container {
+        /* Custom Camera Sidebar */
+        #camera_sidebar_container {
             position: absolute;
             top: 10px;
             right: 10px;
@@ -46,7 +47,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
         
-        #potree_sidebar_container h2 {
+        #camera_sidebar_container h2 {
             margin: 0 0 15px 0;
             color: #4CAF50;
             font-size: 1.3em;
@@ -54,10 +55,26 @@
             padding-bottom: 8px;
         }
         
-        #potree_sidebar_container h3 {
+        #camera_sidebar_container h3 {
             margin: 15px 0 10px 0;
             color: #81C784;
             font-size: 1.1em;
+        }
+        
+        /* Potree Default Sidebar */
+        #potree_sidebar_container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 300px;
+            max-height: calc(100% - 20px);
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 8px;
+            padding: 10px;
+            color: white;
+            z-index: 999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
         
         .control-section {
@@ -1022,7 +1039,11 @@
         <div id="loading-status" style="margin-top: 10px; font-size: 0.9em; color: #999;"></div>
     </div>
     
-    <div id="potree_sidebar_container">
+    <!-- Potree default sidebar (left side) -->
+    <div id="potree_sidebar_container"></div>
+    
+    <!-- Custom camera sidebar (right side) -->
+    <div id="camera_sidebar_container">
         <h2>📷 OCC-ASC-003 Camera Viewer</h2>
         
         <div style="background: rgba(76, 175, 80, 0.15); padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
@@ -1212,10 +1233,12 @@
             
             // Set up camera controls
             viewer.setControls(viewer.orbitControls);
-            // Don't load default Potree GUI - we have a custom sidebar
-            // viewer.loadGUI(() => {
-            //     viewer.setLanguage('en');
-            // });
+            
+            // Load default Potree GUI for tools (measurements, clipping, etc.)
+            viewer.loadGUI(() => {
+                viewer.setLanguage('en');
+                console.log('Potree GUI loaded');
+            });
             
             console.log('Viewer initialized');
             
