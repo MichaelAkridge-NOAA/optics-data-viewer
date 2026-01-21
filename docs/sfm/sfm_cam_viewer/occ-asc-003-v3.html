@@ -1875,6 +1875,7 @@
             }
             // Otherwise FOV is already in radians
             
+            const fovDegrees = fovRad * 180 / Math.PI; // For debug output
             const aspect = camera.aspect || 1.5;
             
             // Calculate angular extents
@@ -1888,7 +1889,7 @@
             const inFOV = angleX <= halfWidthAngle && angleY <= halfHeightAngle && camSpacePoint.z < -0.1;
             
             if (debug) {
-                console.log(`[Visibility] FOV: ${fovRad.toFixed(3)} rad (${(fovRad * 180 / Math.PI).toFixed(1)}°)`);
+                console.log(`[Visibility] FOV: ${fovRad.toFixed(3)} rad (${fovDegrees.toFixed(1)}°)`);
                 console.log(`[Visibility] Camera space point: [${camSpacePoint.x.toFixed(2)}, ${camSpacePoint.y.toFixed(2)}, ${camSpacePoint.z.toFixed(2)}]`);
                 console.log(`[Visibility] Half angles: width=${(halfWidthAngle * 180 / Math.PI).toFixed(1)}°, height=${(halfHeightAngle * 180 / Math.PI).toFixed(1)}°`);
                 console.log(`[Visibility] Point angles: X=${(angleX * 180 / Math.PI).toFixed(1)}°, Y=${(angleY * 180 / Math.PI).toFixed(1)}°`);
@@ -2229,8 +2230,8 @@
             if (window.sensorInfo && window.sensorInfo.f) {
                 f_pixels = window.sensorInfo.f;
             } else {
-                const fov = camera.fov || 60;
-                f_pixels = (imgHeight / 2) / Math.tan((fov * Math.PI / 180) / 2);
+                const fovRad = camera.fov || (60 * Math.PI / 180); // Already in radians
+                f_pixels = (imgHeight / 2) / Math.tan(fovRad / 2);
             }
             
             const depth = -pointCam.z;
@@ -2343,14 +2344,15 @@
                 useCalibrated = true;
             } else {
                 // Fallback to FOV-based calculation
-                const fov = camera.fov || 60;
-                const fovRad = (fov * Math.PI) / 180;
+                // camera.fov is already in radians
+                const fovRad = camera.fov || (60 * Math.PI / 180);
+                const fovDeg = fovRad * 180 / Math.PI;
                 f_pixels = (imgHeight / 2) / Math.tan(fovRad / 2);
                 cx_pixels = 0;
                 cy_pixels = 0;
                 
                 console.log('[Projection] Using FOV-based intrinsics (fallback):');
-                console.log(`  FOV: ${fov}°, Focal length: ${f_pixels.toFixed(2)} pixels`);
+                console.log(`  FOV: ${fovDeg.toFixed(1)}°, Focal length: ${f_pixels.toFixed(2)} pixels`);
             }
             
             // Project to image plane (negate Z for Agisoft convention)
@@ -2536,8 +2538,8 @@
             const markerGroup = new THREE.Group();
             markerGroup.position.copy(point);
             
-            // Central laser dot - small and bright
-            const dotGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+            // Central laser dot - very small and precise (3cm)
+            const dotGeometry = new THREE.SphereGeometry(0.03, 12, 12);
             const dotMaterial = new THREE.MeshBasicMaterial({
                 color: 0xFF0000, // Bright red laser
                 transparent: false
@@ -2545,42 +2547,44 @@
             const dot = new THREE.Mesh(dotGeometry, dotMaterial);
             markerGroup.add(dot);
             
-            // Glowing halo around dot
-            const haloGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+            // Glowing halo around dot - subtle (8cm)
+            const haloGeometry = new THREE.SphereGeometry(0.08, 12, 12);
             const haloMaterial = new THREE.MeshBasicMaterial({
                 color: 0xFF0000,
                 transparent: true,
-                opacity: 0.4
+                opacity: 0.5
             });
             const halo = new THREE.Mesh(haloGeometry, haloMaterial);
             markerGroup.add(halo);
             
-            // 3D crosshairs
+            // 3D crosshairs - precise and short (30cm each direction)
             const crosshairMaterial = new THREE.LineBasicMaterial({ 
                 color: 0xFF0000,
                 linewidth: 2,
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.9
             });
+            
+            const crosshairLength = 0.3; // 30cm crosshairs
             
             // X-axis crosshair
             const xLine = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(-1, 0, 0),
-                new THREE.Vector3(1, 0, 0)
+                new THREE.Vector3(-crosshairLength, 0, 0),
+                new THREE.Vector3(crosshairLength, 0, 0)
             ]);
             markerGroup.add(new THREE.Line(xLine, crosshairMaterial));
             
             // Y-axis crosshair
             const yLine = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, -1, 0),
-                new THREE.Vector3(0, 1, 0)
+                new THREE.Vector3(0, -crosshairLength, 0),
+                new THREE.Vector3(0, crosshairLength, 0)
             ]);
             markerGroup.add(new THREE.Line(yLine, crosshairMaterial));
             
             // Z-axis crosshair
             const zLine = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, 0, -1),
-                new THREE.Vector3(0, 0, 1)
+                new THREE.Vector3(0, 0, -crosshairLength),
+                new THREE.Vector3(0, 0, crosshairLength)
             ]);
             markerGroup.add(new THREE.Line(zLine, crosshairMaterial));
             
