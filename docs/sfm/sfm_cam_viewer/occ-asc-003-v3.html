@@ -1906,18 +1906,18 @@
             const halfHeightAngle = fovRad / 2;
             const halfWidthAngle = Math.atan(Math.tan(halfHeightAngle) * aspect);
             
-            // Check if point is within FOV
-            const angleX = Math.atan2(Math.abs(camSpacePoint.x), -camSpacePoint.z);
-            const angleY = Math.atan2(Math.abs(camSpacePoint.y), -camSpacePoint.z);
+            // Check if point is within FOV - now using positive Z (camera looks down +Z)
+            const angleX = Math.atan2(Math.abs(camSpacePoint.x), camSpacePoint.z); // Use positive Z
+            const angleY = Math.atan2(Math.abs(camSpacePoint.y), camSpacePoint.z); // Use positive Z
             
-            const inFOV = angleX <= halfWidthAngle && angleY <= halfHeightAngle && camSpacePoint.z < -0.1;
+            const inFOV = angleX <= halfWidthAngle && angleY <= halfHeightAngle && camSpacePoint.z > 0.1;
             
             if (debug) {
                 console.log(`[Visibility] FOV: ${fovRad.toFixed(3)} rad (${fovDegrees.toFixed(1)}°)`);
                 console.log(`[Visibility] Camera space point: [${camSpacePoint.x.toFixed(2)}, ${camSpacePoint.y.toFixed(2)}, ${camSpacePoint.z.toFixed(2)}]`);
                 console.log(`[Visibility] Half angles: width=${(halfWidthAngle * 180 / Math.PI).toFixed(1)}°, height=${(halfHeightAngle * 180 / Math.PI).toFixed(1)}°`);
                 console.log(`[Visibility] Point angles: X=${(angleX * 180 / Math.PI).toFixed(1)}°, Y=${(angleY * 180 / Math.PI).toFixed(1)}°`);
-                console.log(`[Visibility] In FOV: ${inFOV} (angleX <= halfWidth: ${angleX <= halfWidthAngle}, angleY <= halfHeight: ${angleY <= halfHeightAngle}, z < -0.1: ${camSpacePoint.z < -0.1})`);
+                console.log(`[Visibility] In FOV: ${inFOV} (angleX <= halfWidth: ${angleX <= halfWidthAngle}, angleY <= halfHeight: ${angleY <= halfHeightAngle}, z > 0.1: ${camSpacePoint.z > 0.1})`);
             }
             
             if (!inFOV) {
