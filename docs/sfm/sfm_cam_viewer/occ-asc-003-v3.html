@@ -1867,13 +1867,26 @@
             
             // Project to normalized image coordinates
             // Camera looks down -Z, with X right and Y up
-            // Check if FOV is already in radians (< 6.28) or degrees (> 6.28)
-            let fovRad = camera.fov || 60;
-            if (fovRad > 6.28) {
-                // FOV is in degrees, convert to radians
-                fovRad = fovRad * Math.PI / 180;
+            // Check if we need to recalculate FOV from sensor data
+            let fovRad;
+            
+            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.height) {
+                // Calculate FOV from sensor calibration (more accurate)
+                const f = window.sensorInfo.f; // focal length in pixels
+                const h = window.sensorInfo.height; // sensor height in pixels
+                fovRad = 2 * Math.atan(h / (2 * f)); // vertical FOV in radians
+                console.log(`[Visibility] Calculated FOV from sensor: ${(fovRad * 180 / Math.PI).toFixed(1)}° (f=${f.toFixed(0)}px, h=${h}px)`);
+            } else {
+                // Use camera.fov but check if it's reasonable
+                fovRad = camera.fov || (60 * Math.PI / 180);
+                
+                // If FOV seems wrong (< 10° or > 120°), it might be in wrong format
+                const fovDeg = fovRad * 180 / Math.PI;
+                if (fovDeg < 10 || fovDeg > 120) {
+                    console.warn(`[Visibility] Suspicious FOV value: ${fovDeg.toFixed(1)}°, using default 60°`);
+                    fovRad = 60 * Math.PI / 180;
+                }
             }
-            // Otherwise FOV is already in radians
             
             const fovDegrees = fovRad * 180 / Math.PI; // For debug output
             const aspect = camera.aspect || 1.5;
@@ -2889,18 +2902,22 @@
                         console.log(`[Click] Found ${viewer.scene.pointclouds.length} point cloud(s) in scene`);
                         
                         try {
-                            // Use Potree's built-in pick method - much more accurate for point clouds
-                            const pickResult = viewer.scene.pick(
-                                viewer, 
-                                viewer.scene.getActiveCamera(), 
-                                new THREE.Vector2(mouse.x, mouse.y),
-                                {
-                                    pickClipped: false,
-                                    // Use highest quality picking
-                                    width: viewer.renderer.domElement.clientWidth,
-                                    height: viewer.renderer.domElement.clientHeight
-                                }
-                            );
+                            // Use Potree's getMousePointCloudIntersection if available
+                            let pickResult = null;
+                            
+                            if (typeof Potree !== 'undefined' && Potree.utils && Potree.utils.getMousePointCloudIntersection) {
+                                // Use Potree utils method
+                                pickResult = Potree.utils.getMousePointCloudIntersection(
+                                    mouse,
+                                    viewer.scene.getActiveCamera(),
+                                    viewer,
+                                    viewer.scene.pointclouds,
+                                    { pickClipped: false }
+                                );
+                            } else if (viewer.getIntersection) {
+                                // Alternative: use viewer's getIntersection
+                                pickResult = viewer.getIntersection(e.clientX, e.clientY);
+                            }
                             
                             if (pickResult && pickResult.position) {
                                 // Potree pick returns the exact point location
@@ -2908,31 +2925,40 @@
                                 
                                 console.log('[Click] ✓ Point cloud hit (Potree pick)!');
                                 console.log('[Click] Exact hit position:', hitPoint);
-                                console.log('[Click] Point normal:', pickResult.normal);
-                                console.log('[Click] Point color:', pickResult.color);
+                                if (pickResult.normal) console.log('[Click] Point normal:', pickResult.normal);
+                                if (pickResult.color) console.log('[Click] Point color:', pickResult.color);
                                 
                                 // Apply spatial filter with exact point
                                 applySpatialFilter(hitPoint);
                                 pointCloudHit = true;
                             } else {
-                                console.log('[Click] ✗ No point cloud intersection');
-                                console.log('[Click] Try clicking directly on visible point cloud points');
+                                console.log('[Click] ✗ No point cloud intersection from Potree');
+                                console.log('[Click] Falling back to raycaster...');
+                                throw new Error('Potree pick returned null');
                             }
                         } catch (error) {
-                            console.error('[Click] Error during Potree pick:', error);
-                            console.log('[Click] Falling back to raycaster...');
+                            console.log('[Click] Potree pick not available or failed:', error.message);
+                            console.log('[Click] Using raycaster fallback...');
                             
-                            // Fallback to THREE raycaster if Potree pick fails
+                            // Fallback to THREE raycaster
                             const raycaster = new THREE.Raycaster();
                             raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
+                            
+                            // Set raycaster params for better point cloud picking
+                            raycaster.params.Points = { threshold: 0.5 }; // Increase threshold for easier clicking
+                            
                             const pointcloud = viewer.scene.pointclouds[0];
                             const intersects = raycaster.intersectObject(pointcloud, true);
                             
                             if (intersects.length > 0) {
-                                const hitPoint = intersects[0].point;
-                                console.log('[Click] ✓ Hit via raycaster (less accurate):', hitPoint);
+                                const hitPoint = intersects[0].point.clone();
+                                console.log('[Click] ✓ Hit via raycaster:', hitPoint);
+                                console.log('[Click] Distance to hit:', intersects[0].distance.toFixed(2), 'm');
                                 applySpatialFilter(hitPoint);
                                 pointCloudHit = true;
+                            } else {
+                                console.log('[Click] ✗ No raycaster intersection either');
+                                console.log('[Click] Try clicking directly on dense areas of point cloud');
                             }
                         }
                     } else {
