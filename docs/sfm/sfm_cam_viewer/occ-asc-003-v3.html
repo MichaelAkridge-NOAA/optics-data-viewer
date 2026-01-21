@@ -613,14 +613,17 @@
         
         .intercept-marker {
             position: absolute;
-            width: 40px;
-            height: 40px;
-            margin-left: -20px;
-            margin-top: -20px;
-            border: 4px solid #FF9800;
+            width: 30px;
+            height: 30px;
+            margin-left: -15px;
+            margin-top: -15px;
+            border: 3px solid #FF0000;
             border-radius: 50%;
-            background: rgba(255, 152, 0, 0.3);
-            box-shadow: 0 0 20px rgba(255, 152, 0, 0.9), 0 0 40px rgba(255, 152, 0, 0.6), 0 0 60px rgba(255, 152, 0, 0.4);
+            background: rgba(255, 0, 0, 0.2);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 1), 
+                        0 0 30px rgba(255, 0, 0, 0.7), 
+                        0 0 45px rgba(255, 0, 0, 0.4),
+                        inset 0 0 10px rgba(255, 0, 0, 0.3);
             animation: pulse-marker 2s ease-in-out infinite;
             z-index: 100;
         }
@@ -631,11 +634,13 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 10px;
-            height: 10px;
-            background: #FF9800;
+            width: 6px;
+            height: 6px;
+            background: #FF0000;
             border-radius: 50%;
-            box-shadow: 0 0 10px rgba(255, 152, 0, 1);
+            box-shadow: 0 0 8px rgba(255, 0, 0, 1),
+                        0 0 4px white,
+                        inset 0 0 3px white;
         }
         
         .intercept-marker::after {
@@ -693,17 +698,58 @@
         
         .intercept-label {
             position: absolute;
-            top: -35px;
+            top: -50px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(255, 152, 0, 0.95);
+            background: rgba(255, 0, 0, 0.95);
             color: white;
-            padding: 4px 10px;
+            padding: 6px 12px;
             border-radius: 4px;
             font-size: 0.75em;
-            font-weight: bold;
             white-space: nowrap;
             box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Thumbnail laser markers */
+        .thumbnail-laser-marker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            margin-left: -6px;
+            margin-top: -6px;
+            border-radius: 50%;
+            background: rgba(255, 0, 0, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 8px rgba(255, 0, 0, 0.9), 
+                        0 0 4px rgba(255, 255, 255, 0.8),
+                        inset 0 0 4px rgba(255, 255, 255, 0.5);
+            animation: pulse-thumbnail 1.5s ease-in-out infinite;
+            z-index: 10;
+        }
+        
+        .thumbnail-laser-marker::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 3px white;
+        }
+        
+        @keyframes pulse-thumbnail {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
         }
         
         /* Sidebar Thumbnail Carousel */
@@ -2155,6 +2201,70 @@
         }
         
         /**
+         * Add small marker to thumbnail showing where point will appear
+         */
+        function addThumbnailMarker(point3D, camera, imageElement, overlayElement) {
+            // Quick projection without distortion for thumbnails (performance)
+            const transform = camera.transform;
+            if (!transform || transform.length !== 16) return;
+            
+            const camPos = new THREE.Vector3(transform[3], transform[7], transform[11]);
+            const R = new THREE.Matrix3();
+            R.set(
+                transform[0], transform[1], transform[2],
+                transform[4], transform[5], transform[6],
+                transform[8], transform[9], transform[10]
+            );
+            
+            const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
+            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
+            
+            if (pointCam.z > 0) return; // Behind camera
+            
+            const imgWidth = imageElement.naturalWidth || imageElement.width || 200;
+            const imgHeight = imageElement.naturalHeight || imageElement.height || 150;
+            
+            // Use calibrated or FOV-based
+            let f_pixels;
+            if (window.sensorInfo && window.sensorInfo.f) {
+                f_pixels = window.sensorInfo.f;
+            } else {
+                const fov = camera.fov || 60;
+                f_pixels = (imgHeight / 2) / Math.tan((fov * Math.PI / 180) / 2);
+            }
+            
+            const depth = -pointCam.z;
+            if (depth <= 0.1) return;
+            
+            const x_norm = -pointCam.x / depth;
+            const y_norm = -pointCam.y / depth;
+            const x_pixel = imgWidth / 2 + f_pixels * x_norm;
+            const y_pixel = imgHeight / 2 - f_pixels * y_norm;
+            
+            // Check if in bounds
+            if (x_pixel < -50 || x_pixel > imgWidth + 50 || y_pixel < -50 || y_pixel > imgHeight + 50) {
+                return; // Too far outside
+            }
+            
+            // Scale to display size
+            const rect = imageElement.getBoundingClientRect();
+            const scaleX = rect.width / imgWidth;
+            const scaleY = rect.height / imgHeight;
+            const displayX = x_pixel * scaleX;
+            const displayY = y_pixel * scaleY;
+            
+            // Create mini marker
+            const marker = document.createElement('div');
+            marker.className = 'thumbnail-laser-marker';
+            marker.style.left = displayX + 'px';
+            marker.style.top = displayY + 'px';
+            marker.title = `Click point at (${Math.round(x_pixel)}, ${Math.round(y_pixel)})`;
+            overlayElement.appendChild(marker);
+            
+            console.log(`[Thumbnail] Added marker at (${displayX.toFixed(0)}, ${displayY.toFixed(0)})`);
+        }
+        
+        /**
          * Project a 3D point cloud point onto a 2D camera image
          * This shows where the clicked point appears in the photo
          * Uses calibrated camera intrinsics and distortion parameters for accuracy
@@ -2331,10 +2441,14 @@
             const marker = document.createElement('div');
             marker.className = 'intercept-marker';
             
-            // Add label
+            // Add coordinate label
             const label = document.createElement('div');
             label.className = 'intercept-label';
-            label.textContent = isVisible ? 'Click Point' : 'Click Point (outside view)';
+            const coordText = `(${Math.round(x_pixel)}, ${Math.round(y_pixel)}) px`;
+            label.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 2px;">${isVisible ? '🎯 Click Point' : '⚠ Click Point (outside view)'}</div>
+                <div style="font-size: 0.85em; opacity: 0.9;">${coordText}</div>
+            `;
             marker.appendChild(label);
             
             // Position marker relative to overlay (which matches image size)
@@ -2411,40 +2525,90 @@
             console.log('[Spatial Query] ✓ All cameras now visible');
         }
         
-        // Create visual marker at query point
+        // Create visual marker at query point - laser dot style
         function createQueryMarker(point) {
             // Remove old marker
             if (queryMarker) {
                 viewer.scene.scene.remove(queryMarker);
             }
             
-            // Create sphere at clicked point
-            const geometry = new THREE.SphereGeometry(0.5, 16, 16);
-            const material = new THREE.MeshBasicMaterial({
+            // Create group for laser marker
+            const markerGroup = new THREE.Group();
+            markerGroup.position.copy(point);
+            
+            // Central laser dot - small and bright
+            const dotGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+            const dotMaterial = new THREE.MeshBasicMaterial({
+                color: 0xFF0000, // Bright red laser
+                transparent: false
+            });
+            const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+            markerGroup.add(dot);
+            
+            // Glowing halo around dot
+            const haloGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+            const haloMaterial = new THREE.MeshBasicMaterial({
+                color: 0xFF0000,
+                transparent: true,
+                opacity: 0.4
+            });
+            const halo = new THREE.Mesh(haloGeometry, haloMaterial);
+            markerGroup.add(halo);
+            
+            // 3D crosshairs
+            const crosshairMaterial = new THREE.LineBasicMaterial({ 
+                color: 0xFF0000,
+                linewidth: 2,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            // X-axis crosshair
+            const xLine = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-1, 0, 0),
+                new THREE.Vector3(1, 0, 0)
+            ]);
+            markerGroup.add(new THREE.Line(xLine, crosshairMaterial));
+            
+            // Y-axis crosshair
+            const yLine = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, -1, 0),
+                new THREE.Vector3(0, 1, 0)
+            ]);
+            markerGroup.add(new THREE.Line(yLine, crosshairMaterial));
+            
+            // Z-axis crosshair
+            const zLine = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, -1),
+                new THREE.Vector3(0, 0, 1)
+            ]);
+            markerGroup.add(new THREE.Line(zLine, crosshairMaterial));
+            
+            // Search radius circle (on XY plane)
+            const circlePoints = [];
+            for (let i = 0; i <= 64; i++) {
+                const angle = (i / 64) * Math.PI * 2;
+                circlePoints.push(new THREE.Vector3(
+                    Math.cos(angle) * searchRadius,
+                    Math.sin(angle) * searchRadius,
+                    0
+                ));
+            }
+            const circleGeometry = new THREE.BufferGeometry().setFromPoints(circlePoints);
+            const circleMaterial = new THREE.LineBasicMaterial({
                 color: 0xFF9800,
                 transparent: true,
-                opacity: 0.7
+                opacity: 0.5
             });
-            const sphere = new THREE.Mesh(geometry, material);
-            sphere.position.copy(point);
+            const circle = new THREE.Line(circleGeometry, circleMaterial);
+            circle.rotation.x = Math.PI / 2;
+            markerGroup.add(circle);
             
-            // Add radius ring
-            const ringGeometry = new THREE.RingGeometry(searchRadius - 0.1, searchRadius, 32);
-            const ringMaterial = new THREE.MeshBasicMaterial({
-                color: 0xFF9800,
-                transparent: true,
-                opacity: 0.3,
-                side: THREE.DoubleSide
-            });
-            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-            ring.rotation.x = Math.PI / 2;
-            sphere.add(ring);
-            
-            queryMarker = sphere;
-            queryMarker.visible = true; // Show marker at clicked point
+            queryMarker = markerGroup;
+            queryMarker.visible = true;
             viewer.scene.scene.add(queryMarker);
             
-            console.log('[Query Marker] Orange marker added at point:', point);
+            console.log('[Laser Marker] Precision marker added at:', point);
         }
         
         // Fit view to specific cameras
@@ -2835,6 +2999,7 @@
             nearestCameras.forEach(({ camera, index, distance, score, centeredness, visible }, rank) => {
                 const card = document.createElement('div');
                 card.className = 'selection-camera-card';
+                card.style.position = 'relative'; // For absolute positioning of markers
                 
                 // Add special styling for top ranked cameras
                 if (rank < 3) {
@@ -2885,9 +3050,11 @@
                 }
                 
                 card.innerHTML = `
-                    <div style="position: relative;">
-                        <img src="${thumbnailURL}" alt="${cameraName}" loading="lazy"
+                    <div style="position: relative;" class="thumbnail-container">
+                        <img src="${thumbnailURL}" alt="${cameraName}" loading="lazy" class="thumbnail-image"
+                             data-camera-index="${index}"
                              onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22%3E%3Crect fill=%22%23333%22 width=%22200%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2210%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                        <div class="thumbnail-marker-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
                         ${qualityBadgeHTML}
                         ${starBadge}
                     </div>
@@ -2910,6 +3077,20 @@
                 };
                 
                 content.appendChild(card);
+                
+                // Add thumbnail marker projection when image loads
+                const img = card.querySelector('.thumbnail-image');
+                const overlay = card.querySelector('.thumbnail-marker-overlay');
+                if (img && overlay && clickPoint) {
+                    const projectOnThumbnail = () => {
+                        if (img.complete && img.naturalWidth > 0) {
+                            addThumbnailMarker(clickPoint, camera, img, overlay);
+                        }
+                    };
+                    img.addEventListener('load', projectOnThumbnail);
+                    // Try immediately if already loaded
+                    projectOnThumbnail();
+                }
             });
             
             // Show gallery
