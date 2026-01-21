@@ -1218,6 +1218,24 @@
                             await parser.loadFromURL(CAMERA_XML_URL);
                         }
                         
+                        // Store sensor calibration info globally for accurate projection
+                        if (parser.sensor) {
+                            window.sensorInfo = parser.sensor;
+                            console.log('[Camera Load] Sensor calibration available:');
+                            console.log(`  Focal length: ${parser.sensor.f} pixels`);
+                            console.log(`  Resolution: ${parser.sensor.width}x${parser.sensor.height}`);
+                            console.log(`  Principal point: (${parser.sensor.cx}, ${parser.sensor.cy})`);
+                            if (parser.sensor.k1 || parser.sensor.k2) {
+                                console.log(`  Distortion: k1=${parser.sensor.k1?.toExponential(3)}, k2=${parser.sensor.k2?.toExponential(3)}`);
+                            }
+                        }
+                        
+                        // Store component transform for reference
+                        if (parser.transform) {
+                            window.componentTransform = parser.transform;
+                            console.log('[Camera Load] Component transform available');
+                        }
+                        
                         // Convert to Potree-compatible format
                         camerasData = parser.toPotreeFormat(IMAGE_BASE_URL);
                         
@@ -2104,6 +2122,13 @@
             
             if (clickPoint) {
                 infoHTML += `<p><strong>Clicked Point:</strong> [${clickPoint.x.toFixed(2)}, ${clickPoint.y.toFixed(2)}, ${clickPoint.z.toFixed(2)}]</p>`;
+                
+                // Show projection method being used
+                if (window.sensorInfo && window.sensorInfo.f) {
+                    infoHTML += `<p style="color: #4CAF50;">✓ <strong>Using calibrated projection</strong> (f=${window.sensorInfo.f.toFixed(1)}px)</p>`;
+                } else {
+                    infoHTML += `<p style="color: #FFC107;">⚠ <strong>Using FOV-based projection</strong> (less accurate)</p>`;
+                }
             }
             
             info.innerHTML = infoHTML;
@@ -2114,6 +2139,7 @@
         /**
          * Project a 3D point cloud point onto a 2D camera image
          * This shows where the clicked point appears in the photo
+         * Uses calibrated camera intrinsics and distortion parameters for accuracy
          */
         function projectPointOntoImage(point3D, camera, imageElement, overlayElement) {
             console.log('[Projection] Projecting point onto image...');
@@ -2158,10 +2184,6 @@
                 // Still show it, but with a warning indicator
             }
             
-            // Get camera intrinsics
-            const fov = camera.fov || 60;
-            const aspect = camera.aspect || 1.5;
-            
             // Calculate image dimensions
             const imgWidth = imageElement.naturalWidth || imageElement.width;
             const imgHeight = imageElement.naturalHeight || imageElement.height;
@@ -2171,14 +2193,37 @@
                 return;
             }
             
-            console.log('[Projection] Image size:', imgWidth, 'x', imgHeight);
-            console.log('[Projection] FOV:', fov, 'Aspect:', aspect);
+            // Use calibrated intrinsics if available from sensor data
+            let f_pixels, cx_pixels, cy_pixels;
+            let useCalibrated = false;
             
-            // Simple perspective projection
-            // For pinhole camera: x_image = f * X / Z, y_image = f * Y / Z
-            // FOV relates to focal length: f = imageHeight / (2 * tan(fov/2))
-            const fovRad = (fov * Math.PI) / 180;
-            const f = (imgHeight / 2) / Math.tan(fovRad / 2);
+            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.width && window.sensorInfo.height) {
+                // Sensor info available - use calibrated parameters
+                const sensor = window.sensorInfo;
+                
+                // Focal length in pixels (f from XML is in pixels already)
+                f_pixels = sensor.f;
+                
+                // Principal point offsets (cx, cy are in pixels, relative to center)
+                cx_pixels = sensor.cx || 0;
+                cy_pixels = sensor.cy || 0;
+                
+                console.log('[Projection] Using calibrated intrinsics:');
+                console.log(`  Focal length: ${f_pixels.toFixed(2)} pixels`);
+                console.log(`  Principal point: (${cx_pixels.toFixed(2)}, ${cy_pixels.toFixed(2)}) pixels`);
+                
+                useCalibrated = true;
+            } else {
+                // Fallback to FOV-based calculation
+                const fov = camera.fov || 60;
+                const fovRad = (fov * Math.PI) / 180;
+                f_pixels = (imgHeight / 2) / Math.tan(fovRad / 2);
+                cx_pixels = 0;
+                cy_pixels = 0;
+                
+                console.log('[Projection] Using FOV-based intrinsics (fallback):');
+                console.log(`  FOV: ${fov}°, Focal length: ${f_pixels.toFixed(2)} pixels`);
+            }
             
             // Project to image plane (negate Z for Agisoft convention)
             const depth = -pointCam.z;
@@ -2187,12 +2232,50 @@
                 return;
             }
             
-            const x_proj = (-pointCam.x / depth) * f;
-            const y_proj = (-pointCam.y / depth) * f;
+            // Normalized coordinates (undistorted)
+            const x_norm = -pointCam.x / depth;
+            const y_norm = -pointCam.y / depth;
             
-            // Convert to pixel coordinates (origin at center, flip Y)
-            const x_pixel = imgWidth / 2 + x_proj;
-            const y_pixel = imgHeight / 2 - y_proj;
+            console.log('[Projection] Normalized coords:', x_norm.toFixed(4), y_norm.toFixed(4));
+            
+            // Apply lens distortion if calibrated parameters are available
+            let x_distorted = x_norm;
+            let y_distorted = y_norm;
+            
+            if (useCalibrated && window.sensorInfo) {
+                const k1 = window.sensorInfo.k1 || 0;
+                const k2 = window.sensorInfo.k2 || 0;
+                const k3 = window.sensorInfo.k3 || 0;
+                const p1 = window.sensorInfo.p1 || 0;
+                const p2 = window.sensorInfo.p2 || 0;
+                
+                // Apply distortion model (Brown-Conrady model used by Agisoft)
+                const r2 = x_norm * x_norm + y_norm * y_norm;
+                const r4 = r2 * r2;
+                const r6 = r2 * r4;
+                
+                // Radial distortion
+                const radial = 1 + k1 * r2 + k2 * r4 + k3 * r6;
+                
+                // Tangential distortion
+                const dx_tangential = 2 * p1 * x_norm * y_norm + p2 * (r2 + 2 * x_norm * x_norm);
+                const dy_tangential = p1 * (r2 + 2 * y_norm * y_norm) + 2 * p2 * x_norm * y_norm;
+                
+                x_distorted = x_norm * radial + dx_tangential;
+                y_distorted = y_norm * radial + dy_tangential;
+                
+                const hasDistortion = Math.abs(k1) > 1e-6 || Math.abs(k2) > 1e-6 || Math.abs(p1) > 1e-6 || Math.abs(p2) > 1e-6;
+                if (hasDistortion) {
+                    console.log('[Projection] Applied lens distortion correction');
+                    console.log(`  Distortion params: k1=${k1.toExponential(3)}, k2=${k2.toExponential(3)}, p1=${p1.toExponential(3)}, p2=${p2.toExponential(3)}`);
+                }
+            }
+            
+            // Convert to pixel coordinates
+            // x_pixel = f * x_distorted + cx + image_center_x
+            // y_pixel = f * y_distorted + cy + image_center_y
+            const x_pixel = imgWidth / 2 + f_pixels * x_distorted + cx_pixels;
+            const y_pixel = imgHeight / 2 - (f_pixels * y_distorted + cy_pixels); // Flip Y for screen coords
             
             console.log('[Projection] Projected pixel coords:', x_pixel.toFixed(1), y_pixel.toFixed(1));
             
