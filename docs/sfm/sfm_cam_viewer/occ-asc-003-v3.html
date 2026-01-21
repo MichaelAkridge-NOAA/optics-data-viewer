@@ -1906,18 +1906,18 @@
             const halfHeightAngle = fovRad / 2;
             const halfWidthAngle = Math.atan(Math.tan(halfHeightAngle) * aspect);
             
-            // Check if point is within FOV - now using positive Z (camera looks down +Z)
-            const angleX = Math.atan2(Math.abs(camSpacePoint.x), camSpacePoint.z); // Use positive Z
-            const angleY = Math.atan2(Math.abs(camSpacePoint.y), camSpacePoint.z); // Use positive Z
+            // Agisoft/OpenGL convention: camera looks down -Z, points in front have negative Z
+            const angleX = Math.atan2(Math.abs(camSpacePoint.x), -camSpacePoint.z);
+            const angleY = Math.atan2(Math.abs(camSpacePoint.y), -camSpacePoint.z);
             
-            const inFOV = angleX <= halfWidthAngle && angleY <= halfHeightAngle && camSpacePoint.z > 0.1;
+            const inFOV = angleX <= halfWidthAngle && angleY <= halfHeightAngle && camSpacePoint.z < -0.1;
             
             if (debug) {
                 console.log(`[Visibility] FOV: ${fovRad.toFixed(3)} rad (${fovDegrees.toFixed(1)}°)`);
                 console.log(`[Visibility] Camera space point: [${camSpacePoint.x.toFixed(2)}, ${camSpacePoint.y.toFixed(2)}, ${camSpacePoint.z.toFixed(2)}]`);
                 console.log(`[Visibility] Half angles: width=${(halfWidthAngle * 180 / Math.PI).toFixed(1)}°, height=${(halfHeightAngle * 180 / Math.PI).toFixed(1)}°`);
                 console.log(`[Visibility] Point angles: X=${(angleX * 180 / Math.PI).toFixed(1)}°, Y=${(angleY * 180 / Math.PI).toFixed(1)}°`);
-                console.log(`[Visibility] In FOV: ${inFOV} (angleX <= halfWidth: ${angleX <= halfWidthAngle}, angleY <= halfHeight: ${angleY <= halfHeightAngle}, z > 0.1: ${camSpacePoint.z > 0.1})`);
+                console.log(`[Visibility] In FOV: ${inFOV} (angleX <= halfWidth: ${angleX <= halfWidthAngle}, angleY <= halfHeight: ${angleY <= halfHeightAngle}, z < -0.1: ${camSpacePoint.z < -0.1})`);
             }
             
             if (!inFOV) {
@@ -2251,15 +2251,15 @@
             const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
             
             console.log('[Thumbnail] Point in camera space:', pointCam);
-            console.log('[Thumbnail] Point cam Z:', pointCam.z.toFixed(2), '(need Z > 0 for in front)');
+            console.log('[Thumbnail] Point cam Z:', pointCam.z.toFixed(2), '(cameras look down -Z, need Z < 0 for in front)');
             
-            // Check which z-direction works - try positive Z = in front
-            const depth = pointCam.z;
-            if (depth < 0.1) {
+            // Agisoft/OpenGL convention: camera looks down -Z axis, so points in front have NEGATIVE Z
+            if (pointCam.z > -0.1) {
                 console.warn('[Thumbnail] Point behind or too close (z =', pointCam.z.toFixed(2), '), skipping');
                 return; // Behind camera or too close
             }
             
+            const depth = -pointCam.z; // Convert negative Z to positive depth
             console.log('[Thumbnail] Point is in front, depth:', depth.toFixed(2));
             
             const imgWidth = imageElement.naturalWidth || imageElement.width || 6000;
@@ -2285,9 +2285,9 @@
             }
             
             // Project: x_screen = f * (x_cam / z_cam)
-            // For Agisoft: if camera looks down +Z, then:
-            const x_norm = pointCam.x / depth;
-            const y_norm = pointCam.y / depth;
+            // Agisoft/OpenGL: camera looks down -Z, so use negative signs
+            const x_norm = -pointCam.x / depth;
+            const y_norm = -pointCam.y / depth;
             const x_pixel = imgWidth / 2 + f_pixels * x_norm;
             const y_pixel = imgHeight / 2 - f_pixels * y_norm;
             
