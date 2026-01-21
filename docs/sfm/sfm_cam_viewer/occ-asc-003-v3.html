@@ -2881,54 +2881,59 @@
                     
                     console.log('[Click] Normalized mouse coords:', mouse);
                     
-                    const raycaster = new THREE.Raycaster();
-                    raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
-                    
-                    // First, try to intersect with point cloud using Potree's raycasting
+                    // Use Potree's precise picking system instead of THREE raycaster
                     let pointCloudHit = false;
-                    console.log('[Click] Checking for point cloud intersection...');
+                    console.log('[Click] Using Potree picking for precise point cloud intersection...');
                     
                     if (viewer.scene.pointclouds.length > 0) {
                         console.log(`[Click] Found ${viewer.scene.pointclouds.length} point cloud(s) in scene`);
                         
-                        // Use Potree's built-in raycasting
                         try {
-                            // Potree stores intersections in the scene
-                            const pointcloud = viewer.scene.pointclouds[0];
+                            // Use Potree's built-in pick method - much more accurate for point clouds
+                            const pickResult = viewer.scene.pick(
+                                viewer, 
+                                viewer.scene.getActiveCamera(), 
+                                new THREE.Vector2(mouse.x, mouse.y),
+                                {
+                                    pickClipped: false,
+                                    // Use highest quality picking
+                                    width: viewer.renderer.domElement.clientWidth,
+                                    height: viewer.renderer.domElement.clientHeight
+                                }
+                            );
                             
-                            // Use THREE raycaster to get approximate intersection
-                            // Then refine with Potree's octree if needed
-                            const intersects = raycaster.intersectObject(pointcloud, true);
-                            
-                            if (intersects.length > 0) {
-                                // Get intersection point from raycaster
-                                const hitPoint = intersects[0].point;
+                            if (pickResult && pickResult.position) {
+                                // Potree pick returns the exact point location
+                                const hitPoint = pickResult.position.clone();
                                 
-                                // Hit point cloud - apply spatial filter
-                                console.log('[Click] ✓ Point cloud hit!');
-                                console.log('[Click] Hit position:', hitPoint);
+                                console.log('[Click] ✓ Point cloud hit (Potree pick)!');
+                                console.log('[Click] Exact hit position:', hitPoint);
+                                console.log('[Click] Point normal:', pickResult.normal);
+                                console.log('[Click] Point color:', pickResult.color);
+                                
+                                // Apply spatial filter with exact point
                                 applySpatialFilter(hitPoint);
                                 pointCloudHit = true;
                             } else {
-                                console.log('[Click] ✗ No point cloud intersection from raycaster');
-                                
-                                // Fallback: try using Potree's pick method if available
-                                if (viewer.scene.pick) {
-                                    const pickResult = viewer.scene.pick(viewer.renderer, viewer.scene.getActiveCamera(), mouse, { 
-                                        pickClipped: false 
-                                    });
-                                    
-                                    if (pickResult && pickResult.position) {
-                                        console.log('[Click] ✓ Point cloud hit via Potree pick!');
-                                        console.log('[Click] Hit position:', pickResult.position);
-                                        applySpatialFilter(pickResult.position);
-                                        pointCloudHit = true;
-                                    }
-                                }
+                                console.log('[Click] ✗ No point cloud intersection');
+                                console.log('[Click] Try clicking directly on visible point cloud points');
                             }
                         } catch (error) {
-                            console.log('[Click] Error during point cloud intersection:', error.message);
-                            console.log('[Click] Try clicking directly on visible point cloud points');
+                            console.error('[Click] Error during Potree pick:', error);
+                            console.log('[Click] Falling back to raycaster...');
+                            
+                            // Fallback to THREE raycaster if Potree pick fails
+                            const raycaster = new THREE.Raycaster();
+                            raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
+                            const pointcloud = viewer.scene.pointclouds[0];
+                            const intersects = raycaster.intersectObject(pointcloud, true);
+                            
+                            if (intersects.length > 0) {
+                                const hitPoint = intersects[0].point;
+                                console.log('[Click] ✓ Hit via raycaster (less accurate):', hitPoint);
+                                applySpatialFilter(hitPoint);
+                                pointCloudHit = true;
+                            }
                         }
                     } else {
                         console.log('[Click] ⚠ No point clouds in scene');
@@ -2938,6 +2943,8 @@
                     if (!pointCloudHit) {
                         console.log('[Click] No point cloud hit, checking camera markers...');
                         
+                        const raycaster = new THREE.Raycaster();
+                        raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
                         const intersects = raycaster.intersectObjects(cameraMarkers, true);
                         console.log(`[Click] Found ${intersects.length} camera marker intersections`);
                         
