@@ -2247,15 +2247,20 @@
             );
             
             const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
-            const pointCam = pointRelative.clone().applyMatrix3(R); // Don't transpose - R is already world-to-camera
+            // Agisoft transform is camera-to-world, so we need transpose to get world-to-camera
+            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
             
             console.log('[Thumbnail] Point in camera space:', pointCam);
+            console.log('[Thumbnail] Point cam Z:', pointCam.z.toFixed(2), '(need Z > 0 for in front)');
             
-            // In Agisoft convention, camera looks down -Z, so points in front have z < 0
-            if (pointCam.z > -0.1) {
-                console.warn('[Thumbnail] Point behind camera (z =', pointCam.z.toFixed(2), '), skipping');
+            // Check which z-direction works - try positive Z = in front
+            const depth = pointCam.z;
+            if (depth < 0.1) {
+                console.warn('[Thumbnail] Point behind or too close (z =', pointCam.z.toFixed(2), '), skipping');
                 return; // Behind camera or too close
             }
+            
+            console.log('[Thumbnail] Point is in front, depth:', depth.toFixed(2));
             
             const imgWidth = imageElement.naturalWidth || imageElement.width || 6000;
             const imgHeight = imageElement.naturalHeight || imageElement.height || 4000;
@@ -2273,14 +2278,16 @@
                 console.log('[Thumbnail] Using FOV-based f:', f_pixels);
             }
             
-            const depth = -pointCam.z;
+            // depth is already set above as pointCam.z
             if (depth <= 0.1) {
                 console.warn('[Thumbnail] Depth too small:', depth);
                 return;
             }
             
-            const x_norm = -pointCam.x / depth;
-            const y_norm = -pointCam.y / depth;
+            // Project: x_screen = f * (x_cam / z_cam)
+            // For Agisoft: if camera looks down +Z, then:
+            const x_norm = pointCam.x / depth;
+            const y_norm = pointCam.y / depth;
             const x_pixel = imgWidth / 2 + f_pixels * x_norm;
             const y_pixel = imgHeight / 2 - f_pixels * y_norm;
             
