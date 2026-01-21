@@ -31,8 +31,10 @@
             left: 0;
         }
         
-        /* Custom Camera Sidebar */
-        #camera_sidebar_container {
+        /* Potree's sidebar will be on the left (default position) */
+        
+        /* Custom camera sidebar on the right */
+        #custom_camera_sidebar {
             position: absolute;
             top: 10px;
             right: 10px;
@@ -47,7 +49,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
         
-        #camera_sidebar_container h2 {
+        #custom_camera_sidebar h2 {
             margin: 0 0 15px 0;
             color: #4CAF50;
             font-size: 1.3em;
@@ -55,26 +57,10 @@
             padding-bottom: 8px;
         }
         
-        #camera_sidebar_container h3 {
+        #custom_camera_sidebar h3 {
             margin: 15px 0 10px 0;
             color: #81C784;
             font-size: 1.1em;
-        }
-        
-        /* Potree Default Sidebar */
-        #potree_sidebar_container {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            width: 300px;
-            max-height: calc(100% - 20px);
-            overflow-y: auto;
-            background: rgba(0, 0, 0, 0.85);
-            border-radius: 8px;
-            padding: 10px;
-            color: white;
-            z-index: 999;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
         
         .control-section {
@@ -1032,7 +1018,11 @@
     <script src="js/cams-xml-parser.js"></script>
 </head>
 <body>
-    <div id="potree_render_area"></div>
+    <!-- Potree container structure -->
+    <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+        <div id="potree_render_area"></div>
+        <div id="potree_sidebar_container"></div>
+    </div>
     
     <div id="loading-overlay">
         <div class="spinner"></div>
@@ -1040,11 +1030,8 @@
         <div id="loading-status" style="margin-top: 10px; font-size: 0.9em; color: #999;"></div>
     </div>
     
-    <!-- Potree default sidebar (left side) -->
-    <div id="potree_sidebar_container"></div>
-    
-    <!-- Custom camera sidebar (right side) -->
-    <div id="camera_sidebar_container">
+    <!-- Custom camera controls sidebar (right side) -->
+    <div id="custom_camera_sidebar">
         <h2>📷 OCC-ASC-003 Camera Viewer</h2>
         
         <div style="background: rgba(76, 175, 80, 0.15); padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
@@ -2260,13 +2247,14 @@
             );
             
             const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
-            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
+            const pointCam = pointRelative.clone().applyMatrix3(R); // Don't transpose - R is already world-to-camera
             
             console.log('[Thumbnail] Point in camera space:', pointCam);
             
-            if (pointCam.z > 0) {
-                console.warn('[Thumbnail] Point behind camera, skipping');
-                return; // Behind camera
+            // In Agisoft convention, camera looks down -Z, so points in front have z < 0
+            if (pointCam.z > -0.1) {
+                console.warn('[Thumbnail] Point behind camera (z =', pointCam.z.toFixed(2), '), skipping');
+                return; // Behind camera or too close
             }
             
             const imgWidth = imageElement.naturalWidth || imageElement.width || 6000;
@@ -3059,9 +3047,186 @@
         
         // ===== GALLERY FUNCTIONS =====
         
-        // Show gallery with nearby cameras (reusing selection gallery)
+        // Global carousel state
+        let carouselCameras = [];
+        let carouselClickPoint = null;
+        let currentCarouselIndex = 0;
+        
+        // Show single-image carousel with navigation
         function showSidebarThumbnailCarousel(nearestCameras, clickPoint) {
-            console.log(`[Gallery] Showing ${nearestCameras.length} cameras in gallery`);
+            console.log(`[Gallery] Showing ${nearestCameras.length} cameras in carousel`);
+            
+            // Store carousel data
+            carouselCameras = nearestCameras;
+            carouselClickPoint = clickPoint;
+            currentCarouselIndex = 0;
+            
+            const gallery = document.getElementById('selection-gallery');
+            const content = document.getElementById('selection-gallery-content');
+            const title = document.getElementById('selection-gallery-title');
+            
+            if (!gallery || !content || !title) {
+                console.warn('[Gallery] Elements not found');
+                return;
+            }
+            
+            // Display first image
+            showCarouselImage(0);
+            
+            // Show gallery
+            gallery.classList.add('visible');
+            gallery.style.display = 'block';
+            
+            console.log(`[Gallery] ✓ Carousel displayed with ${nearestCameras.length} images`);
+        }
+        
+        // Display specific image in carousel
+        function showCarouselImage(index) {
+            if (index < 0 || index >= carouselCameras.length) return;
+            
+            currentCarouselIndex = index;
+            const { camera, distance, score, visible } = carouselCameras[index];
+            
+            const gallery = document.getElementById('selection-gallery');
+            const content = document.getElementById('selection-gallery-content');
+            const title = document.getElementById('selection-gallery-title');
+            
+            if (!gallery || !content || !title) return;
+            
+            // Update title with counter
+            title.textContent = `📷 Image ${index + 1} of ${carouselCameras.length}`;
+            
+            // Clear and rebuild content
+            content.innerHTML = '';
+            content.style.display = 'flex';
+            content.style.flexDirection = 'row';
+            content.style.alignItems = 'center';
+            content.style.justifyContent = 'center';
+            content.style.gap = '20px';
+            content.style.padding = '20px';
+            
+            // Get camera details
+            const cameraIndex = carouselCameras[index].index;
+            const cameraName = camera.name || `Camera_${cameraIndex + 1}`;
+            const imageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+            
+            // Create prev button
+            const prevBtn = document.createElement('button');
+            prevBtn.innerHTML = '◀ Prev';
+            prevBtn.style.width = '100px';
+            prevBtn.style.padding = '12px';
+            prevBtn.style.fontSize = '16px';
+            prevBtn.disabled = index === 0;
+            prevBtn.onclick = () => showCarouselImage(index - 1);
+            
+            // Create image container with overlay
+            const imageContainer = document.createElement('div');
+            imageContainer.style.position = 'relative';
+            imageContainer.style.flex = '1';
+            imageContainer.style.maxWidth = '800px';
+            imageContainer.style.maxHeight = '600px';
+            imageContainer.style.display = 'flex';
+            imageContainer.style.justifyContent = 'center';
+            imageContainer.style.alignItems = 'center';
+            imageContainer.style.background = '#000';
+            imageContainer.style.borderRadius = '8px';
+            imageContainer.style.overflow = 'hidden';
+            
+            // Create image
+            const img = document.createElement('img');
+            img.src = imageURL;
+            img.alt = cameraName;
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '100%';
+            img.style.objectFit = 'contain';
+            img.style.cursor = 'pointer';
+            img.onclick = () => {
+                // Click to view full size
+                selectCamera(cameraIndex);
+                showFullImage(camera, distance, carouselClickPoint);
+            };
+            img.onerror = () => {
+                img.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23333%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2220%22%3EImage Not Available%3C/text%3E%3C/svg%3E';
+            };
+            
+            // Create overlay for marker
+            const overlay = document.createElement('div');
+            overlay.style.position = 'absolute';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.pointerEvents = 'none';
+            overlay.className = 'carousel-marker-overlay';
+            
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(overlay);
+            
+            // Add thumbnail marker when image loads
+            if (carouselClickPoint) {
+                const projectOnImage = () => {
+                    if (img.complete && img.naturalWidth > 0) {
+                        console.log('[Carousel] Projecting point onto image', index + 1);
+                        addThumbnailMarker(carouselClickPoint, camera, img, overlay);
+                    }
+                };
+                img.addEventListener('load', projectOnImage);
+                // Try immediately if cached
+                if (img.complete) projectOnImage();
+            }
+            
+            // Create next button
+            const nextBtn = document.createElement('button');
+            nextBtn.innerHTML = 'Next ▶';
+            nextBtn.style.width = '100px';
+            nextBtn.style.padding = '12px';
+            nextBtn.style.fontSize = '16px';
+            nextBtn.disabled = index === carouselCameras.length - 1;
+            nextBtn.onclick = () => showCarouselImage(index + 1);
+            
+            // Create info section below image
+            const info = document.createElement('div');
+            info.style.position = 'absolute';
+            info.style.bottom = '10px';
+            info.style.left = '50%';
+            info.style.transform = 'translateX(-50%)';
+            info.style.background = 'rgba(0,0,0,0.8)';
+            info.style.color = 'white';
+            info.style.padding = '8px 16px';
+            info.style.borderRadius = '4px';
+            info.style.fontSize = '14px';
+            info.style.pointerEvents = 'none';
+            info.innerHTML = `
+                <strong>${cameraName}</strong><br>
+                Distance: ${distance.toFixed(1)}m
+                ${score !== undefined ? ` • Score: ${(score * 100).toFixed(0)}%` : ''}
+            `;
+            imageContainer.appendChild(info);
+            
+            // Add elements to content
+            content.appendChild(prevBtn);
+            content.appendChild(imageContainer);
+            content.appendChild(nextBtn);
+        }
+        
+        // Close sidebar carousel (reusing selection gallery)
+        function closeSidebarCarousel() {
+            const gallery = document.getElementById('selection-gallery');
+            if (gallery) {
+                gallery.classList.remove('visible');
+                gallery.style.display = 'none';
+                console.log('[Gallery] Carousel closed');
+            }
+            
+            // Reset carousel state
+            carouselCameras = [];
+            carouselClickPoint = null;
+            currentCarouselIndex = 0;
+        }
+        
+        // LEGACY GRID GALLERY CODE (kept for box selection feature)
+        function showGridGallery_LEGACY(nearestCameras, clickPoint) {
+            console.log(`[Gallery] Showing ${nearestCameras.length} cameras in grid gallery`);
             
             const gallery = document.getElementById('selection-gallery');
             const content = document.getElementById('selection-gallery-content');
@@ -3075,8 +3240,12 @@
             // Set title
             title.textContent = `📷 ${nearestCameras.length} Camera${nearestCameras.length > 1 ? 's' : ''} Viewing This Point`;
             
-            // Clear previous content
+            // Clear previous content and reset to grid
             content.innerHTML = '';
+            content.style.display = 'grid';
+            content.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+            content.style.gap = '10px';
+            content.style.padding = '15px';
             
             // Create camera cards
             nearestCameras.forEach(({ camera, index, distance, score, centeredness, visible }, rank) => {
@@ -3180,17 +3349,7 @@
             gallery.classList.add('visible');
             gallery.style.display = 'block';
             
-            console.log(`[Gallery] ✓ Displayed ${nearestCameras.length} cameras in gallery`);
-        }
-        
-        // Close sidebar carousel (reusing selection gallery)
-        function closeSidebarCarousel() {
-            const gallery = document.getElementById('selection-gallery');
-            if (gallery) {
-                gallery.classList.remove('visible');
-                gallery.style.display = 'none';
-                console.log('[Gallery] Gallery closed');
-            }
+            console.log(`[Gallery] ✓ Displayed ${nearestCameras.length} cameras in grid gallery`);
         }
         
         // View selected images in full size
