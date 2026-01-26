@@ -2459,98 +2459,57 @@
         
         /**
          * Add small marker to thumbnail showing where point will appear
-         * SIMPLIFIED: Just use distance-based placement for now
+         * Uses rotation matrix for accurate projection
          */
         function addThumbnailMarker(point3D, camera, imageElement, overlayElement) {
             console.log('[Thumbnail] Adding marker for point:', point3D);
             
-            // Use camera.position array directly (more reliable)
             const camPos = new THREE.Vector3(
                 camera.position[0],
                 camera.position[1],
                 camera.position[2]
             );
             
-            // Check if point is in front of camera using forward vector from quaternion
-            // Agisoft cameras look along +Z axis
-            let forward = new THREE.Vector3(0, 0, 1);
-            if (camera.rotation && camera.rotation.length === 4) {
-                const quat = new THREE.Quaternion(
-                    camera.rotation[0],
-                    camera.rotation[1],
-                    camera.rotation[2],
-                    camera.rotation[3]
-                );
-                forward.applyQuaternion(quat);
-            }
-            
-            // Vector from camera to point
-            const toPoint = new THREE.Vector3().subVectors(point3D, camPos).normalize();
-            const dot = forward.dot(toPoint);
-            
-            console.log('[Thumbnail] Dot product (camera facing point):', dot.toFixed(3));
-            
-            // If dot < 0.1, point is behind or too far to the side
-            if (dot < 0.1) {
-                console.log('[Thumbnail] Point behind camera or outside view, skipping marker');
+            // Get the rotation matrix
+            const R = camera.rotationMatrix;
+            if (!R || R.length !== 9) {
+                console.log('[Thumbnail] No rotation matrix, skipping');
                 return;
             }
             
-            // Simple projection using camera's look direction
-            // Project point onto camera's image plane
-            const distance = camPos.distanceTo(point3D);
+            // Vector from camera to point in world space
+            const relPoint = new THREE.Vector3().subVectors(point3D, camPos);
+            
+            // Transform to camera local space using R^T
+            const xCam = R[0] * relPoint.x + R[3] * relPoint.y + R[6] * relPoint.z;
+            const yCam = R[1] * relPoint.x + R[4] * relPoint.y + R[7] * relPoint.z;
+            const zCam = R[2] * relPoint.x + R[5] * relPoint.y + R[8] * relPoint.z;
+            
+            console.log('[Thumbnail] Point in camera space: z=', zCam.toFixed(2));
+            
+            // Check if point is in front of camera (positive Z in Agisoft)
+            if (zCam <= 0.1) {
+                console.log('[Thumbnail] Point behind camera, skipping');
+                return;
+            }
             
             // Get image dimensions
             const imgWidth = imageElement.naturalWidth || 4000;
             const imgHeight = imageElement.naturalHeight || 3000;
             const displayRect = imageElement.getBoundingClientRect();
             
-            // Build local camera coordinate frame
-            // Agisoft: +Z forward, +X right, -Y up (image Y is down)
-            const right = new THREE.Vector3(1, 0, 0);
-            const up = new THREE.Vector3(0, -1, 0);
-            if (camera.rotation && camera.rotation.length === 4) {
-                const quat = new THREE.Quaternion(
-                    camera.rotation[0],
-                    camera.rotation[1],
-                    camera.rotation[2],
-                    camera.rotation[3]
-                );
-                right.applyQuaternion(quat);
-                up.applyQuaternion(quat);
+            // Get focal length
+            let f_pixels = 5144;
+            if (window.sensorInfo && window.sensorInfo.f) {
+                f_pixels = window.sensorInfo.f;
             }
+            const cx = window.sensorInfo?.cx || 0;
+            const cy = window.sensorInfo?.cy || 0;
             
-            // Project to camera plane
-            const relPoint = new THREE.Vector3().subVectors(point3D, camPos);
-            const projDist = relPoint.dot(forward);
-            if (projDist <= 0.1) {
-                console.log('[Thumbnail] Point too close to camera plane');
-                return;
-            }
+            // Project using pinhole model
+            const x_pixel = f_pixels * (xCam / zCam) + cx + imgWidth / 2;
+            const y_pixel = f_pixels * (yCam / zCam) + cy + imgHeight / 2;
             
-            // Calculate image plane coordinates
-            const xCam = relPoint.dot(right) / projDist;
-            const yCam = relPoint.dot(up) / projDist;
-            
-            // Get FOV for scaling
-            let fov = 60 * Math.PI / 180; // Default
-            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.height) {
-                fov = 2 * Math.atan(window.sensorInfo.height / (2 * window.sensorInfo.f));
-            } else if (camera.fov) {
-                fov = camera.fov;
-            }
-            
-            // Convert to pixel coordinates
-            const halfHeight = Math.tan(fov / 2);
-            const halfWidth = halfHeight * (imgWidth / imgHeight);
-            
-            const xNorm = xCam / halfWidth;  // -1 to 1
-            const yNorm = yCam / halfHeight; // Y already correct with -Y up
-            
-            const x_pixel = imgWidth / 2 * (1 + xNorm);
-            const y_pixel = imgHeight / 2 * (1 + yNorm);
-            
-            console.log('[Thumbnail] Normalized coords:', xNorm.toFixed(3), yNorm.toFixed(3));
             console.log('[Thumbnail] Pixel coords:', x_pixel.toFixed(0), y_pixel.toFixed(0));
             
             // Check if in image bounds (with margin)
@@ -2580,52 +2539,45 @@
         
         /**
          * Project a 3D point cloud point onto a 2D camera image
-         * SIMPLIFIED: Uses quaternion-based projection
+         * Uses rotation matrix directly (more reliable than quaternion)
          */
         function projectPointOntoImage(point3D, camera, imageElement, overlayElement) {
             console.log('[Projection] Projecting point onto image...');
             console.log('[Projection] 3D Point:', point3D);
             console.log('[Projection] Camera:', camera.name);
             
-            // Use camera.position array directly (more reliable)
+            // Get camera position
             const camPos = new THREE.Vector3(
                 camera.position[0],
                 camera.position[1],
                 camera.position[2]
             );
             
-            // Build camera coordinate frame from quaternion
-            // Agisoft cameras look along +Z axis in local space
-            let forward = new THREE.Vector3(0, 0, 1);
-            let right = new THREE.Vector3(1, 0, 0);
-            let up = new THREE.Vector3(0, -1, 0); // Y down in image space
-            
-            if (camera.rotation && camera.rotation.length === 4) {
-                const quat = new THREE.Quaternion(
-                    camera.rotation[0],
-                    camera.rotation[1],
-                    camera.rotation[2],
-                    camera.rotation[3]
-                );
-                forward.applyQuaternion(quat);
-                right.applyQuaternion(quat);
-                up.applyQuaternion(quat);
-            }
-            
-            // Vector from camera to point
-            const relPoint = new THREE.Vector3().subVectors(point3D, camPos);
-            const projDist = relPoint.dot(forward);
-            
-            console.log('[Projection] Distance along view axis:', projDist.toFixed(2));
-            
-            if (projDist <= 0.1) {
-                console.warn('[Projection] Point behind or too close to camera');
+            // Get the rotation matrix (camera-to-world, stored as 9 elements row-major)
+            // rotationMatrix = [R00, R01, R02, R10, R11, R12, R20, R21, R22]
+            const R = camera.rotationMatrix;
+            if (!R || R.length !== 9) {
+                console.warn('[Projection] No rotation matrix available');
                 return;
             }
             
-            // Project to camera plane
-            const xCam = relPoint.dot(right) / projDist;
-            const yCam = relPoint.dot(up) / projDist;
+            // Vector from camera to point in world space
+            const relPoint = new THREE.Vector3().subVectors(point3D, camPos);
+            
+            // Transform to camera local space using R^T (transpose = inverse for rotation)
+            // p_cam = R^T * (p_world - cam_pos)
+            const xCam = R[0] * relPoint.x + R[3] * relPoint.y + R[6] * relPoint.z;
+            const yCam = R[1] * relPoint.x + R[4] * relPoint.y + R[7] * relPoint.z;
+            const zCam = R[2] * relPoint.x + R[5] * relPoint.y + R[8] * relPoint.z;
+            
+            console.log('[Projection] Point in camera space:', xCam.toFixed(2), yCam.toFixed(2), zCam.toFixed(2));
+            
+            // In Agisoft camera space: +Z is forward (looking direction)
+            // Check if point is in front of camera
+            if (zCam <= 0.1) {
+                console.warn('[Projection] Point behind or too close to camera (zCam=' + zCam.toFixed(2) + ')');
+                return;
+            }
             
             // Get image dimensions
             const imgWidth = imageElement.naturalWidth || 4000;
@@ -2633,25 +2585,21 @@
             
             console.log('[Projection] Image dimensions:', imgWidth, 'x', imgHeight);
             
-            // Get FOV for scaling
-            let fov = 60 * Math.PI / 180;
-            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.height) {
-                fov = 2 * Math.atan(window.sensorInfo.height / (2 * window.sensorInfo.f));
-                console.log('[Projection] Using calibrated FOV:', (fov * 180 / Math.PI).toFixed(1), '°');
-            } else if (camera.fov) {
-                fov = camera.fov;
-                console.log('[Projection] Using camera FOV:', (fov * 180 / Math.PI).toFixed(1), '°');
+            // Get focal length in pixels
+            let f_pixels = 5144; // Default from sensor calibration
+            if (window.sensorInfo && window.sensorInfo.f) {
+                f_pixels = window.sensorInfo.f;
+                console.log('[Projection] Using calibrated focal length:', f_pixels.toFixed(1), 'px');
             }
             
-            // Convert to pixel coordinates
-            const halfHeight = Math.tan(fov / 2);
-            const halfWidth = halfHeight * (imgWidth / imgHeight);
+            // Project to image coordinates using pinhole model
+            // x_pixel = f * (xCam / zCam) + cx + width/2
+            // y_pixel = f * (yCam / zCam) + cy + height/2
+            const cx = window.sensorInfo?.cx || 0;
+            const cy = window.sensorInfo?.cy || 0;
             
-            const xNorm = xCam / halfWidth;
-            const yNorm = yCam / halfHeight; // Y already correct with -Y up
-            
-            const x_pixel = imgWidth / 2 * (1 + xNorm);
-            const y_pixel = imgHeight / 2 * (1 + yNorm);
+            const x_pixel = f_pixels * (xCam / zCam) + cx + imgWidth / 2;
+            const y_pixel = f_pixels * (yCam / zCam) + cy + imgHeight / 2;
             
             console.log('[Projection] Pixel coords:', x_pixel.toFixed(0), y_pixel.toFixed(0));
             
@@ -3195,65 +3143,43 @@
             console.log('[Gallery] ✓ Displayed cameras with point overlays');
         }
         
-        // Project point onto thumbnail (smaller version of full projection)
+        // Project point onto thumbnail (uses rotation matrix)
         function projectPointOntoThumbnail(point3D, camera, imageElement, overlayElement) {
-            // Use quaternion-based projection (same as addThumbnailMarker)
             const camPos = new THREE.Vector3(
                 camera.position[0],
                 camera.position[1],
                 camera.position[2]
             );
             
-            // Build camera coordinate frame from quaternion
-            // Agisoft cameras look along +Z axis
-            let forward = new THREE.Vector3(0, 0, 1);
-            let right = new THREE.Vector3(1, 0, 0);
-            let up = new THREE.Vector3(0, -1, 0); // Y down in image space
+            // Get the rotation matrix
+            const R = camera.rotationMatrix;
+            if (!R || R.length !== 9) return;
             
-            if (camera.rotation && camera.rotation.length === 4) {
-                const quat = new THREE.Quaternion(
-                    camera.rotation[0],
-                    camera.rotation[1],
-                    camera.rotation[2],
-                    camera.rotation[3]
-                );
-                forward.applyQuaternion(quat);
-                right.applyQuaternion(quat);
-                up.applyQuaternion(quat);
-            }
-            
-            // Vector from camera to point
+            // Vector from camera to point in world space
             const relPoint = new THREE.Vector3().subVectors(point3D, camPos);
-            const projDist = relPoint.dot(forward);
             
-            if (projDist <= 0.1) return; // Point behind camera
+            // Transform to camera local space using R^T
+            const xCam = R[0] * relPoint.x + R[3] * relPoint.y + R[6] * relPoint.z;
+            const yCam = R[1] * relPoint.x + R[4] * relPoint.y + R[7] * relPoint.z;
+            const zCam = R[2] * relPoint.x + R[5] * relPoint.y + R[8] * relPoint.z;
+            
+            // Check if point is in front of camera
+            if (zCam <= 0.1) return;
             
             // Get dimensions
             const rect = imageElement.getBoundingClientRect();
             const imgWidth = imageElement.naturalWidth || 4000;
             const imgHeight = imageElement.naturalHeight || 3000;
             
-            // Project to camera plane
-            const xCam = relPoint.dot(right) / projDist;
-            const yCam = relPoint.dot(up) / projDist;
+            // Get focal length and principal point
+            let f_pixels = 5144;
+            if (window.sensorInfo && window.sensorInfo.f) f_pixels = window.sensorInfo.f;
+            const cx = window.sensorInfo?.cx || 0;
+            const cy = window.sensorInfo?.cy || 0;
             
-            // Get FOV for scaling
-            let fov = 60 * Math.PI / 180;
-            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.height) {
-                fov = 2 * Math.atan(window.sensorInfo.height / (2 * window.sensorInfo.f));
-            } else if (camera.fov) {
-                fov = camera.fov;
-            }
-            
-            // Convert to pixel coordinates
-            const halfHeight = Math.tan(fov / 2);
-            const halfWidth = halfHeight * (imgWidth / imgHeight);
-            
-            const xNorm = xCam / halfWidth;
-            const yNorm = yCam / halfHeight; // Y already correct with -Y up
-            
-            const x_pixel = imgWidth / 2 * (1 + xNorm);
-            const y_pixel = imgHeight / 2 * (1 + yNorm);
+            // Project using pinhole model
+            const x_pixel = f_pixels * (xCam / zCam) + cx + imgWidth / 2;
+            const y_pixel = f_pixels * (yCam / zCam) + cy + imgHeight / 2;
             
             // Scale to display size
             const scaleX = rect.width / imgWidth;
