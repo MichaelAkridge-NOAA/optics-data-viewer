@@ -3547,12 +3547,13 @@
                 }
             });
             
-            // Click on 3D scene - point picking on left-click
+            // Click on 3D scene - point picking on middle-click
             viewer.renderer.domElement.addEventListener('mousedown', (e) => {
-                // Only handle left-click for point picking
-                if (e.button !== 0) return;
+                // Only handle middle-click for point picking (button 1)
+                if (e.button !== 1) return;
+                e.preventDefault(); // Prevent default middle-click behavior (scroll)
                 
-                console.log('[Click] Left click detected at screen coords:', e.clientX, e.clientY);
+                console.log('[Click] Middle click detected at screen coords:', e.clientX, e.clientY);
                 
                 const rect = viewer.renderer.domElement.getBoundingClientRect();
                 const mouse = {
