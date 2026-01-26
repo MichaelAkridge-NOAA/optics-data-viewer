@@ -1184,8 +1184,8 @@
         <div style="background: rgba(76, 175, 80, 0.15); padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
             <div style="font-weight: bold; color: #4CAF50; margin-bottom: 5px;">✨ How to Use:</div>
             <div style="font-size: 0.85em; line-height: 1.5;">
-                <strong>🖱️ Click:</strong> Pick a point on the point cloud to see nearby camera images.<br>
-                <strong>Ctrl+Click Camera:</strong> Use camera position as pick point.<br>
+                <strong>🖱️ Middle-Click:</strong> Pick a point on the point cloud to see nearby camera images.<br>
+                <strong>Ctrl+Middle-Click Camera:</strong> Use camera position as pick point.<br>
                 <strong>P Key:</strong> Toggle coordinate display.
             </div>
         </div>
@@ -1209,7 +1209,7 @@
             </button>
             
             <div style="font-size: 0.85em; color: #999; margin-bottom: 15px; line-height: 1.4;">
-                Click on point cloud to pick points and see nearby camera images.
+                Middle-click on point cloud to pick points and see nearby camera images.
             </div>
             
             <h3>Camera Visualization</h3>
@@ -1302,7 +1302,7 @@
         <button class="toolbar-btn" onclick="clearPickedPoints()">
             🗑️ Clear Points
         </button>
-        <span style="color: #ccc; font-size: 0.9em;">Click on point cloud to pick • ESC to hide</span>
+        <span style="color: #ccc; font-size: 0.9em;">Middle-click on point cloud to pick • ESC to hide</span>
     </div>
     
     <!-- Point Picking Coordinates Output -->
@@ -1310,7 +1310,7 @@
         <div class="pickpoint-title">📍 Last Picked Point (XYZ)</div>
         <div class="pickpoint-coords" id="pickpoint-coords">[ 0.000 , 0.000 , 0.000 ]</div>
         <div style="color: #999; font-size: 0.85em; margin-top: 8px; text-align: center;">
-            Units: meters • Click again to pick new point
+            Units: meters • Middle-click to pick new point
         </div>
     </div>
     
@@ -2472,7 +2472,8 @@
             );
             
             // Check if point is in front of camera using forward vector from quaternion
-            let forward = new THREE.Vector3(0, 0, -1); // Default camera forward
+            // Agisoft cameras look along +Z axis
+            let forward = new THREE.Vector3(0, 0, 1);
             if (camera.rotation && camera.rotation.length === 4) {
                 const quat = new THREE.Quaternion(
                     camera.rotation[0],
@@ -2505,8 +2506,9 @@
             const displayRect = imageElement.getBoundingClientRect();
             
             // Build local camera coordinate frame
+            // Agisoft: +Z forward, +X right, -Y up (image Y is down)
             const right = new THREE.Vector3(1, 0, 0);
-            const up = new THREE.Vector3(0, 1, 0);
+            const up = new THREE.Vector3(0, -1, 0);
             if (camera.rotation && camera.rotation.length === 4) {
                 const quat = new THREE.Quaternion(
                     camera.rotation[0],
@@ -2543,7 +2545,7 @@
             const halfWidth = halfHeight * (imgWidth / imgHeight);
             
             const xNorm = xCam / halfWidth;  // -1 to 1
-            const yNorm = -yCam / halfHeight; // -1 to 1 (flip Y for screen coords)
+            const yNorm = yCam / halfHeight; // Y already correct with -Y up
             
             const x_pixel = imgWidth / 2 * (1 + xNorm);
             const y_pixel = imgHeight / 2 * (1 + yNorm);
@@ -2593,9 +2595,10 @@
             );
             
             // Build camera coordinate frame from quaternion
-            let forward = new THREE.Vector3(0, 0, -1);
+            // Agisoft cameras look along +Z axis in local space
+            let forward = new THREE.Vector3(0, 0, 1);
             let right = new THREE.Vector3(1, 0, 0);
-            let up = new THREE.Vector3(0, 1, 0);
+            let up = new THREE.Vector3(0, -1, 0); // Y down in image space
             
             if (camera.rotation && camera.rotation.length === 4) {
                 const quat = new THREE.Quaternion(
@@ -2645,7 +2648,7 @@
             const halfWidth = halfHeight * (imgWidth / imgHeight);
             
             const xNorm = xCam / halfWidth;
-            const yNorm = -yCam / halfHeight; // Flip Y
+            const yNorm = yCam / halfHeight; // Y already correct with -Y up
             
             const x_pixel = imgWidth / 2 * (1 + xNorm);
             const y_pixel = imgHeight / 2 * (1 + yNorm);
@@ -3202,9 +3205,10 @@
             );
             
             // Build camera coordinate frame from quaternion
-            let forward = new THREE.Vector3(0, 0, -1);
+            // Agisoft cameras look along +Z axis
+            let forward = new THREE.Vector3(0, 0, 1);
             let right = new THREE.Vector3(1, 0, 0);
-            let up = new THREE.Vector3(0, 1, 0);
+            let up = new THREE.Vector3(0, -1, 0); // Y down in image space
             
             if (camera.rotation && camera.rotation.length === 4) {
                 const quat = new THREE.Quaternion(
@@ -3246,7 +3250,7 @@
             const halfWidth = halfHeight * (imgWidth / imgHeight);
             
             const xNorm = xCam / halfWidth;
-            const yNorm = -yCam / halfHeight; // Flip Y
+            const yNorm = yCam / halfHeight; // Y already correct with -Y up
             
             const x_pixel = imgWidth / 2 * (1 + xNorm);
             const y_pixel = imgHeight / 2 * (1 + yNorm);
