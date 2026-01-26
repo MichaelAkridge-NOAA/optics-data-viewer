@@ -1203,10 +1203,10 @@
         <div style="background: rgba(76, 175, 80, 0.15); padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
             <div style="font-weight: bold; color: #4CAF50; margin-bottom: 5px;">✨ How to Use:</div>
             <div style="font-size: 0.85em; line-height: 1.5;">
-                <strong>🎯 Point Picking Mode (Press P):</strong> Pick points on the point cloud to see which cameras view them.<br>
-                <strong>Click</strong> on the point cloud to find nearby cameras.<br>
-                <strong>Ctrl+Click</strong> on a camera to use its position as query.<br>
-                <strong>ESC</strong> to exit point picking mode.
+                <strong>🖱️ Middle-Click:</strong> Pick precise points to see which cameras view them (with projection overlay).<br>
+                <strong>Left-Click:</strong> Find nearby cameras viewing a point cloud area.<br>
+                <strong>Ctrl+Click:</strong> on a camera to use its position as query.<br>
+                <strong>P Key:</strong> Toggle enhanced point picking toolbar.
             </div>
         </div>
         
@@ -1225,11 +1225,11 @@
             <h3>🎯 Point Analysis</h3>
             
             <button onclick="togglePickpointMode()" style="background: #FF9800; margin-bottom: 10px;">
-                🎯 Point Picking Mode (P)
+                🎯 Enhanced Picking Toolbar (P)
             </button>
             
             <div style="font-size: 0.85em; color: #999; margin-bottom: 15px; line-height: 1.4;">
-                Activate to pick specific points and see which cameras view them with accurate projections.
+                Show toolbar with coordinate display. Or just middle-click anytime to pick points!
             </div>
             
             <h3>Camera Visualization</h3>
@@ -1322,7 +1322,7 @@
         <button class="toolbar-btn" onclick="clearPickedPoints()">
             🗑️ Clear Points
         </button>
-        <span style="color: #ccc; font-size: 0.9em;">Click on point cloud to pick points • ESC to exit</span>
+        <span style="color: #ccc; font-size: 0.9em;">Middle-click on point cloud to pick • ESC to hide toolbar</span>
     </div>
     
     <!-- Point Picking Coordinates Output -->
@@ -2991,9 +2991,9 @@
                 renderArea.classList.add('pickpoint-mode-active');
                 if (toggleBtn) {
                     toggleBtn.classList.add('active');
-                    toggleBtn.innerHTML = '\ud83c\udfaf Pick Point Mode: ON';
+                    toggleBtn.innerHTML = '🎯 Toolbar: VISIBLE';
                 }
-                console.log('[Point Picking] Mode activated - click on point cloud to pick points');
+                console.log('[Point Picking] Toolbar shown - middle-click on point cloud to pick points');
             } else {
                 // Deactivate pick mode
                 toolbar.classList.remove('visible');
@@ -3001,23 +3001,21 @@
                 renderArea.classList.remove('pickpoint-mode-active');
                 if (toggleBtn) {
                     toggleBtn.classList.remove('active');
-                    toggleBtn.innerHTML = '\ud83c\udfaf Pick Point Mode: OFF';
+                    toggleBtn.innerHTML = '🎯 Toolbar: HIDDEN';
                 }
-                console.log('[Point Picking] Mode deactivated');
+                console.log('[Point Picking] Toolbar hidden');
             }
         }
         
-        // Handle picked point
+        // Handle picked point (middle-click - works anytime)
         function onPointPicked(point) {
-            if (!pickpointModeActive) return;
-            
             console.log('[Point Picking] Point picked:', point);
             
             // Store picked point
             lastPickedPoint = point.clone();
             pickedPoints.push(lastPickedPoint);
             
-            // Update coordinate display
+            // Update coordinate display if toolbar is visible
             const coordsEl = document.getElementById('pickpoint-coords');
             if (coordsEl) {
                 const x = point.x.toFixed(3);
@@ -3104,32 +3102,47 @@
                 return { visible: false, distance: distance };
             }
             
-            // Get intrinsics
-            let f_pixels, imgWidth = 4000, imgHeight = 3000; // Defaults
+            // Use angular field of view check instead of pixel-based
+            // This is more reliable for determining if point is in camera's view cone
             
+            // Calculate angle from camera's optical axis
+            const angleX = Math.atan2(Math.abs(pointCam.x), depth);
+            const angleY = Math.atan2(Math.abs(pointCam.y), depth);
+            
+            // Get camera's FOV (convert to radians if needed)
+            let fovRad;
             if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.width && window.sensorInfo.height) {
+                // Calculate FOV from sensor dimensions
+                const hFov = 2 * Math.atan(window.sensorInfo.width / (2 * window.sensorInfo.f));
+                const vFov = 2 * Math.atan(window.sensorInfo.height / (2 * window.sensorInfo.f));
+                // Use the larger FOV for safety
+                fovRad = Math.max(hFov, vFov);
+            } else if (camera.fov) {
+                fovRad = camera.fov; // Already in radians
+            } else {
+                fovRad = 60 * Math.PI / 180; // Default 60 degrees
+            }
+            
+            // Check if point is within FOV cone (with generous margin)
+            const margin = 0.3; // 30% margin
+            const halfFov = (fovRad / 2) * (1 + margin);
+            const inBounds = angleX <= halfFov && angleY <= halfFov;
+            
+            // Also calculate pixel position for return value
+            let imgWidth = 4000, imgHeight = 3000;
+            let f_pixels;
+            if (window.sensorInfo && window.sensorInfo.f) {
                 f_pixels = window.sensorInfo.f;
                 imgWidth = window.sensorInfo.width;
                 imgHeight = window.sensorInfo.height;
-            } else if (camera.fov) {
-                const fovRad = camera.fov;
-                f_pixels = (imgHeight / 2) / Math.tan(fovRad / 2);
             } else {
-                return { visible: false, distance: distance };
+                f_pixels = (imgHeight / 2) / Math.tan(fovRad / 2);
             }
             
-            // Project to normalized coordinates
             const x_norm = -pointCam.x / depth;
             const y_norm = -pointCam.y / depth;
-            
-            // Convert to pixels (simplified, without distortion for quick check)
             const x_pixel = imgWidth / 2 + f_pixels * x_norm;
             const y_pixel = imgHeight / 2 - f_pixels * y_norm;
-            
-            // Check if within bounds (with small margin)
-            const margin = 50;
-            const inBounds = x_pixel >= -margin && x_pixel <= imgWidth + margin &&
-                           y_pixel >= -margin && y_pixel <= imgHeight + margin;
             
             return {
                 visible: inBounds,
@@ -3608,8 +3621,17 @@
             
             // Click on 3D scene - prioritize point cloud, then cameras
             viewer.renderer.domElement.addEventListener('mousedown', (e) => {
-                if (e.button === 0) { // Left click
-                    console.log('[Click] Left click detected at screen coords:', e.clientX, e.clientY);
+                // Middle-click for point picking, left-click for spatial filter
+                const isPickMode = (e.button === 1); // Middle mouse button
+                const isLeftClick = (e.button === 0); // Left mouse button
+                
+                // Prevent default middle-click behavior (scrolling)
+                if (isPickMode) {
+                    e.preventDefault();
+                }
+                
+                if (isLeftClick || isPickMode) {
+                    console.log(`[Click] ${isPickMode ? 'Middle' : 'Left'} click detected at screen coords:`, e.clientX, e.clientY);
                     
                     const rect = viewer.renderer.domElement.getBoundingClientRect();
                     const mouse = {
@@ -3653,11 +3675,12 @@
                                 if (pickResult.normal) console.log('[Click] Point normal:', pickResult.normal);
                                 if (pickResult.color) console.log('[Click] Point color:', pickResult.color);
                                 
-                                // Check if in point picking mode
-                                if (pickpointModeActive) {
+                                // Middle-click for precise point picking, left-click for spatial filter
+                                if (isPickMode) {
+                                    console.log('[Click] Middle-click: Point picking mode');
                                     onPointPicked(hitPoint);
                                 } else {
-                                    // Apply spatial filter with exact point
+                                    console.log('[Click] Left-click: Spatial filter mode');
                                     applySpatialFilter(hitPoint);
                                 }
                                 pointCloudHit = true;
@@ -3685,10 +3708,12 @@
                                 console.log('[Click] ✓ Hit via raycaster:', hitPoint);
                                 console.log('[Click] Distance to hit:', intersects[0].distance.toFixed(2), 'm');
                                 
-                                // Check if in point picking mode
-                                if (pickpointModeActive) {
+                                // Middle-click for precise point picking, left-click for spatial filter
+                                if (isPickMode) {
+                                    console.log('[Click] Middle-click: Point picking mode');
                                     onPointPicked(hitPoint);
                                 } else {
+                                    console.log('[Click] Left-click: Spatial filter mode');
                                     applySpatialFilter(hitPoint);
                                 }
                                 pointCloudHit = true;
@@ -3701,8 +3726,8 @@
                         console.log('[Click] ⚠ No point clouds in scene');
                     }
                     
-                    // If no point cloud hit, check for camera markers (only if not in pickpoint mode)
-                    if (!pointCloudHit && !pickpointModeActive) {
+                    // If no point cloud hit and left-click, check for camera markers
+                    if (!pointCloudHit && !isPickMode) {
                         console.log('[Click] No point cloud hit, checking camera markers...');
                         
                         const raycaster = new THREE.Raycaster();
