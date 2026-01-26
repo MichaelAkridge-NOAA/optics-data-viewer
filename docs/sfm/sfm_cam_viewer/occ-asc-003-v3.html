@@ -1203,10 +1203,9 @@
         <div style="background: rgba(76, 175, 80, 0.15); padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
             <div style="font-weight: bold; color: #4CAF50; margin-bottom: 5px;">✨ How to Use:</div>
             <div style="font-size: 0.85em; line-height: 1.5;">
-                <strong>🖱️ Middle-Click:</strong> Pick precise points to see which cameras view them (with projection overlay).<br>
-                <strong>Left-Click:</strong> Find nearby cameras viewing a point cloud area.<br>
-                <strong>Ctrl+Click:</strong> on a camera to use its position as query.<br>
-                <strong>P Key:</strong> Toggle enhanced point picking toolbar.
+                <strong>🖱️ Click:</strong> Pick a point on the point cloud to see nearby camera images.<br>
+                <strong>Ctrl+Click Camera:</strong> Use camera position as pick point.<br>
+                <strong>P Key:</strong> Toggle coordinate display.
             </div>
         </div>
         
@@ -1225,11 +1224,11 @@
             <h3>🎯 Point Analysis</h3>
             
             <button onclick="togglePickpointMode()" style="background: #FF9800; margin-bottom: 10px;">
-                🎯 Enhanced Picking Toolbar (P)
+                🎯 Show Coordinate Display (P)
             </button>
             
             <div style="font-size: 0.85em; color: #999; margin-bottom: 15px; line-height: 1.4;">
-                Show toolbar with coordinate display. Or just middle-click anytime to pick points!
+                Click on point cloud to pick points and see nearby camera images.
             </div>
             
             <h3>Camera Visualization</h3>
@@ -1322,7 +1321,7 @@
         <button class="toolbar-btn" onclick="clearPickedPoints()">
             🗑️ Clear Points
         </button>
-        <span style="color: #ccc; font-size: 0.9em;">Middle-click on point cloud to pick • ESC to hide toolbar</span>
+        <span style="color: #ccc; font-size: 0.9em;">Click on point cloud to pick • ESC to hide</span>
     </div>
     
     <!-- Point Picking Coordinates Output -->
@@ -2479,77 +2478,220 @@
         
         /**
          * Add small marker to thumbnail showing where point will appear
+         * SIMPLIFIED: Just use distance-based placement for now
          */
         function addThumbnailMarker(point3D, camera, imageElement, overlayElement) {
-            console.log('[Thumbnail] Starting thumbnail marker projection...');
+            console.log('[Thumbnail] Adding marker for point:', point3D);
             
-            // Quick projection without distortion for thumbnails (performance)
-            const transform = camera.transform;
-            if (!transform || transform.length !== 16) {
-                console.warn('[Thumbnail] Invalid transform, skipping');
-                return;
-            }
-            
-            const camPos = new THREE.Vector3(transform[3], transform[7], transform[11]);
-            const R = new THREE.Matrix3();
-            R.set(
-                transform[0], transform[1], transform[2],
-                transform[4], transform[5], transform[6],
-                transform[8], transform[9], transform[10]
+            // Use camera.position array directly (more reliable)
+            const camPos = new THREE.Vector3(
+                camera.position[0],
+                camera.position[1],
+                camera.position[2]
             );
             
-            const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
-            // Agisoft transform is camera-to-world, so we need transpose to get world-to-camera
-            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
-            
-            console.log('[Thumbnail] Point in camera space:', pointCam);
-            console.log('[Thumbnail] Point cam Z:', pointCam.z.toFixed(2), '(cameras look down -Z, need Z < 0 for in front)');
-            
-            // Agisoft/OpenGL convention: camera looks down -Z axis, so points in front have NEGATIVE Z
-            if (pointCam.z > -0.1) {
-                console.warn('[Thumbnail] Point behind or too close (z =', pointCam.z.toFixed(2), '), skipping');
-                return; // Behind camera or too close
+            // Check if point is in front of camera using forward vector from quaternion
+            let forward = new THREE.Vector3(0, 0, -1); // Default camera forward
+            if (camera.rotation && camera.rotation.length === 4) {
+                const quat = new THREE.Quaternion(
+                    camera.rotation[0],
+                    camera.rotation[1],
+                    camera.rotation[2],
+                    camera.rotation[3]
+                );
+                forward.applyQuaternion(quat);
             }
             
-            const depth = -pointCam.z; // Convert negative Z to positive depth
-            console.log('[Thumbnail] Point is in front, depth:', depth.toFixed(2));
+            // Vector from camera to point
+            const toPoint = new THREE.Vector3().subVectors(point3D, camPos).normalize();
+            const dot = forward.dot(toPoint);
             
-            const imgWidth = imageElement.naturalWidth || imageElement.width || 6000;
-            const imgHeight = imageElement.naturalHeight || imageElement.height || 4000;
+            console.log('[Thumbnail] Dot product (camera facing point):', dot.toFixed(3));
             
-            console.log('[Thumbnail] Image dimensions:', imgWidth, 'x', imgHeight);
-            
-            // Use calibrated or FOV-based
-            let f_pixels;
-            if (window.sensorInfo && window.sensorInfo.f) {
-                f_pixels = window.sensorInfo.f;
-                console.log('[Thumbnail] Using calibrated f:', f_pixels);
-            } else {
-                const fovRad = camera.fov || (60 * Math.PI / 180); // Already in radians
-                f_pixels = (imgHeight / 2) / Math.tan(fovRad / 2);
-                console.log('[Thumbnail] Using FOV-based f:', f_pixels);
-            }
-            
-            // depth is already set above as pointCam.z
-            if (depth <= 0.1) {
-                console.warn('[Thumbnail] Depth too small:', depth);
+            // If dot < 0.1, point is behind or too far to the side
+            if (dot < 0.1) {
+                console.log('[Thumbnail] Point behind camera or outside view, skipping marker');
                 return;
             }
             
-            // Project: x_screen = f * (x_cam / z_cam)
-            // Agisoft/OpenGL: camera looks down -Z, so use negative signs
-            const x_norm = -pointCam.x / depth;
-            const y_norm = -pointCam.y / depth;
-            const x_pixel = imgWidth / 2 + f_pixels * x_norm;
-            const y_pixel = imgHeight / 2 - f_pixels * y_norm;
+            // Simple projection using camera's look direction
+            // Project point onto camera's image plane
+            const distance = camPos.distanceTo(point3D);
             
-            console.log('[Thumbnail] Pixel coords on original:', x_pixel.toFixed(1), y_pixel.toFixed(1));
+            // Get image dimensions
+            const imgWidth = imageElement.naturalWidth || 4000;
+            const imgHeight = imageElement.naturalHeight || 3000;
+            const displayRect = imageElement.getBoundingClientRect();
             
-            // Check if in bounds
-            if (x_pixel < -50 || x_pixel > imgWidth + 50 || y_pixel < -50 || y_pixel > imgHeight + 50) {
-                console.warn('[Thumbnail] Point outside image bounds');
-                return; // Too far outside
+            // Build local camera coordinate frame
+            const right = new THREE.Vector3(1, 0, 0);
+            const up = new THREE.Vector3(0, 1, 0);
+            if (camera.rotation && camera.rotation.length === 4) {
+                const quat = new THREE.Quaternion(
+                    camera.rotation[0],
+                    camera.rotation[1],
+                    camera.rotation[2],
+                    camera.rotation[3]
+                );
+                right.applyQuaternion(quat);
+                up.applyQuaternion(quat);
             }
+            
+            // Project to camera plane
+            const relPoint = new THREE.Vector3().subVectors(point3D, camPos);
+            const projDist = relPoint.dot(forward);
+            if (projDist <= 0.1) {
+                console.log('[Thumbnail] Point too close to camera plane');
+                return;
+            }
+            
+            // Calculate image plane coordinates
+            const xCam = relPoint.dot(right) / projDist;
+            const yCam = relPoint.dot(up) / projDist;
+            
+            // Get FOV for scaling
+            let fov = 60 * Math.PI / 180; // Default
+            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.height) {
+                fov = 2 * Math.atan(window.sensorInfo.height / (2 * window.sensorInfo.f));
+            } else if (camera.fov) {
+                fov = camera.fov;
+            }
+            
+            // Convert to pixel coordinates
+            const halfHeight = Math.tan(fov / 2);
+            const halfWidth = halfHeight * (imgWidth / imgHeight);
+            
+            const xNorm = xCam / halfWidth;  // -1 to 1
+            const yNorm = -yCam / halfHeight; // -1 to 1 (flip Y for screen coords)
+            
+            const x_pixel = imgWidth / 2 * (1 + xNorm);
+            const y_pixel = imgHeight / 2 * (1 + yNorm);
+            
+            console.log('[Thumbnail] Normalized coords:', xNorm.toFixed(3), yNorm.toFixed(3));
+            console.log('[Thumbnail] Pixel coords:', x_pixel.toFixed(0), y_pixel.toFixed(0));
+            
+            // Check if in image bounds (with margin)
+            const margin = 100;
+            if (x_pixel < -margin || x_pixel > imgWidth + margin || 
+                y_pixel < -margin || y_pixel > imgHeight + margin) {
+                console.log('[Thumbnail] Point outside image bounds');
+                return;
+            }
+            
+            // Scale to display size
+            const scaleX = displayRect.width / imgWidth;
+            const scaleY = displayRect.height / imgHeight;
+            const displayX = x_pixel * scaleX;
+            const displayY = y_pixel * scaleY;
+            
+            // Create marker
+            const marker = document.createElement('div');
+            marker.className = 'thumbnail-laser-marker';
+            marker.style.left = displayX + 'px';
+            marker.style.top = displayY + 'px';
+            marker.title = `Point at (${Math.round(x_pixel)}, ${Math.round(y_pixel)})`;
+            overlayElement.appendChild(marker);
+            
+            console.log('[Thumbnail] ✓ Marker added at display coords:', displayX.toFixed(0), displayY.toFixed(0));
+        }
+        
+        /**
+         * Project a 3D point cloud point onto a 2D camera image
+         * SIMPLIFIED: Uses quaternion-based projection
+         */
+        function projectPointOntoImage(point3D, camera, imageElement, overlayElement) {
+            console.log('[Projection] Projecting point onto image...');
+            console.log('[Projection] 3D Point:', point3D);
+            console.log('[Projection] Camera:', camera.name);
+            
+            // Use camera.position array directly (more reliable)
+            const camPos = new THREE.Vector3(
+                camera.position[0],
+                camera.position[1],
+                camera.position[2]
+            );
+            
+            // Build camera coordinate frame from quaternion
+            let forward = new THREE.Vector3(0, 0, -1);
+            let right = new THREE.Vector3(1, 0, 0);
+            let up = new THREE.Vector3(0, 1, 0);
+            
+            if (camera.rotation && camera.rotation.length === 4) {
+                const quat = new THREE.Quaternion(
+                    camera.rotation[0],
+                    camera.rotation[1],
+                    camera.rotation[2],
+                    camera.rotation[3]
+                );
+                forward.applyQuaternion(quat);
+                right.applyQuaternion(quat);
+                up.applyQuaternion(quat);
+            }
+            
+            // Vector from camera to point
+            const relPoint = new THREE.Vector3().subVectors(point3D, camPos);
+            const projDist = relPoint.dot(forward);
+            
+            console.log('[Projection] Distance along view axis:', projDist.toFixed(2));
+            
+            if (projDist <= 0.1) {
+                console.warn('[Projection] Point behind or too close to camera');
+                return;
+            }
+            
+            // Project to camera plane
+            const xCam = relPoint.dot(right) / projDist;
+            const yCam = relPoint.dot(up) / projDist;
+            
+            // Get image dimensions
+            const imgWidth = imageElement.naturalWidth || 4000;
+            const imgHeight = imageElement.naturalHeight || 3000;
+            
+            console.log('[Projection] Image dimensions:', imgWidth, 'x', imgHeight);
+            
+            // Get FOV for scaling
+            let fov = 60 * Math.PI / 180;
+            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.height) {
+                fov = 2 * Math.atan(window.sensorInfo.height / (2 * window.sensorInfo.f));
+                console.log('[Projection] Using calibrated FOV:', (fov * 180 / Math.PI).toFixed(1), '°');
+            } else if (camera.fov) {
+                fov = camera.fov;
+                console.log('[Projection] Using camera FOV:', (fov * 180 / Math.PI).toFixed(1), '°');
+            }
+            
+            // Convert to pixel coordinates
+            const halfHeight = Math.tan(fov / 2);
+            const halfWidth = halfHeight * (imgWidth / imgHeight);
+            
+            const xNorm = xCam / halfWidth;
+            const yNorm = -yCam / halfHeight; // Flip Y
+            
+            const x_pixel = imgWidth / 2 * (1 + xNorm);
+            const y_pixel = imgHeight / 2 * (1 + yNorm);
+            
+            console.log('[Projection] Pixel coords:', x_pixel.toFixed(0), y_pixel.toFixed(0));
+            
+            // Check bounds (with margin for display)
+            const margin = 100;
+            const isVisible = x_pixel >= -margin && x_pixel <= imgWidth + margin &&
+                            y_pixel >= -margin && y_pixel <= imgHeight + margin;
+            
+            // Position overlay to match image
+            const updateOverlayPosition = () => {
+                const rect = imageElement.getBoundingClientRect();
+                const container = imageElement.parentElement;
+                const containerRect = container.getBoundingClientRect();
+                
+                const offsetLeft = (containerRect.width - rect.width) / 2;
+                const offsetTop = (containerRect.height - rect.height) / 2;
+                
+                overlayElement.style.width = rect.width + 'px';
+                overlayElement.style.height = rect.height + 'px';
+                overlayElement.style.left = Math.max(0, offsetLeft) + 'px';
+                overlayElement.style.top = Math.max(0, offsetTop) + 'px';
+            };
+            
+            updateOverlayPosition();
             
             // Scale to display size
             const rect = imageElement.getBoundingClientRect();
@@ -2558,219 +2700,22 @@
             const displayX = x_pixel * scaleX;
             const displayY = y_pixel * scaleY;
             
-            console.log('[Thumbnail] Display position:', displayX.toFixed(1), displayY.toFixed(1), 'Scale:', scaleX.toFixed(3));
-            
-            // Create mini marker
-            const marker = document.createElement('div');
-            marker.className = 'thumbnail-laser-marker';
-            marker.style.left = displayX + 'px';
-            marker.style.top = displayY + 'px';
-            marker.title = `Click point at (${Math.round(x_pixel)}, ${Math.round(y_pixel)})`;
-            overlayElement.appendChild(marker);
-            
-            console.log('[Thumbnail] ✓ Marker added to overlay, children:', overlayElement.children.length);
-        }
-        
-        /**
-         * Project a 3D point cloud point onto a 2D camera image
-         * This shows where the clicked point appears in the photo
-         * Uses calibrated camera intrinsics and distortion parameters for accuracy
-         */
-        function projectPointOntoImage(point3D, camera, imageElement, overlayElement) {
-            console.log('[Projection] Projecting point onto image...');
-            console.log('[Projection] 3D Point:', point3D);
-            console.log('[Projection] Camera:', camera.name);
-            
-            // Get camera transform matrix (4x4 row-major from Agisoft)
-            const transform = camera.transform;
-            if (!transform || transform.length !== 16) {
-                console.warn('[Projection] Invalid camera transform matrix');
-                return;
-            }
-            
-            // Extract camera position (translation part of transform matrix)
-            const camPos = new THREE.Vector3(
-                transform[3],
-                transform[7],
-                transform[11]
-            );
-            
-            // Extract rotation matrix (3x3 from the 4x4)
-            const R = new THREE.Matrix3();
-            R.set(
-                transform[0], transform[1], transform[2],
-                transform[4], transform[5], transform[6],
-                transform[8], transform[9], transform[10]
-            );
-            
-            // Convert point to camera space
-            // First translate to camera origin
-            const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
-            
-            // Apply rotation (transform to camera's local coordinate system)
-            // Note: Agisoft cameras look down -Z axis
-            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
-            
-            console.log('[Projection] Point in camera space:', pointCam);
-            
-            // Check if point is in front of camera (negative Z in camera space for Agisoft)
-            if (pointCam.z > 0) {
-                console.warn('[Projection] Point is behind camera');
-                // Still show it, but with a warning indicator
-            }
-            
-            // Calculate image dimensions
-            const imgWidth = imageElement.naturalWidth || imageElement.width;
-            const imgHeight = imageElement.naturalHeight || imageElement.height;
-            
-            if (imgWidth === 0 || imgHeight === 0) {
-                console.warn('[Projection] Image dimensions not available yet');
-                return;
-            }
-            
-            // Use calibrated intrinsics if available from sensor data
-            let f_pixels, cx_pixels, cy_pixels;
-            let useCalibrated = false;
-            
-            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.width && window.sensorInfo.height) {
-                // Sensor info available - use calibrated parameters
-                const sensor = window.sensorInfo;
-                
-                // Focal length in pixels (f from XML is in pixels already)
-                f_pixels = sensor.f;
-                
-                // Principal point offsets (cx, cy are in pixels, relative to center)
-                cx_pixels = sensor.cx || 0;
-                cy_pixels = sensor.cy || 0;
-                
-                console.log('[Projection] Using calibrated intrinsics:');
-                console.log(`  Focal length: ${f_pixels.toFixed(2)} pixels`);
-                console.log(`  Principal point: (${cx_pixels.toFixed(2)}, ${cy_pixels.toFixed(2)}) pixels`);
-                
-                useCalibrated = true;
-            } else {
-                // Fallback to FOV-based calculation
-                // camera.fov is already in radians
-                const fovRad = camera.fov || (60 * Math.PI / 180);
-                const fovDeg = fovRad * 180 / Math.PI;
-                f_pixels = (imgHeight / 2) / Math.tan(fovRad / 2);
-                cx_pixels = 0;
-                cy_pixels = 0;
-                
-                console.log('[Projection] Using FOV-based intrinsics (fallback):');
-                console.log(`  FOV: ${fovDeg.toFixed(1)}°, Focal length: ${f_pixels.toFixed(2)} pixels`);
-            }
-            
-            // Project to image plane (negate Z for Agisoft convention)
-            const depth = -pointCam.z;
-            if (depth <= 0.1) {
-                console.warn('[Projection] Point too close or behind camera');
-                return;
-            }
-            
-            // Normalized coordinates (undistorted)
-            const x_norm = -pointCam.x / depth;
-            const y_norm = -pointCam.y / depth;
-            
-            console.log('[Projection] Normalized coords:', x_norm.toFixed(4), y_norm.toFixed(4));
-            
-            // Apply lens distortion if calibrated parameters are available
-            let x_distorted = x_norm;
-            let y_distorted = y_norm;
-            
-            if (useCalibrated && window.sensorInfo) {
-                const k1 = window.sensorInfo.k1 || 0;
-                const k2 = window.sensorInfo.k2 || 0;
-                const k3 = window.sensorInfo.k3 || 0;
-                const p1 = window.sensorInfo.p1 || 0;
-                const p2 = window.sensorInfo.p2 || 0;
-                
-                // Apply distortion model (Brown-Conrady model used by Agisoft)
-                const r2 = x_norm * x_norm + y_norm * y_norm;
-                const r4 = r2 * r2;
-                const r6 = r2 * r4;
-                
-                // Radial distortion
-                const radial = 1 + k1 * r2 + k2 * r4 + k3 * r6;
-                
-                // Tangential distortion
-                const dx_tangential = 2 * p1 * x_norm * y_norm + p2 * (r2 + 2 * x_norm * x_norm);
-                const dy_tangential = p1 * (r2 + 2 * y_norm * y_norm) + 2 * p2 * x_norm * y_norm;
-                
-                x_distorted = x_norm * radial + dx_tangential;
-                y_distorted = y_norm * radial + dy_tangential;
-                
-                const hasDistortion = Math.abs(k1) > 1e-6 || Math.abs(k2) > 1e-6 || Math.abs(p1) > 1e-6 || Math.abs(p2) > 1e-6;
-                if (hasDistortion) {
-                    console.log('[Projection] Applied lens distortion correction');
-                    console.log(`  Distortion params: k1=${k1.toExponential(3)}, k2=${k2.toExponential(3)}, p1=${p1.toExponential(3)}, p2=${p2.toExponential(3)}`);
-                }
-            }
-            
-            // Convert to pixel coordinates
-            // x_pixel = f * x_distorted + cx + image_center_x
-            // y_pixel = f * y_distorted + cy + image_center_y
-            const x_pixel = imgWidth / 2 + f_pixels * x_distorted + cx_pixels;
-            const y_pixel = imgHeight / 2 - (f_pixels * y_distorted + cy_pixels); // Flip Y for screen coords
-            
-            console.log('[Projection] Projected pixel coords:', x_pixel.toFixed(1), y_pixel.toFixed(1));
-            
-            // Check if point is within image bounds (with some margin for display)
-            const margin = 100; // Show marker even slightly outside
-            const isVisible = x_pixel >= -margin && x_pixel <= imgWidth + margin &&
-                            y_pixel >= -margin && y_pixel <= imgHeight + margin;
-            
-            if (!isVisible) {
-                console.warn('[Projection] Point projects outside image bounds');
-                // Still show it with an indicator
-            }
-            
-            // Position overlay to match image dimensions
-            const updateOverlayPosition = () => {
-                const rect = imageElement.getBoundingClientRect();
-                const container = imageElement.parentElement;
-                const containerRect = container.getBoundingClientRect();
-                
-                // Calculate image position within container
-                const offsetLeft = (containerRect.width - rect.width) / 2;
-                const offsetTop = (containerRect.height - rect.height) / 2;
-                
-                overlayElement.style.width = rect.width + 'px';
-                overlayElement.style.height = rect.height + 'px';
-                overlayElement.style.left = offsetLeft + 'px';
-                overlayElement.style.top = offsetTop + 'px';
-                
-                console.log('[Overlay] Positioned at:', offsetLeft, offsetTop, 'Size:', rect.width, rect.height);
-            };
-            
-            updateOverlayPosition();
-            
-            // Create marker at projected location
+            // Create marker
             const marker = document.createElement('div');
             marker.className = 'intercept-marker';
             
-            // Add coordinate label
             const label = document.createElement('div');
             label.className = 'intercept-label';
-            const coordText = `(${Math.round(x_pixel)}, ${Math.round(y_pixel)}) px`;
             label.innerHTML = `
-                <div style="font-weight: bold; margin-bottom: 2px;">${isVisible ? '🎯 Click Point' : '⚠ Click Point (outside view)'}</div>
-                <div style="font-size: 0.85em; opacity: 0.9;">${coordText}</div>
+                <div style="font-weight: bold; margin-bottom: 2px;">${isVisible ? '🎯 Picked Point' : '⚠ Outside view'}</div>
+                <div style="font-size: 0.85em;">(${Math.round(x_pixel)}, ${Math.round(y_pixel)}) px</div>
             `;
             marker.appendChild(label);
-            
-            // Position marker relative to overlay (which matches image size)
-            // Calculate percentage position
-            const scaleX = 1.0;  // Overlay is already sized to match image
-            const scaleY = 1.0;
-            
-            const displayX = x_pixel * scaleX;
-            const displayY = y_pixel * scaleY;
             
             marker.style.left = displayX + 'px';
             marker.style.top = displayY + 'px';
             
-            // Add crosshairs if point is visible in image
+            // Add crosshairs
             if (isVisible) {
                 const crosshair = document.createElement('div');
                 crosshair.className = 'intercept-crosshair';
@@ -2781,18 +2726,9 @@
             
             overlayElement.appendChild(marker);
             
-            console.log('[Projection] ✓ Marker placed at overlay coords:', displayX.toFixed(1), displayY.toFixed(1));
-            console.log('[Projection] Marker visibility check - isVisible:', isVisible, 'x_pixel:', x_pixel.toFixed(1), 'y_pixel:', y_pixel.toFixed(1));
+            console.log('[Projection] ✓ Marker placed at display coords:', displayX.toFixed(0), displayY.toFixed(0));
             
-            // Update marker position on window resize or image size change
-            const updateMarkerPosition = () => {
-                updateOverlayPosition();
-                // Markers are positioned relative to overlay, so they move with it
-                console.log('[Projection] Overlay position updated');
-            };
-            
-            // Store update function for resize events
-            imageElement._updateMarker = updateMarkerPosition;
+            imageElement._updateMarker = updateOverlayPosition;
         }
         
         // Clear spatial filter and show all cameras
@@ -3035,34 +2971,34 @@
         
         // Find cameras that can see the picked point
         function findCamerasViewingPoint(point) {
-            console.log('[Point Picking] Finding cameras that view this point...');
+            console.log('[Point Picking] Finding cameras that view point:', point);
             
-            const viewingCameras = [];
-            
-            // Check each camera to see if point is in its field of view
-            cameras.forEach((camera, index) => {
-                const result = isPointInCameraView(point, camera);
-                if (result.visible) {
-                    viewingCameras.push({
-                        camera: camera,
-                        index: index,
-                        distance: result.distance,
-                        screenPos: result.screenPos,
-                        depth: result.depth
-                    });
-                }
+            // Simple approach: find nearest cameras and assume they can see it
+            // The projection will show where the point appears in each image
+            const camerasWithDistance = cameras.map((camera, index) => {
+                const camPos = new THREE.Vector3(
+                    camera.position[0],
+                    camera.position[1],
+                    camera.position[2]
+                );
+                const distance = point.distanceTo(camPos);
+                return { camera, index, distance };
             });
             
-            console.log(`[Point Picking] Found ${viewingCameras.length} cameras viewing this point`);
+            // Sort by distance
+            camerasWithDistance.sort((a, b) => a.distance - b.distance);
             
-            if (viewingCameras.length > 0) {
-                // Sort by distance (closest first)
-                viewingCameras.sort((a, b) => a.distance - b.distance);
-                
+            // Take closest 20 cameras
+            const nearestCameras = camerasWithDistance.slice(0, 20);
+            
+            console.log(`[Point Picking] Found ${nearestCameras.length} nearest cameras`);
+            console.log(`[Point Picking] Closest camera: ${nearestCameras[0]?.camera.name} at ${nearestCameras[0]?.distance.toFixed(2)}m`);
+            
+            if (nearestCameras.length > 0) {
                 // Show in gallery with point overlays
-                showCamerasWithPointOverlay(viewingCameras, point);
+                showCamerasWithPointOverlay(nearestCameras, point);
             } else {
-                alert('No cameras can see this point. Try picking a point in the center of the scanned area.');
+                alert('No cameras found in the scene.');
             }
         }
         
@@ -3231,24 +3167,22 @@
                 
                 imgContainer.appendChild(img);
                 
-                // Add point overlay marker
-                if (screenPos) {
-                    img.onload = () => {
-                        const overlay = document.createElement('div');
-                        overlay.style.cssText = `
-                            position: absolute;
-                            top: 0;
-                            left: 0;
-                            width: 100%;
-                            height: 100%;
-                            pointer-events: none;
-                        `;
-                        imgContainer.appendChild(overlay);
-                        
-                        // Project point onto this thumbnail
-                        projectPointOntoThumbnail(point, camera, img, overlay);
-                    };
-                }
+                // Add point overlay marker when image loads
+                img.onload = () => {
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = `
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        pointer-events: none;
+                    `;
+                    imgContainer.appendChild(overlay);
+                    
+                    // Project point onto this thumbnail
+                    projectPointOntoThumbnail(point, camera, img, overlay);
+                };
                 
                 card.appendChild(imgContainer);
                 
@@ -3279,53 +3213,79 @@
         
         // Project point onto thumbnail (smaller version of full projection)
         function projectPointOntoThumbnail(point3D, camera, imageElement, overlayElement) {
-            // Similar to projectPointOntoImage but simpler for thumbnails
-            const transform = camera.transform;
-            if (!transform || transform.length !== 16) return;
-            
-            const camPos = new THREE.Vector3(transform[3], transform[7], transform[11]);
-            const R = new THREE.Matrix3();
-            R.set(
-                transform[0], transform[1], transform[2],
-                transform[4], transform[5], transform[6],
-                transform[8], transform[9], transform[10]
+            // Use quaternion-based projection (same as addThumbnailMarker)
+            const camPos = new THREE.Vector3(
+                camera.position[0],
+                camera.position[1],
+                camera.position[2]
             );
             
-            const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
-            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
+            // Build camera coordinate frame from quaternion
+            let forward = new THREE.Vector3(0, 0, -1);
+            let right = new THREE.Vector3(1, 0, 0);
+            let up = new THREE.Vector3(0, 1, 0);
             
-            const depth = -pointCam.z;
-            if (depth <= 0.1) return;
+            if (camera.rotation && camera.rotation.length === 4) {
+                const quat = new THREE.Quaternion(
+                    camera.rotation[0],
+                    camera.rotation[1],
+                    camera.rotation[2],
+                    camera.rotation[3]
+                );
+                forward.applyQuaternion(quat);
+                right.applyQuaternion(quat);
+                up.applyQuaternion(quat);
+            }
+            
+            // Vector from camera to point
+            const relPoint = new THREE.Vector3().subVectors(point3D, camPos);
+            const projDist = relPoint.dot(forward);
+            
+            if (projDist <= 0.1) return; // Point behind camera
             
             // Get dimensions
             const rect = imageElement.getBoundingClientRect();
-            const imgNaturalWidth = imageElement.naturalWidth || 4000;
-            const imgNaturalHeight = imageElement.naturalHeight || 3000;
+            const imgWidth = imageElement.naturalWidth || 4000;
+            const imgHeight = imageElement.naturalHeight || 3000;
             
-            // Calculate scale factor from natural to displayed size
-            const scaleX = rect.width / imgNaturalWidth;
-            const scaleY = rect.height / imgNaturalHeight;
+            // Project to camera plane
+            const xCam = relPoint.dot(right) / projDist;
+            const yCam = relPoint.dot(up) / projDist;
             
-            // Get intrinsics
-            let f_pixels;
-            if (window.sensorInfo && window.sensorInfo.f) {
-                f_pixels = window.sensorInfo.f;
-            } else {
-                const fovRad = camera.fov || (60 * Math.PI / 180);
-                f_pixels = (imgNaturalHeight / 2) / Math.tan(fovRad / 2);
+            // Get FOV for scaling
+            let fov = 60 * Math.PI / 180;
+            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.height) {
+                fov = 2 * Math.atan(window.sensorInfo.height / (2 * window.sensorInfo.f));
+            } else if (camera.fov) {
+                fov = camera.fov;
             }
             
-            // Project
-            const x_norm = -pointCam.x / depth;
-            const y_norm = -pointCam.y / depth;
-            const x_pixel = (imgNaturalWidth / 2 + f_pixels * x_norm) * scaleX;
-            const y_pixel = (imgNaturalHeight / 2 - f_pixels * y_norm) * scaleY;
+            // Convert to pixel coordinates
+            const halfHeight = Math.tan(fov / 2);
+            const halfWidth = halfHeight * (imgWidth / imgHeight);
+            
+            const xNorm = xCam / halfWidth;
+            const yNorm = -yCam / halfHeight; // Flip Y
+            
+            const x_pixel = imgWidth / 2 * (1 + xNorm);
+            const y_pixel = imgHeight / 2 * (1 + yNorm);
+            
+            // Scale to display size
+            const scaleX = rect.width / imgWidth;
+            const scaleY = rect.height / imgHeight;
+            const displayX = x_pixel * scaleX;
+            const displayY = y_pixel * scaleY;
+            
+            // Check bounds
+            if (displayX < 0 || displayX > rect.width || displayY < 0 || displayY > rect.height) {
+                return; // Out of view
+            }
             
             // Create marker
             const marker = document.createElement('div');
             marker.className = 'thumbnail-laser-marker';
-            marker.style.left = x_pixel + 'px';
-            marker.style.top = y_pixel + 'px';
+            marker.style.left = displayX + 'px';
+            marker.style.top = displayY + 'px';
             marker.title = 'Picked point location';
             
             overlayElement.appendChild(marker);
@@ -3619,147 +3579,114 @@
                 }
             });
             
-            // Click on 3D scene - prioritize point cloud, then cameras
+            // Click on 3D scene - point picking on left-click
             viewer.renderer.domElement.addEventListener('mousedown', (e) => {
-                // Middle-click for point picking, left-click for spatial filter
-                const isPickMode = (e.button === 1); // Middle mouse button
-                const isLeftClick = (e.button === 0); // Left mouse button
+                // Only handle left-click for point picking
+                if (e.button !== 0) return;
                 
-                // Prevent default middle-click behavior (scrolling)
-                if (isPickMode) {
-                    e.preventDefault();
-                }
+                console.log('[Click] Left click detected at screen coords:', e.clientX, e.clientY);
                 
-                if (isLeftClick || isPickMode) {
-                    console.log(`[Click] ${isPickMode ? 'Middle' : 'Left'} click detected at screen coords:`, e.clientX, e.clientY);
+                const rect = viewer.renderer.domElement.getBoundingClientRect();
+                const mouse = {
+                    x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+                    y: -((e.clientY - rect.top) / rect.height) * 2 + 1
+                };
+                
+                console.log('[Click] Normalized mouse coords:', mouse);
+                
+                // Use Potree's precise picking system instead of THREE raycaster
+                let pointCloudHit = false;
+                console.log('[Click] Using Potree picking for precise point cloud intersection...');
+                
+                if (viewer.scene.pointclouds.length > 0) {
+                    console.log(`[Click] Found ${viewer.scene.pointclouds.length} point cloud(s) in scene`);
                     
-                    const rect = viewer.renderer.domElement.getBoundingClientRect();
-                    const mouse = {
-                        x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
-                        y: -((e.clientY - rect.top) / rect.height) * 2 + 1
-                    };
-                    
-                    console.log('[Click] Normalized mouse coords:', mouse);
-                    
-                    // Use Potree's precise picking system instead of THREE raycaster
-                    let pointCloudHit = false;
-                    console.log('[Click] Using Potree picking for precise point cloud intersection...');
-                    
-                    if (viewer.scene.pointclouds.length > 0) {
-                        console.log(`[Click] Found ${viewer.scene.pointclouds.length} point cloud(s) in scene`);
+                    try {
+                        // Use Potree's getMousePointCloudIntersection if available
+                        let pickResult = null;
                         
-                        try {
-                            // Use Potree's getMousePointCloudIntersection if available
-                            let pickResult = null;
-                            
-                            if (typeof Potree !== 'undefined' && Potree.utils && Potree.utils.getMousePointCloudIntersection) {
-                                // Use Potree utils method
-                                pickResult = Potree.utils.getMousePointCloudIntersection(
-                                    mouse,
-                                    viewer.scene.getActiveCamera(),
-                                    viewer,
-                                    viewer.scene.pointclouds,
-                                    { pickClipped: false }
-                                );
-                            } else if (viewer.getIntersection) {
-                                // Alternative: use viewer's getIntersection
-                                pickResult = viewer.getIntersection(e.clientX, e.clientY);
-                            }
-                            
-                            if (pickResult && pickResult.position) {
-                                // Potree pick returns the exact point location
-                                const hitPoint = pickResult.position.clone();
-                                
-                                console.log('[Click] ✓ Point cloud hit (Potree pick)!');
-                                console.log('[Click] Exact hit position:', hitPoint);
-                                if (pickResult.normal) console.log('[Click] Point normal:', pickResult.normal);
-                                if (pickResult.color) console.log('[Click] Point color:', pickResult.color);
-                                
-                                // Middle-click for precise point picking, left-click for spatial filter
-                                if (isPickMode) {
-                                    console.log('[Click] Middle-click: Point picking mode');
-                                    onPointPicked(hitPoint);
-                                } else {
-                                    console.log('[Click] Left-click: Spatial filter mode');
-                                    applySpatialFilter(hitPoint);
-                                }
-                                pointCloudHit = true;
-                            } else {
-                                console.log('[Click] ✗ No point cloud intersection from Potree');
-                                console.log('[Click] Falling back to raycaster...');
-                                throw new Error('Potree pick returned null');
-                            }
-                        } catch (error) {
-                            console.log('[Click] Potree pick not available or failed:', error.message);
-                            console.log('[Click] Using raycaster fallback...');
-                            
-                            // Fallback to THREE raycaster
-                            const raycaster = new THREE.Raycaster();
-                            raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
-                            
-                            // Set raycaster params for better point cloud picking
-                            raycaster.params.Points = { threshold: 0.5 }; // Increase threshold for easier clicking
-                            
-                            const pointcloud = viewer.scene.pointclouds[0];
-                            const intersects = raycaster.intersectObject(pointcloud, true);
-                            
-                            if (intersects.length > 0) {
-                                const hitPoint = intersects[0].point.clone();
-                                console.log('[Click] ✓ Hit via raycaster:', hitPoint);
-                                console.log('[Click] Distance to hit:', intersects[0].distance.toFixed(2), 'm');
-                                
-                                // Middle-click for precise point picking, left-click for spatial filter
-                                if (isPickMode) {
-                                    console.log('[Click] Middle-click: Point picking mode');
-                                    onPointPicked(hitPoint);
-                                } else {
-                                    console.log('[Click] Left-click: Spatial filter mode');
-                                    applySpatialFilter(hitPoint);
-                                }
-                                pointCloudHit = true;
-                            } else {
-                                console.log('[Click] ✗ No raycaster intersection either');
-                                console.log('[Click] Try clicking directly on dense areas of point cloud');
-                            }
+                        if (typeof Potree !== 'undefined' && Potree.utils && Potree.utils.getMousePointCloudIntersection) {
+                            // Use Potree utils method
+                            pickResult = Potree.utils.getMousePointCloudIntersection(
+                                mouse,
+                                viewer.scene.getActiveCamera(),
+                                viewer,
+                                viewer.scene.pointclouds,
+                                { pickClipped: false }
+                            );
+                        } else if (viewer.getIntersection) {
+                            // Alternative: use viewer's getIntersection
+                            pickResult = viewer.getIntersection(e.clientX, e.clientY);
                         }
-                    } else {
-                        console.log('[Click] ⚠ No point clouds in scene');
-                    }
-                    
-                    // If no point cloud hit and left-click, check for camera markers
-                    if (!pointCloudHit && !isPickMode) {
-                        console.log('[Click] No point cloud hit, checking camera markers...');
                         
+                        if (pickResult && pickResult.position) {
+                            // Potree pick returns the exact point location
+                            const hitPoint = pickResult.position.clone();
+                            
+                            console.log('[Click] ✓ Point cloud hit (Potree pick)!');
+                            console.log('[Click] Exact hit position:', hitPoint);
+                            if (pickResult.normal) console.log('[Click] Point normal:', pickResult.normal);
+                            if (pickResult.color) console.log('[Click] Point color:', pickResult.color);
+                            
+                            // Point picking
+                            onPointPicked(hitPoint);
+                            pointCloudHit = true;
+                        } else {
+                            console.log('[Click] ✗ No point cloud intersection from Potree');
+                            console.log('[Click] Falling back to raycaster...');
+                            throw new Error('Potree pick returned null');
+                        }
+                    } catch (error) {
+                        console.log('[Click] Potree pick not available or failed:', error.message);
+                        console.log('[Click] Using raycaster fallback...');
+                        
+                        // Fallback to THREE raycaster
                         const raycaster = new THREE.Raycaster();
                         raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
-                        const intersects = raycaster.intersectObjects(cameraMarkers, true);
-                        console.log(`[Click] Found ${intersects.length} camera marker intersections`);
+                        
+                        // Set raycaster params for better point cloud picking
+                        raycaster.params.Points = { threshold: 0.5 };
+                        
+                        const pointcloud = viewer.scene.pointclouds[0];
+                        const intersects = raycaster.intersectObject(pointcloud, true);
                         
                         if (intersects.length > 0) {
-                            let object = intersects[0].object;
-                            while (object.parent && !object.userData.cameraIndex && object.userData.cameraIndex !== 0) {
-                                object = object.parent;
-                            }
+                            const hitPoint = intersects[0].point.clone();
+                            console.log('[Click] ✓ Hit via raycaster:', hitPoint);
+                            console.log('[Click] Distance to hit:', intersects[0].distance.toFixed(2), 'm');
                             
-                            if (object.userData.cameraIndex !== undefined) {
-                                const cameraIndex = object.userData.cameraIndex;
-                                console.log(`[Click] ✓ Camera marker clicked: index ${cameraIndex}`);
-                                
-                                // Check if Ctrl key is held - if so, use camera position as query point
-                                if (e.ctrlKey) {
-                                    const camera = cameras[cameraIndex];
-                                    const camPos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
-                                    console.log('[Click] Ctrl+Click: Using camera position as query point');
-                                    applySpatialFilter(camPos);
-                                } else {
-                                    // Normal click - just select the camera
-                                    selectCamera(cameraIndex);
-                                }
-                            } else {
-                                console.log('[Click] ✗ Camera marker has no index');
-                            }
+                            onPointPicked(hitPoint);
+                            pointCloudHit = true;
                         } else {
-                            console.log('[Click] ✗ Clicked empty space');
+                            console.log('[Click] ✗ No raycaster intersection either');
+                            console.log('[Click] Try clicking directly on dense areas of point cloud');
+                        }
+                    }
+                } else {
+                    console.log('[Click] ⚠ No point clouds in scene');
+                }
+                
+                // If no point cloud hit and Ctrl is held, check for camera markers
+                if (!pointCloudHit && e.ctrlKey) {
+                    console.log('[Click] Ctrl+Click: checking camera markers...');
+                    
+                    const raycaster = new THREE.Raycaster();
+                    raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
+                    const intersects = raycaster.intersectObjects(cameraMarkers, true);
+                    console.log(`[Click] Found ${intersects.length} camera marker intersections`);
+                    
+                    if (intersects.length > 0) {
+                        let object = intersects[0].object;
+                        while (object.parent && !object.userData.cameraIndex && object.userData.cameraIndex !== 0) {
+                            object = object.parent;
+                        }
+                        
+                        if (object.userData.cameraIndex !== undefined) {
+                            const cameraIndex = object.userData.cameraIndex;
+                            console.log(`[Click] ✓ Camera marker Ctrl+clicked: index ${cameraIndex}`);
+                            const camera = cameras[cameraIndex];
+                            const camPos = new THREE.Vector3(camera.position[0], camera.position[1], camera.position[2]);
+                            onPointPicked(camPos);
                         }
                     }
                 }
