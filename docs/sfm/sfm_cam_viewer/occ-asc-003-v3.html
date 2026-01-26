@@ -288,6 +288,126 @@
             display: none;
         }
         
+        /* Point Picking Tool Styles */
+        .pickpoint-mode-active {
+            cursor: crosshair !important;
+        }
+        
+        #pickpoint-toolbar {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px 20px;
+            border-radius: 8px;
+            z-index: 1500;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 2px solid #4CAF50;
+        }
+        
+        #pickpoint-toolbar.visible {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .toolbar-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        
+        .toolbar-btn:hover {
+            background: #45a049;
+        }
+        
+        .toolbar-btn.active {
+            background: #FFD700;
+            color: #000;
+            font-weight: bold;
+        }
+        
+        #pickpoint-output-box {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 20px;
+            border-radius: 8px;
+            z-index: 1500;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 2px solid #4CAF50;
+            min-width: 300px;
+        }
+        
+        #pickpoint-output-box.visible {
+            display: block;
+        }
+        
+        .pickpoint-title {
+            color: #4CAF50;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+        
+        .pickpoint-coords {
+            font-family: 'Courier New', monospace;
+            color: #FFD700;
+            font-size: 1.1em;
+            background: rgba(255, 215, 0, 0.1);
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .pickpoint-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #FFD700;
+            border-radius: 50%;
+            background: rgba(255, 215, 0, 0.3);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1400;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8), inset 0 0 5px rgba(255, 215, 0, 0.5);
+        }
+        
+        .pickpoint-marker::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            background: #FFD700;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .pickpoint-marker::after {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 15px solid #FFD700;
+            filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.8));
+        }
+        
         #selection-gallery {
             display: none;
             position: fixed;
@@ -519,6 +639,52 @@
         
         #close-full-viewer:hover {
             background: #d32f2f;
+        }
+        
+        /* Navigation buttons for full viewer */
+        .viewer-nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(76, 175, 80, 0.8);
+            color: white;
+            border: none;
+            padding: 20px 15px;
+            cursor: pointer;
+            font-size: 2em;
+            z-index: 3001;
+            transition: background 0.3s;
+            border-radius: 4px;
+        }
+        
+        .viewer-nav-btn:hover {
+            background: rgba(76, 175, 80, 1);
+        }
+        
+        .viewer-nav-btn:disabled {
+            background: rgba(100, 100, 100, 0.5);
+            cursor: not-allowed;
+        }
+        
+        #prev-camera-btn {
+            left: 20px;
+        }
+        
+        #next-camera-btn {
+            right: 20px;
+        }
+        
+        #camera-counter {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 1em;
+            z-index: 3001;
         }
         
         #full-viewer-image {
@@ -1036,10 +1202,11 @@
         
         <div style="background: rgba(76, 175, 80, 0.15); padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
             <div style="font-weight: bold; color: #4CAF50; margin-bottom: 5px;">✨ How to Use:</div>
-            <div style="font-size: 0.85em; line-height: 1.4;">
-                <strong>Click</strong> on the point cloud to find cameras viewing that point.<br>
-                <strong>Ctrl+Click</strong> on a camera to find cameras viewing that location.<br>
-                <strong>Click</strong> on a camera to select it.
+            <div style="font-size: 0.85em; line-height: 1.5;">
+                <strong>🎯 Point Picking Mode (Press P):</strong> Pick points on the point cloud to see which cameras view them.<br>
+                <strong>Click</strong> on the point cloud to find nearby cameras.<br>
+                <strong>Ctrl+Click</strong> on a camera to use its position as query.<br>
+                <strong>ESC</strong> to exit point picking mode.
             </div>
         </div>
         
@@ -1055,6 +1222,16 @@
         </div>
         
         <div class="control-section">
+            <h3>🎯 Point Analysis</h3>
+            
+            <button onclick="togglePickpointMode()" style="background: #FF9800; margin-bottom: 10px;">
+                🎯 Point Picking Mode (P)
+            </button>
+            
+            <div style="font-size: 0.85em; color: #999; margin-bottom: 15px; line-height: 1.4;">
+                Activate to pick specific points and see which cameras view them with accurate projections.
+            </div>
+            
             <h3>Camera Visualization</h3>
             
             <div class="control-row">
@@ -1137,6 +1314,26 @@
     <!-- Box Selection Rectangle -->
     <div id="selection-box"></div>
     
+    <!-- Point Picking Toolbar -->
+    <div id="pickpoint-toolbar">
+        <button class="toolbar-btn" id="pickpoint-toggle-btn" onclick="togglePickpointMode()">
+            🎯 Pick Point Mode: OFF
+        </button>
+        <button class="toolbar-btn" onclick="clearPickedPoints()">
+            🗑️ Clear Points
+        </button>
+        <span style="color: #ccc; font-size: 0.9em;">Click on point cloud to pick points • ESC to exit</span>
+    </div>
+    
+    <!-- Point Picking Coordinates Output -->
+    <div id="pickpoint-output-box">
+        <div class="pickpoint-title">📍 Last Picked Point (XYZ)</div>
+        <div class="pickpoint-coords" id="pickpoint-coords">[ 0.000 , 0.000 , 0.000 ]</div>
+        <div style="color: #999; font-size: 0.85em; margin-top: 8px; text-align: center;">
+            Units: meters • Click again to pick new point
+        </div>
+    </div>
+    
     <!-- Selection Gallery (Bottom Bar) -->
     <div id="selection-gallery">
         <div id="gallery-resize-handle"></div>
@@ -1159,11 +1356,14 @@
     <!-- Full Image Viewer -->
     <div id="full-image-viewer">
         <button id="close-full-viewer">✕ Close</button>
+        <div id="camera-counter">Camera 1 of 1</div>
+        <button id="prev-camera-btn" class="viewer-nav-btn" onclick="navigateCamera(-1)">◀</button>
+        <button id="next-camera-btn" class="viewer-nav-btn" onclick="navigateCamera(1)">▶</button>
         <div id="full-viewer-container">
             <img id="full-viewer-image" src="" alt="Camera Image">
             <div id="point-intercept-overlay"></div>
         </div>
-        <div id="zoom-hint">Click image to zoom • Drag to pan when zoomed • Orange marker shows click point</div>
+        <div id="zoom-hint">Click image to zoom • Drag to pan when zoomed • Red marker shows picked point • Use ◀ ▶ to navigate</div>
         <div id="full-viewer-info"></div>
     </div>
 
@@ -1182,6 +1382,17 @@
         let searchRadius = 50; // Increased to 50m for better camera coverage
         let queryPoint = null;
         let queryMarker = null;
+        
+        // Point picking mode variables
+        let pickpointModeActive = false;
+        let pickedPoints = [];
+        let pickedPointMarkers = [];
+        let lastPickedPoint = null;
+        
+        // Navigation state for full viewer
+        let currentViewingCameras = [];
+        let currentViewingIndex = 0;
+        let currentViewingPoint = null;
         
         // Box selection variables
         let boxSelectionMode = false;
@@ -2223,6 +2434,47 @@
             info.innerHTML = infoHTML;
             
             viewer.classList.add('visible');
+            updateNavigationButtons();
+        }
+        
+        // Navigate between cameras viewing the same point
+        function navigateCamera(direction) {
+            if (currentViewingCameras.length === 0) return;
+            
+            currentViewingIndex += direction;
+            
+            // Wrap around
+            if (currentViewingIndex < 0) {
+                currentViewingIndex = currentViewingCameras.length - 1;
+            } else if (currentViewingIndex >= currentViewingCameras.length) {
+                currentViewingIndex = 0;
+            }
+            
+            const { camera, index, distance } = currentViewingCameras[currentViewingIndex];
+            selectCamera(index);
+            showFullImage(camera, distance, currentViewingPoint);
+        }
+        
+        // Update navigation button states
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prev-camera-btn');
+            const nextBtn = document.getElementById('next-camera-btn');
+            const counter = document.getElementById('camera-counter');
+            
+            if (!prevBtn || !nextBtn || !counter) return;
+            
+            if (currentViewingCameras.length > 1) {
+                prevBtn.disabled = false;
+                nextBtn.disabled = false;
+                prevBtn.style.display = 'block';
+                nextBtn.style.display = 'block';
+                counter.style.display = 'block';
+                counter.textContent = `Camera ${currentViewingIndex + 1} of ${currentViewingCameras.length}`;
+            } else {
+                prevBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+                counter.style.display = 'none';
+            }
         }
         
         /**
@@ -2721,6 +2973,417 @@
             console.log('Fitted all cameras to view');
         }
         
+        // ===== POINT PICKING MODE FUNCTIONS =====
+        
+        // Toggle point picking mode
+        function togglePickpointMode() {
+            pickpointModeActive = !pickpointModeActive;
+            
+            const toolbar = document.getElementById('pickpoint-toolbar');
+            const outputBox = document.getElementById('pickpoint-output-box');
+            const toggleBtn = document.getElementById('pickpoint-toggle-btn');
+            const renderArea = viewer.renderer.domElement;
+            
+            if (pickpointModeActive) {
+                // Activate pick mode
+                toolbar.classList.add('visible');
+                outputBox.classList.add('visible');
+                renderArea.classList.add('pickpoint-mode-active');
+                if (toggleBtn) {
+                    toggleBtn.classList.add('active');
+                    toggleBtn.innerHTML = '\ud83c\udfaf Pick Point Mode: ON';
+                }
+                console.log('[Point Picking] Mode activated - click on point cloud to pick points');
+            } else {
+                // Deactivate pick mode
+                toolbar.classList.remove('visible');
+                outputBox.classList.remove('visible');
+                renderArea.classList.remove('pickpoint-mode-active');
+                if (toggleBtn) {
+                    toggleBtn.classList.remove('active');
+                    toggleBtn.innerHTML = '\ud83c\udfaf Pick Point Mode: OFF';
+                }
+                console.log('[Point Picking] Mode deactivated');
+            }
+        }
+        
+        // Handle picked point
+        function onPointPicked(point) {
+            if (!pickpointModeActive) return;
+            
+            console.log('[Point Picking] Point picked:', point);
+            
+            // Store picked point
+            lastPickedPoint = point.clone();
+            pickedPoints.push(lastPickedPoint);
+            
+            // Update coordinate display
+            const coordsEl = document.getElementById('pickpoint-coords');
+            if (coordsEl) {
+                const x = point.x.toFixed(3);
+                const y = point.y.toFixed(3);
+                const z = point.z.toFixed(3);
+                coordsEl.textContent = `[ ${x} , ${y} , ${z} ]`;
+            }
+            
+            // Create 3D marker for picked point
+            create3DPickedPointMarker(point);
+            
+            // Find and display cameras viewing this point
+            findCamerasViewingPoint(point);
+            
+            console.log(`[Point Picking] Total points picked: ${pickedPoints.length}`);
+        }
+        
+        // Find cameras that can see the picked point
+        function findCamerasViewingPoint(point) {
+            console.log('[Point Picking] Finding cameras that view this point...');
+            
+            const viewingCameras = [];
+            
+            // Check each camera to see if point is in its field of view
+            cameras.forEach((camera, index) => {
+                const result = isPointInCameraView(point, camera);
+                if (result.visible) {
+                    viewingCameras.push({
+                        camera: camera,
+                        index: index,
+                        distance: result.distance,
+                        screenPos: result.screenPos,
+                        depth: result.depth
+                    });
+                }
+            });
+            
+            console.log(`[Point Picking] Found ${viewingCameras.length} cameras viewing this point`);
+            
+            if (viewingCameras.length > 0) {
+                // Sort by distance (closest first)
+                viewingCameras.sort((a, b) => a.distance - b.distance);
+                
+                // Show in gallery with point overlays
+                showCamerasWithPointOverlay(viewingCameras, point);
+            } else {
+                alert('No cameras can see this point. Try picking a point in the center of the scanned area.');
+            }
+        }
+        
+        // Check if a 3D point is visible in a camera's view
+        function isPointInCameraView(point3D, camera) {
+            // Get camera transform matrix
+            const transform = camera.transform;
+            if (!transform || transform.length !== 16) {
+                return { visible: false };
+            }
+            
+            // Extract camera position
+            const camPos = new THREE.Vector3(
+                transform[3],
+                transform[7],
+                transform[11]
+            );
+            
+            // Calculate distance
+            const distance = point3D.distanceTo(camPos);
+            
+            // Extract rotation matrix
+            const R = new THREE.Matrix3();
+            R.set(
+                transform[0], transform[1], transform[2],
+                transform[4], transform[5], transform[6],
+                transform[8], transform[9], transform[10]
+            );
+            
+            // Transform point to camera space
+            const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
+            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
+            
+            // Check if point is in front of camera (negative Z for Agisoft)
+            const depth = -pointCam.z;
+            if (depth < 0.1) {
+                return { visible: false, distance: distance };
+            }
+            
+            // Get intrinsics
+            let f_pixels, imgWidth = 4000, imgHeight = 3000; // Defaults
+            
+            if (window.sensorInfo && window.sensorInfo.f && window.sensorInfo.width && window.sensorInfo.height) {
+                f_pixels = window.sensorInfo.f;
+                imgWidth = window.sensorInfo.width;
+                imgHeight = window.sensorInfo.height;
+            } else if (camera.fov) {
+                const fovRad = camera.fov;
+                f_pixels = (imgHeight / 2) / Math.tan(fovRad / 2);
+            } else {
+                return { visible: false, distance: distance };
+            }
+            
+            // Project to normalized coordinates
+            const x_norm = -pointCam.x / depth;
+            const y_norm = -pointCam.y / depth;
+            
+            // Convert to pixels (simplified, without distortion for quick check)
+            const x_pixel = imgWidth / 2 + f_pixels * x_norm;
+            const y_pixel = imgHeight / 2 - f_pixels * y_norm;
+            
+            // Check if within bounds (with small margin)
+            const margin = 50;
+            const inBounds = x_pixel >= -margin && x_pixel <= imgWidth + margin &&
+                           y_pixel >= -margin && y_pixel <= imgHeight + margin;
+            
+            return {
+                visible: inBounds,
+                distance: distance,
+                depth: depth,
+                screenPos: { x: x_pixel, y: y_pixel }
+            };
+        }
+        
+        // Show cameras viewing the picked point with overlay visualization
+        function showCamerasWithPointOverlay(viewingCameras, point) {
+            console.log(`[Gallery] Showing ${viewingCameras.length} cameras viewing picked point`);
+            
+            const gallery = document.getElementById('selection-gallery');
+            const content = document.getElementById('selection-gallery-content');
+            const title = document.getElementById('selection-gallery-title');
+            
+            if (!gallery || !content || !title) {
+                console.warn('[Gallery] Elements not found');
+                return;
+            }
+            
+            title.textContent = `📷 ${viewingCameras.length} Cameras Viewing Picked Point`;
+            
+            // Clear content
+            content.innerHTML = '';
+            content.style.display = 'grid';
+            content.style.gridTemplateColumns = 'repeat(auto-fill, minmax(300px, 1fr))';
+            content.style.gap = '15px';
+            content.style.padding = '20px';
+            content.style.overflowY = 'auto';
+            
+            // Create thumbnail cards for each viewing camera
+            viewingCameras.slice(0, 20).forEach(({ camera, index, distance, screenPos }, idx) => {
+                const cameraName = camera.name || `Camera_${index + 1}`;
+                const imageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+                
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    background: rgba(255, 255, 255, 0.05);
+                    border-radius: 8px;
+                    overflow: hidden;
+                    cursor: pointer;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    border: 2px solid rgba(76, 175, 80, 0.3);
+                `;
+                
+                card.onmouseenter = () => {
+                    card.style.transform = 'translateY(-4px)';
+                    card.style.boxShadow = '0 8px 16px rgba(0,0,0,0.4)';
+                };
+                card.onmouseleave = () => {
+                    card.style.transform = '';
+                    card.style.boxShadow = '';
+                };
+                
+                card.onclick = () => {
+                    // Store navigation state
+                    currentViewingCameras = viewingCameras;
+                    currentViewingIndex = idx;
+                    currentViewingPoint = point;
+                    
+                    selectCamera(index);
+                    showFullImage(camera, distance, point);
+                    updateNavigationButtons();
+                };
+                
+                // Image container with overlay
+                const imgContainer = document.createElement('div');
+                imgContainer.style.cssText = `
+                    position: relative;
+                    width: 100%;
+                    height: 200px;
+                    background: #000;
+                    overflow: hidden;
+                `;
+                
+                const img = document.createElement('img');
+                img.src = imageURL;
+                img.alt = cameraName;
+                img.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                `;
+                
+                imgContainer.appendChild(img);
+                
+                // Add point overlay marker
+                if (screenPos) {
+                    img.onload = () => {
+                        const overlay = document.createElement('div');
+                        overlay.style.cssText = `
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            width: 100%;
+                            height: 100%;
+                            pointer-events: none;
+                        `;
+                        imgContainer.appendChild(overlay);
+                        
+                        // Project point onto this thumbnail
+                        projectPointOntoThumbnail(point, camera, img, overlay);
+                    };
+                }
+                
+                card.appendChild(imgContainer);
+                
+                // Info section
+                const info = document.createElement('div');
+                info.style.cssText = `
+                    padding: 12px;
+                    color: white;
+                `;
+                info.innerHTML = `
+                    <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px;">${cameraName}</div>
+                    <div style="font-size: 0.85em; color: #999;">
+                        Distance: ${distance.toFixed(2)}m<br>
+                        Position: ${idx + 1} of ${viewingCameras.length}
+                    </div>
+                `;
+                
+                card.appendChild(info);
+                content.appendChild(card);
+            });
+            
+            // Show gallery
+            gallery.classList.add('visible');
+            gallery.style.display = 'block';
+            
+            console.log('[Gallery] ✓ Displayed cameras with point overlays');
+        }
+        
+        // Project point onto thumbnail (smaller version of full projection)
+        function projectPointOntoThumbnail(point3D, camera, imageElement, overlayElement) {
+            // Similar to projectPointOntoImage but simpler for thumbnails
+            const transform = camera.transform;
+            if (!transform || transform.length !== 16) return;
+            
+            const camPos = new THREE.Vector3(transform[3], transform[7], transform[11]);
+            const R = new THREE.Matrix3();
+            R.set(
+                transform[0], transform[1], transform[2],
+                transform[4], transform[5], transform[6],
+                transform[8], transform[9], transform[10]
+            );
+            
+            const pointRelative = new THREE.Vector3().subVectors(point3D, camPos);
+            const pointCam = pointRelative.clone().applyMatrix3(R.transpose());
+            
+            const depth = -pointCam.z;
+            if (depth <= 0.1) return;
+            
+            // Get dimensions
+            const rect = imageElement.getBoundingClientRect();
+            const imgNaturalWidth = imageElement.naturalWidth || 4000;
+            const imgNaturalHeight = imageElement.naturalHeight || 3000;
+            
+            // Calculate scale factor from natural to displayed size
+            const scaleX = rect.width / imgNaturalWidth;
+            const scaleY = rect.height / imgNaturalHeight;
+            
+            // Get intrinsics
+            let f_pixels;
+            if (window.sensorInfo && window.sensorInfo.f) {
+                f_pixels = window.sensorInfo.f;
+            } else {
+                const fovRad = camera.fov || (60 * Math.PI / 180);
+                f_pixels = (imgNaturalHeight / 2) / Math.tan(fovRad / 2);
+            }
+            
+            // Project
+            const x_norm = -pointCam.x / depth;
+            const y_norm = -pointCam.y / depth;
+            const x_pixel = (imgNaturalWidth / 2 + f_pixels * x_norm) * scaleX;
+            const y_pixel = (imgNaturalHeight / 2 - f_pixels * y_norm) * scaleY;
+            
+            // Create marker
+            const marker = document.createElement('div');
+            marker.className = 'thumbnail-laser-marker';
+            marker.style.left = x_pixel + 'px';
+            marker.style.top = y_pixel + 'px';
+            marker.title = 'Picked point location';
+            
+            overlayElement.appendChild(marker);
+        }
+        
+        // Create 3D marker for picked point in the scene
+        function create3DPickedPointMarker(point) {
+            // Create a sphere marker
+            const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xFFD700,
+                transparent: true,
+                opacity: 0.9,
+                depthTest: true
+            });
+            const marker = new THREE.Mesh(geometry, material);
+            marker.position.copy(point);
+            
+            // Add a glowing ring around it
+            const ringGeometry = new THREE.RingGeometry(0.35, 0.45, 32);
+            const ringMaterial = new THREE.MeshBasicMaterial({
+                color: 0xFFD700,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.6
+            });
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            ring.rotation.x = Math.PI / 2;
+            marker.add(ring);
+            
+            // Add to scene
+            viewer.scene.scene.add(marker);
+            pickedPointMarkers.push(marker);
+            
+            // Animate the marker (pulse effect)
+            const startScale = 1.0;
+            const endScale = 1.3;
+            let time = 0;
+            const animate = () => {
+                if (!pickpointModeActive) return;
+                time += 0.05;
+                const scale = startScale + (endScale - startScale) * (Math.sin(time) * 0.5 + 0.5);
+                marker.scale.setScalar(scale);
+                requestAnimationFrame(animate);
+            };
+            animate();
+            
+            console.log('[Point Picking] 3D marker created at:', point);
+        }
+        
+        // Clear all picked points
+        function clearPickedPoints() {
+            console.log('[Point Picking] Clearing all picked points');
+            
+            // Remove 3D markers
+            pickedPointMarkers.forEach(marker => {
+                viewer.scene.scene.remove(marker);
+            });
+            pickedPointMarkers = [];
+            pickedPoints = [];
+            lastPickedPoint = null;
+            
+            // Reset coordinate display
+            const coordsEl = document.getElementById('pickpoint-coords');
+            if (coordsEl) {
+                coordsEl.textContent = '[ 0.000 , 0.000 , 0.000 ]';
+            }
+            
+            console.log('[Point Picking] All points cleared');
+        }
+        
         // Clear selection
         function clearSelection() {
             if (selectedCameraIndex >= 0) {
@@ -2908,16 +3571,37 @@
             
             // Close full viewer on escape key
             document.addEventListener('keydown', (e) => {
+                const fullViewer = document.getElementById('full-image-viewer');
+                const gallery = document.getElementById('image-gallery');
+                
                 if (e.key === 'Escape') {
-                    const fullViewer = document.getElementById('full-image-viewer');
-                    const gallery = document.getElementById('image-gallery');
-                    
                     if (fullViewer.classList.contains('visible')) {
                         fullViewer.classList.remove('visible');
                         console.log('[Viewer] Full image viewer closed with ESC');
                     } else if (gallery.classList.contains('visible')) {
                         gallery.classList.remove('visible');
                         console.log('[Gallery] Gallery closed with ESC');
+                    } else if (pickpointModeActive) {
+                        // Deactivate point picking mode
+                        togglePickpointMode();
+                    }
+                }
+                
+                // Navigate cameras with arrow keys when full viewer is open
+                if (fullViewer.classList.contains('visible')) {
+                    if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        navigateCamera(-1);
+                    } else if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        navigateCamera(1);
+                    }
+                }
+                
+                // Toggle point picking mode with 'P' key
+                if (e.key === 'p' || e.key === 'P') {
+                    if (!fullViewer.classList.contains('visible') && !gallery.classList.contains('visible')) {
+                        togglePickpointMode();
                     }
                 }
             });
@@ -2969,8 +3653,13 @@
                                 if (pickResult.normal) console.log('[Click] Point normal:', pickResult.normal);
                                 if (pickResult.color) console.log('[Click] Point color:', pickResult.color);
                                 
-                                // Apply spatial filter with exact point
-                                applySpatialFilter(hitPoint);
+                                // Check if in point picking mode
+                                if (pickpointModeActive) {
+                                    onPointPicked(hitPoint);
+                                } else {
+                                    // Apply spatial filter with exact point
+                                    applySpatialFilter(hitPoint);
+                                }
                                 pointCloudHit = true;
                             } else {
                                 console.log('[Click] ✗ No point cloud intersection from Potree');
@@ -2995,7 +3684,13 @@
                                 const hitPoint = intersects[0].point.clone();
                                 console.log('[Click] ✓ Hit via raycaster:', hitPoint);
                                 console.log('[Click] Distance to hit:', intersects[0].distance.toFixed(2), 'm');
-                                applySpatialFilter(hitPoint);
+                                
+                                // Check if in point picking mode
+                                if (pickpointModeActive) {
+                                    onPointPicked(hitPoint);
+                                } else {
+                                    applySpatialFilter(hitPoint);
+                                }
                                 pointCloudHit = true;
                             } else {
                                 console.log('[Click] ✗ No raycaster intersection either');
@@ -3006,8 +3701,8 @@
                         console.log('[Click] ⚠ No point clouds in scene');
                     }
                     
-                    // If no point cloud hit, check for camera markers
-                    if (!pointCloudHit) {
+                    // If no point cloud hit, check for camera markers (only if not in pickpoint mode)
+                    if (!pointCloudHit && !pickpointModeActive) {
                         console.log('[Click] No point cloud hit, checking camera markers...');
                         
                         const raycaster = new THREE.Raycaster();
