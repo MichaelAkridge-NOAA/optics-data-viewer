@@ -783,18 +783,15 @@
         
         .intercept-marker {
             position: absolute;
-            width: 30px;
-            height: 30px;
-            margin-left: -15px;
-            margin-top: -15px;
-            border: 3px solid #FF0000;
+            width: 8px;
+            height: 8px;
+            margin-left: -4px;
+            margin-top: -4px;
+            border: 1px solid #fff;
             border-radius: 50%;
-            background: rgba(255, 0, 0, 0.2);
-            box-shadow: 0 0 15px rgba(255, 0, 0, 1), 
-                        0 0 30px rgba(255, 0, 0, 0.7), 
-                        0 0 45px rgba(255, 0, 0, 0.4),
-                        inset 0 0 10px rgba(255, 0, 0, 0.3);
-            animation: pulse-marker 2s ease-in-out infinite;
+            background: #FF0000;
+            box-shadow: 0 0 6px rgba(255, 0, 0, 1), 
+                        0 0 3px rgba(255, 255, 255, 0.8);
             z-index: 100;
         }
         
@@ -804,27 +801,14 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 6px;
-            height: 6px;
-            background: #FF0000;
+            width: 2px;
+            height: 2px;
+            background: #fff;
             border-radius: 50%;
-            box-shadow: 0 0 8px rgba(255, 0, 0, 1),
-                        0 0 4px white,
-                        inset 0 0 3px white;
         }
         
         .intercept-marker::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 60px;
-            height: 60px;
-            margin-left: -30px;
-            margin-top: -30px;
-            border: 2px solid rgba(255, 152, 0, 0.3);
-            border-radius: 50%;
+            display: none;
         }
         
         .intercept-crosshair {
@@ -884,17 +868,15 @@
         /* Thumbnail laser markers */
         .thumbnail-laser-marker {
             position: absolute;
-            width: 12px;
-            height: 12px;
-            margin-left: -6px;
-            margin-top: -6px;
+            width: 6px;
+            height: 6px;
+            margin-left: -3px;
+            margin-top: -3px;
             border-radius: 50%;
-            background: rgba(255, 0, 0, 0.8);
-            border: 2px solid rgba(255, 255, 255, 0.9);
-            box-shadow: 0 0 8px rgba(255, 0, 0, 0.9), 
-                        0 0 4px rgba(255, 255, 255, 0.8),
-                        inset 0 0 4px rgba(255, 255, 255, 0.5);
-            animation: pulse-thumbnail 1.5s ease-in-out infinite;
+            background: #FF0000;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 4px rgba(255, 0, 0, 0.9), 
+                        0 0 2px rgba(255, 255, 255, 0.8);
             z-index: 10;
         }
         
@@ -904,11 +886,10 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 4px;
-            height: 4px;
+            width: 2px;
+            height: 2px;
             background: white;
             border-radius: 50%;
-            box-shadow: 0 0 3px white;
         }
         
         @keyframes pulse-thumbnail {
@@ -3293,28 +3274,15 @@
         
         // Create 3D marker for picked point in the scene
         function create3DPickedPointMarker(point) {
-            // Create a sphere marker
-            const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+            // Create a tiny red laser dot marker
+            const geometry = new THREE.SphereGeometry(0.02, 8, 8);
             const material = new THREE.MeshBasicMaterial({
-                color: 0xFFD700,
-                transparent: true,
-                opacity: 0.9,
+                color: 0xFF0000,
+                transparent: false,
                 depthTest: true
             });
             const marker = new THREE.Mesh(geometry, material);
             marker.position.copy(point);
-            
-            // Add a glowing ring around it
-            const ringGeometry = new THREE.RingGeometry(0.35, 0.45, 32);
-            const ringMaterial = new THREE.MeshBasicMaterial({
-                color: 0xFFD700,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.6
-            });
-            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-            ring.rotation.x = Math.PI / 2;
-            marker.add(ring);
             
             // Add to scene
             viewer.scene.scene.add(marker);
