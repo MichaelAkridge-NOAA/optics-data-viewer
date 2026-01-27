@@ -697,6 +697,10 @@
         }
     </style>
     
+    <!-- Three.js (required before Potree) -->
+    <script src="../../libs/three.js/build/three.min.js"></script>
+    <script src="../../libs/three.js/extra/lines.js"></script>
+    
     <script src="../../libs/jquery/jquery-3.1.1.min.js"></script>
     <script src="../../libs/spectrum/spectrum.js"></script>
     <script src="../../libs/jquery-ui/jquery-ui.min.js"></script>
@@ -927,6 +931,14 @@
         async function initViewer() {
             console.log('%c OCC-ASC-003 Camera Viewer v4 (Build: ' + new Date().toISOString().slice(0,16) + ') ', 'background: #4a5568; color: #fff; padding: 4px 8px;');
             console.log('Initializing OCC-ASC-003 Camera Viewer v4...');
+            
+            // Verify THREE.js is loaded (bundled with Potree)
+            if (typeof THREE === 'undefined') {
+                console.error('THREE.js not loaded! Check Potree installation.');
+                alert('Error: THREE.js library not found. Please check that Potree is properly installed.');
+                return;
+            }
+            console.log('[V4] THREE.js version:', THREE.REVISION);
             
             // Create Potree viewer
             viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
