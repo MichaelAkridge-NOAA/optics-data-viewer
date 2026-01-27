@@ -925,6 +925,7 @@
         
         // ===== INITIALIZATION =====
         async function initViewer() {
+            console.log('%c OCC-ASC-003 Camera Viewer v4 (Build: ' + new Date().toISOString().slice(0,16) + ') ', 'background: #4a5568; color: #fff; padding: 4px 8px;');
             console.log('Initializing OCC-ASC-003 Camera Viewer v4...');
             
             // Create Potree viewer
@@ -1487,102 +1488,149 @@
                             await parser.loadFromURL(CAMERA_XML_URL);
                         }
                         
+                        console.log('[V4] XML parsed, cameras found:', parser.cameras?.length || 0);
+                        
                         // Store sensor info
                         if (parser.sensor) {
                             window.sensorInfo = parser.sensor;
-                            console.log('[V4] Sensor calibration loaded');
+                            console.log('[V4] Sensor calibration loaded:', parser.sensor);
                         }
                         
+                        // Store component transform
+                        if (parser.transform) {
+                            window.componentTransform = parser.transform;
+                            console.log('[V4] Component transform loaded');
+                        }
+                        
+                        console.log('[V4] Converting to Potree format...');
                         camerasData = parser.toPotreeFormat(IMAGE_BASE_URL);
                         console.log(`✓ Parsed ${camerasData.length} cameras from XML`);
+                        
+                        // Debug first camera
+                        if (camerasData.length > 0) {
+                            console.log('[V4] First camera sample:', camerasData[0]);
+                        }
                     } catch (xmlError) {
                         console.warn('XML parse failed, trying JSON:', xmlError);
+                        camerasData = [];
                     }
                 }
                 
                 // Fallback to JSON
                 if (!camerasData || camerasData.length === 0) {
                     console.log('Loading cameras from JSON:', CAMERA_DATA_URL);
-                    const response = await fetch(CAMERA_DATA_URL);
-                    const data = await response.json();
-                    camerasData = data.cameras || [];
+                    try {
+                        const response = await fetch(CAMERA_DATA_URL);
+                        if (response.ok) {
+                            const data = await response.json();
+                            camerasData = data.cameras || [];
+                            console.log(`✓ Loaded ${camerasData.length} cameras from JSON`);
+                        } else {
+                            console.warn('JSON fetch failed:', response.status);
+                        }
+                    } catch (jsonError) {
+                        console.warn('JSON parse failed:', jsonError);
+                    }
+                }
+                
+                if (!camerasData || camerasData.length === 0) {
+                    console.error('[V4] No camera data loaded from any source');
+                    alert('No camera data could be loaded');
+                    return;
                 }
                 
                 cameras = camerasData;
+                console.log(`[V4] Total cameras loaded: ${cameras.length}`);
                 
                 // Update UI
-                document.getElementById('camera-count').textContent = cameras.length;
+                const cameraCountEl = document.getElementById('camera-count');
+                if (cameraCountEl) cameraCountEl.textContent = cameras.length;
                 
                 // Create markers
+                console.log('[V4] Creating camera markers...');
                 createCameraMarkers();
+                
+                console.log('[V4] Populating camera list...');
                 populateCameraList();
                 
                 // Fit to view
                 setTimeout(() => fitAllCameras(), 500);
                 
+                console.log('[V4] Camera loading complete!');
+                
             } catch (error) {
                 console.error('Error loading cameras:', error);
-                alert('Failed to load camera data');
+                console.error('Stack:', error.stack);
+                alert('Failed to load camera data: ' + error.message);
             }
         }
         
         // ===== CAMERA MARKERS =====
         function createCameraMarkers() {
-            console.log('Creating camera markers...');
+            console.log('[V4] Creating camera markers for', cameras.length, 'cameras...');
+            
+            if (!cameras || cameras.length === 0) {
+                console.warn('[V4] No cameras to create markers for');
+                return;
+            }
             
             cameraGroup = new THREE.Group();
             cameraGroup.name = 'cameras';
-            cameraGroup.visible = false;
+            cameraGroup.visible = false; // Hidden by default, user toggles on
             
             cameras.forEach((camera, index) => {
-                const lod = new THREE.LOD();
-                
-                // Detailed cone
-                const coneGeometry = new THREE.ConeGeometry(0.3, 0.8, 8);
-                const coneMaterial = new THREE.MeshBasicMaterial({
-                    color: 0x4CAF50,
-                    transparent: true,
-                    opacity: 0.8,
-                    side: THREE.DoubleSide
-                });
-                const cone = new THREE.Mesh(coneGeometry, coneMaterial);
-                
-                if (camera.rotation) {
-                    const quat = new THREE.Quaternion(
-                        camera.rotation[0],
-                        camera.rotation[1],
-                        camera.rotation[2],
-                        camera.rotation[3]
-                    );
-                    cone.setRotationFromQuaternion(quat);
-                    cone.rotateX(Math.PI / 2);
+                try {
+                    const lod = new THREE.LOD();
+                    
+                    // Detailed cone
+                    const coneGeometry = new THREE.ConeGeometry(0.3, 0.8, 8);
+                    const coneMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x4CAF50,
+                        transparent: true,
+                        opacity: 0.8,
+                        side: THREE.DoubleSide
+                    });
+                    const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+                    
+                    if (camera.rotation && camera.rotation.length === 4) {
+                        const quat = new THREE.Quaternion(
+                            camera.rotation[0],
+                            camera.rotation[1],
+                            camera.rotation[2],
+                            camera.rotation[3]
+                        );
+                        cone.setRotationFromQuaternion(quat);
+                        cone.rotateX(Math.PI / 2);
+                    }
+                    
+                    lod.addLevel(cone, 0);
+                    
+                    // Simple point for distance
+                    const pointGeometry = new THREE.SphereGeometry(0.2, 4, 4);
+                    const pointMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x4CAF50,
+                        transparent: true,
+                        opacity: 0.9
+                    });
+                    const point = new THREE.Mesh(pointGeometry, pointMaterial);
+                    lod.addLevel(point, lodDistance * 2);
+                    
+                    // Position
+                    const pos = camera.position;
+                    lod.position.set(pos[0], pos[1], pos[2]);
+                    
+                    lod.userData = {
+                        cameraIndex: index,
+                        camera: camera,
+                        detailedMesh: cone,
+                        pointMesh: point
+                    };
+                    
+                    cameraMarkers.push(lod);
+                    cameraGroup.add(lod);
+                } catch (markerError) {
+                    console.warn(`[V4] Failed to create marker for camera ${index}:`, markerError);
                 }
-                
-                lod.addLevel(cone, 0);
-                
-                // Simple point for distance
-                const pointGeometry = new THREE.SphereGeometry(0.2, 4, 4);
-                const pointMaterial = new THREE.MeshBasicMaterial({
-                    color: 0x4CAF50,
-                    transparent: true,
-                    opacity: 0.9
-                });
-                const point = new THREE.Mesh(pointGeometry, pointMaterial);
-                lod.addLevel(point, lodDistance * 2);
-                
-                // Position
-                const pos = camera.position;
-                lod.position.set(pos[0], pos[1], pos[2]);
-                
-                lod.userData = {
-                    cameraIndex: index,
-                    camera: camera,
-                    detailedMesh: cone,
-                    pointMesh: point
-                };
-                
-                cameraMarkers.push(lod);
-                cameraGroup.add(lod);
             });
             
             viewer.scene.scene.add(cameraGroup);
