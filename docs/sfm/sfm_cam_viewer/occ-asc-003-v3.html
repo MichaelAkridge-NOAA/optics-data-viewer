@@ -2462,7 +2462,7 @@
          * Uses rotation matrix for accurate projection
          */
         function addThumbnailMarker(point3D, camera, imageElement, overlayElement) {
-            console.log('[Thumbnail] Adding marker for point:', point3D);
+            console.log('[Thumbnail] Adding marker for point:', point3D, 'camera:', camera.name);
             
             const camPos = new THREE.Vector3(
                 camera.position[0],
@@ -2473,7 +2473,7 @@
             // Get the rotation matrix
             const R = camera.rotationMatrix;
             if (!R || R.length !== 9) {
-                console.log('[Thumbnail] No rotation matrix, skipping');
+                console.log('[Thumbnail] No rotation matrix for camera', camera.name, ', skipping');
                 return;
             }
             
@@ -2493,10 +2493,28 @@
                 return;
             }
             
-            // Get image dimensions
+            // Get image dimensions - use natural size or defaults
             const imgWidth = imageElement.naturalWidth || 4000;
             const imgHeight = imageElement.naturalHeight || 3000;
-            const displayRect = imageElement.getBoundingClientRect();
+            
+            // Get display dimensions - use multiple methods for reliability
+            let displayRect = imageElement.getBoundingClientRect();
+            let displayWidth = displayRect.width;
+            let displayHeight = displayRect.height;
+            
+            // If getBoundingClientRect returns 0, try other methods
+            if (displayWidth <= 0 || displayHeight <= 0) {
+                displayWidth = imageElement.clientWidth || imageElement.offsetWidth || overlayElement.clientWidth;
+                displayHeight = imageElement.clientHeight || imageElement.offsetHeight || overlayElement.clientHeight;
+            }
+            
+            // If still no dimensions, use a percentage-based fallback for thumbnails
+            if (displayWidth <= 0 || displayHeight <= 0) {
+                // For thumbnails, assume standard display size
+                displayWidth = 200; // typical thumbnail width
+                displayHeight = 150; // typical thumbnail height
+                console.log('[Thumbnail] Using fallback dimensions:', displayWidth, 'x', displayHeight);
+            }
             
             // Get focal length
             let f_pixels = 5144;
@@ -2521,8 +2539,8 @@
             }
             
             // Scale to display size
-            const scaleX = displayRect.width / imgWidth;
-            const scaleY = displayRect.height / imgHeight;
+            const scaleX = displayWidth / imgWidth;
+            const scaleY = displayHeight / imgHeight;
             const displayX = x_pixel * scaleX;
             const displayY = y_pixel * scaleY;
             
@@ -3661,7 +3679,11 @@
             // Get camera details
             const cameraIndex = carouselCameras[index].index;
             const cameraName = camera.name || `Camera_${cameraIndex + 1}`;
-            const imageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
+            // Use thumbnail for initial display, full image loads only on click
+            const thumbnailURL = THUMBNAIL_BASE_URL 
+                ? `${THUMBNAIL_BASE_URL}/${cameraName}.JPG`
+                : (IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '');
+            const fullImageURL = IMAGE_BASE_URL ? `${IMAGE_BASE_URL}/${cameraName}.JPG` : '';
             
             // Create prev button
             const prevBtn = document.createElement('button');
@@ -3685,14 +3707,15 @@
             imageContainer.style.borderRadius = '8px';
             imageContainer.style.overflow = 'hidden';
             
-            // Create image
+            // Create image - load thumbnail first for faster display
             const img = document.createElement('img');
-            img.src = imageURL;
+            img.src = thumbnailURL;
             img.alt = cameraName;
             img.style.maxWidth = '100%';
             img.style.maxHeight = '100%';
             img.style.objectFit = 'contain';
             img.style.cursor = 'pointer';
+            img.title = 'Click to view full resolution';
             img.onclick = () => {
                 // Click to view full size
                 selectCamera(cameraIndex);
@@ -3717,15 +3740,30 @@
             
             // Add thumbnail marker when image loads
             if (carouselClickPoint) {
-                const projectOnImage = () => {
+                const projectOnImage = (retryCount = 0) => {
                     if (img.complete && img.naturalWidth > 0) {
-                        console.log('[Carousel] Projecting point onto image', index + 1);
-                        addThumbnailMarker(carouselClickPoint, camera, img, overlay);
+                        // Clear any existing markers first
+                        overlay.innerHTML = '';
+                        
+                        // Small delay to ensure layout is complete
+                        const attemptProject = () => {
+                            const rect = img.getBoundingClientRect();
+                            if (rect.width > 0 && rect.height > 0) {
+                                console.log('[Carousel] Projecting point onto image', index + 1);
+                                addThumbnailMarker(carouselClickPoint, camera, img, overlay);
+                            } else if (retryCount < 5) {
+                                // Retry with delay if dimensions not ready
+                                setTimeout(() => projectOnImage(retryCount + 1), 100);
+                            }
+                        };
+                        
+                        // Use requestAnimationFrame to ensure layout is ready
+                        requestAnimationFrame(attemptProject);
                     }
                 };
-                img.addEventListener('load', projectOnImage);
+                img.addEventListener('load', () => projectOnImage());
                 // Try immediately if cached
-                if (img.complete) projectOnImage();
+                if (img.complete) setTimeout(() => projectOnImage(), 50);
             }
             
             // Create next button
@@ -3753,8 +3791,51 @@
                 <strong>${cameraName}</strong><br>
                 Distance: ${distance.toFixed(1)}m
                 ${score !== undefined ? ` • Score: ${(score * 100).toFixed(0)}%` : ''}
+                <span style="color: #aaa; font-size: 11px;"> (thumbnail - click for full res)</span>
             `;
             imageContainer.appendChild(info);
+            
+            // Create "Load Full Resolution" button
+            const loadFullBtn = document.createElement('button');
+            loadFullBtn.innerHTML = '🔍 Load Full Resolution';
+            loadFullBtn.style.position = 'absolute';
+            loadFullBtn.style.top = '10px';
+            loadFullBtn.style.right = '10px';
+            loadFullBtn.style.padding = '6px 12px';
+            loadFullBtn.style.fontSize = '12px';
+            loadFullBtn.style.background = 'rgba(76, 175, 80, 0.9)';
+            loadFullBtn.style.border = 'none';
+            loadFullBtn.style.borderRadius = '4px';
+            loadFullBtn.style.color = 'white';
+            loadFullBtn.style.cursor = 'pointer';
+            loadFullBtn.style.zIndex = '20';
+            loadFullBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (fullImageURL) {
+                    loadFullBtn.innerHTML = '⏳ Loading...';
+                    loadFullBtn.disabled = true;
+                    
+                    // Create a new image to preload
+                    const fullImg = new Image();
+                    fullImg.onload = () => {
+                        img.src = fullImageURL;
+                        loadFullBtn.innerHTML = '✓ Full Resolution';
+                        loadFullBtn.style.background = 'rgba(33, 150, 243, 0.9)';
+                        info.innerHTML = `
+                            <strong>${cameraName}</strong><br>
+                            Distance: ${distance.toFixed(1)}m
+                            ${score !== undefined ? ` • Score: ${(score * 100).toFixed(0)}%` : ''}
+                            <span style="color: #4CAF50; font-size: 11px;"> (full resolution)</span>
+                        `;
+                    };
+                    fullImg.onerror = () => {
+                        loadFullBtn.innerHTML = '❌ Failed';
+                        loadFullBtn.style.background = 'rgba(244, 67, 54, 0.9)';
+                    };
+                    fullImg.src = fullImageURL;
+                }
+            };
+            imageContainer.appendChild(loadFullBtn);
             
             // Add elements to content
             content.appendChild(prevBtn);
@@ -3887,14 +3968,26 @@
                 const img = card.querySelector('.thumbnail-image');
                 const overlay = card.querySelector('.thumbnail-marker-overlay');
                 if (img && overlay && clickPoint) {
-                    const projectOnThumbnail = () => {
+                    const projectOnThumbnail = (retryCount = 0) => {
                         if (img.complete && img.naturalWidth > 0) {
-                            addThumbnailMarker(clickPoint, camera, img, overlay);
+                            // Clear any existing markers
+                            overlay.innerHTML = '';
+                            
+                            const attemptProject = () => {
+                                const rect = img.getBoundingClientRect();
+                                if (rect.width > 0 && rect.height > 0) {
+                                    addThumbnailMarker(clickPoint, camera, img, overlay);
+                                } else if (retryCount < 5) {
+                                    // Retry with delay
+                                    setTimeout(() => projectOnThumbnail(retryCount + 1), 100);
+                                }
+                            };
+                            requestAnimationFrame(attemptProject);
                         }
                     };
-                    img.addEventListener('load', projectOnThumbnail);
-                    // Try immediately if already loaded
-                    projectOnThumbnail();
+                    img.addEventListener('load', () => projectOnThumbnail());
+                    // Try immediately if already loaded, with small delay for layout
+                    if (img.complete) setTimeout(() => projectOnThumbnail(), 50);
                 }
             });
             
