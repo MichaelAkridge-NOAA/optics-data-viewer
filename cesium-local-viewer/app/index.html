@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Cesium 3TZ Local Viewer · NOAA Optics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- CesiumJS 1.117 -->
+  <link rel="stylesheet" href="https://unpkg.com/cesium@1.117.0/Build/Cesium/Widgets/widgets.css" />
+  <script src="https://unpkg.com/cesium@1.117.0/Build/Cesium/Cesium.js"></script>
+
+  <style>
+    :root {
+      --bg: #0b1220;
+      --sidebar: #0f1a2e;
+      --card: #162036;
+      --border: rgba(255,255,255,.10);
+      --text: #e8eefc;
+      --muted: #7a93bc;
+      --accent: #2b79ff;
+      --accent-hover: #4a8fff;
+      --danger: #e74c3c;
+      --success: #27ae60;
+      --sidebar-w: 320px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    #layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    #sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    #sidebar-header {
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,.25);
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-row h1 {
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .header-row p {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .logo-circle {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    #sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* scrollbar */
+    #sidebar-body::-webkit-scrollbar { width: 5px; }
+    #sidebar-body::-webkit-scrollbar-track { background: transparent; }
+    #sidebar-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    /* Ion token */
+    .token-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .token-row input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .token-row input:focus {
+      border-color: var(--accent);
+    }
+
+    .token-row input::placeholder { color: var(--muted); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: #1e2e4a; border-color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn.danger  { border-color: var(--danger); color: var(--danger); }
+    .btn.danger:hover { background: rgba(231,76,60,.15); }
+    .btn.small { padding: 4px 8px; font-size: 11px; }
+
+    /* File list */
+    #file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .file-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color .15s;
+    }
+
+    .file-item:hover { border-color: var(--accent); }
+    .file-item.loaded { border-color: var(--success); }
+
+    .file-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .file-meta { flex: 1; min-width: 0; }
+
+    .file-name {
+      font-size: 12px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-size {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .file-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* Loaded layers */
+    #layer-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .layer-item {
+      background: var(--card);
+      border: 1px solid var(--success);
+      border-radius: 10px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .layer-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      flex-shrink: 0;
+    }
+
+    .layer-name {
+      flex: 1;
+      font-size: 12px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Custom URL */
+    .url-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .url-row input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .url-row input:focus { border-color: var(--accent); }
+    .url-row input::placeholder { color: var(--muted); }
+
+    /* Status bar */
+    #status-bar {
+      padding: 8px 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(0,0,0,.25);
+      min-height: 30px;
+    }
+
+    #status-bar.ok    { color: #5ddb8f; }
+    #status-bar.error { color: #e57373; }
+    #status-bar.info  { color: var(--accent); }
+
+    /* Empty states */
+    .empty-state {
+      text-align: center;
+      padding: 18px 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .empty-state span { font-size: 28px; display: block; margin-bottom: 6px; }
+
+    /* ── Cesium container ─────────────────────────────────────── */
+    #cesium-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #cesiumContainer {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Collapse button */
+    #toggle-sidebar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 20;
+      background: rgba(11,18,32,.85);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+      transition: background .15s;
+    }
+
+    #toggle-sidebar:hover { background: var(--accent); }
+
+    /* Sidebar hidden */
+    #sidebar.collapsed { display: none; }
+
+    /* ── Loading spinner ──────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="layout">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────── -->
+  <aside id="sidebar">
+
+    <div id="sidebar-header">
+      <div class="header-row">
+        <div class="logo-circle">🌐</div>
+        <div>
+          <h1>Cesium 3TZ Viewer</h1>
+          <p>NOAA Optics · Local Docker</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="sidebar-body">
+
+      <!-- Ion Token -->
+      <div>
+        <div class="section-label">Cesium Ion Token (optional)</div>
+        <div class="token-row">
+          <input id="ion-token" type="password"
+                 placeholder="Paste your ion access token…"
+                 title="Free token at https://ion.cesium.com" />
+          <button class="btn primary" onclick="applyToken()">Apply</button>
+        </div>
+        <div style="margin-top:5px;font-size:11px;color:var(--muted)">
+          Free token at <a href="https://ion.cesium.com" target="_blank"
+            style="color:var(--accent)">ion.cesium.com</a>.
+          Leave blank to use OpenStreetMap imagery.
+        </div>
+      </div>
+
+      <!-- Available .3tz files -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div class="section-label" style="margin:0">Available .3tz Files</div>
+          <button class="btn small" onclick="refreshFileList()">↻ Refresh</button>
+        </div>
+        <div id="file-list">
+          <div class="empty-state">
+            <span>⏳</span>
+            Scanning <code>/data/</code>…
+          </div>
+        </div>
+      </div>
+
+      <!-- Loaded layers -->
+      <div>
+        <div class="section-label">Loaded Layers</div>
+        <div id="layer-list">
+          <div class="empty-state" id="layer-empty">
+            <span>🗂️</span>No layers loaded yet.
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom URL load -->
+      <div>
+        <div class="section-label">Load by URL</div>
+        <div class="url-row">
+          <input id="custom-url" type="text"
+                 placeholder="https://… or /data/file.3tz" />
+          <button class="btn primary" onclick="loadCustomUrl()">Load</button>
+        </div>
+      </div>
+
+      <!-- Fly home -->
+      <button class="btn" style="width:100%" onclick="flyHome()">
+        🏠 Fly to Home (Earth)
+      </button>
+
+    </div><!-- /sidebar-body -->
+
+    <div id="status-bar">Ready — drop .3tz files into the <code>data/</code> folder.</div>
+
+  </aside><!-- /sidebar -->
+
+  <!-- ── Cesium globe ──────────────────────────────────────────── -->
+  <div id="cesium-container">
+    <button id="toggle-sidebar" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+    <div id="cesiumContainer"></div>
+  </div>
+
+</div><!-- /layout -->
+
+<script>
+// ── Cesium initialisation ────────────────────────────────────────
+window.CESIUM_BASE_URL = 'https://unpkg.com/cesium@1.117.0/Build/Cesium/';
+
+// Start with a blank token; user can supply one via the UI.
+Cesium.Ion.defaultAccessToken = '';
+
+// Build viewer with OpenStreetMap imagery so no token is required
+const osmProvider = new Cesium.OpenStreetMapImageryProvider({
+  url: 'https://tile.openstreetmap.org/'
+});
+
+const viewer = new Cesium.Viewer('cesiumContainer', {
+  imageryProvider: osmProvider,
+  terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+  baseLayerPicker: false,
+  geocoder: false,
+  homeButton: true,
+  sceneModePicker: true,
+  navigationHelpButton: true,
+  animation: false,
+  timeline: false,
+  fullscreenButton: true,
+  vrButton: false,
+  infoBox: true,
+  selectionIndicator: true,
+  shadows: false,
+  shouldAnimate: false,
+});
+
+// Improve visual quality
+viewer.scene.globe.enableLighting = false;
+viewer.scene.skyBox.show = true;
+viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0b1220');
+
+// Map of loaded tilesets  { label: Cesium3DTileset }
+const loadedTilesets = {};
+
+// ── Token ──────────────────────────────────────────────────────
+function applyToken() {
+  const tok = document.getElementById('ion-token').value.trim();
+  if (!tok) { setStatus('Token cleared — using OpenStreetMap imagery.', 'info'); return; }
+  Cesium.Ion.defaultAccessToken = tok;
+  setStatus('Ion token applied. Reload the page to switch base imagery.', 'ok');
+}
+
+// ── File discovery ─────────────────────────────────────────────
+async function refreshFileList() {
+  const list = document.getElementById('file-list');
+  list.innerHTML = '<div class="empty-state"><span class="spinner"></span> Scanning…</div>';
+  setStatus('Scanning /data/ for .3tz files…', 'info');
+
+  try {
+    const res = await fetch('/data/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    let entries;
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('json')) {
+      entries = await res.json();
+    } else {
+      // Nginx autoindex HTML fallback — parse anchor hrefs
+      const html = await res.text();
+      const matches = [...html.matchAll(/href="([^"]+)"/g)];
+      entries = matches
+        .map(m => ({ name: m[1], type: 'file', size: 0 }))
+        .filter(e => !e.name.startsWith('?') && e.name !== '../');
+    }
+
+    const files = (entries || []).filter(e =>
+      e.type === 'file' && e.name.endsWith('.3tz')
+    );
+
+    if (files.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <span>📂</span>
+          No .3tz files found.<br>
+          Copy files into the <code>data/</code> folder and click&nbsp;↻&nbsp;Refresh.
+        </div>`;
+      setStatus('No .3tz files found in /data/.', '');
+      return;
+    }
+
+    list.innerHTML = '';
+    files.forEach(f => {
+      const size = f.size ? formatBytes(f.size) : '';
+      const el = document.createElement('div');
+      el.className = 'file-item' + (loadedTilesets[f.name] ? ' loaded' : '');
+      el.id = 'file-' + CSS.escape(f.name);
+      el.innerHTML = `
+        <div class="file-icon">🗺️</div>
+        <div class="file-meta">
+          <div class="file-name" title="${f.name}">${f.name}</div>
+          ${size ? `<div class="file-size">${size}</div>` : ''}
+        </div>
+        <div class="file-actions">
+          <button class="btn primary small" onclick="loadTileset('/data/${encodeURIComponent(f.name)}', '${f.name}')">Load</button>
+          <button class="btn small" onclick="flyToTileset('${f.name}')">Fly</button>
+        </div>`;
+      list.appendChild(el);
+    });
+
+    setStatus(`Found ${files.length} .3tz file${files.length !== 1 ? 's' : ''}.`, 'ok');
+  } catch (err) {
+    list.innerHTML = `<div class="empty-state"><span>⚠️</span>Could not reach /data/.<br><small>${err.message}</small></div>`;
+    setStatus('Error scanning /data/: ' + err.message, 'error');
+  }
+}
+
+// ── Load tileset ───────────────────────────────────────────────
+async function loadTileset(url, label) {
+  if (loadedTilesets[label]) {
+    setStatus(`"${label}" is already loaded. Use Fly to zoom to it.`, 'info');
+    return;
+  }
+
+  setStatus(`Loading "${label}"…`, 'info');
+
+  try {
+    const tileset = await Cesium.Cesium3DTileset.fromUrl(url);
+    viewer.scene.primitives.add(tileset);
+    loadedTilesets[label] = tileset;
+
+    await viewer.zoomTo(tileset);
+
+    addLayerToUI(label);
+    markFileLoaded(label, true);
+    setStatus(`"${label}" loaded successfully.`, 'ok');
+  } catch (err) {
+    setStatus(`Failed to load "${label}": ${err.message}`, 'error');
+    console.error(err);
+  }
+}
+
+function loadCustomUrl() {
+  const url = document.getElementById('custom-url').value.trim();
+  if (!url) { setStatus('Please enter a URL.', 'error'); return; }
+  const label = url.split('/').pop() || url;
+  loadTileset(url, label);
+}
+
+// ── Remove tileset ─────────────────────────────────────────────
+function removeTileset(label) {
+  const ts = loadedTilesets[label];
+  if (!ts) return;
+  viewer.scene.primitives.remove(ts);
+  delete loadedTilesets[label];
+  document.getElementById('layer-' + CSS.escape(label))?.remove();
+  markFileLoaded(label, false);
+
+  if (Object.keys(loadedTilesets).length === 0) {
+    document.getElementById('layer-empty').style.display = 'block';
+  }
+  setStatus(`"${label}" removed.`, 'info');
+}
+
+// ── Fly to tileset ─────────────────────────────────────────────
+async function flyToTileset(label) {
+  const ts = loadedTilesets[label];
+  if (!ts) { setStatus(`"${label}" is not loaded yet. Click Load first.`, 'error'); return; }
+  await viewer.zoomTo(ts);
+}
+
+function flyHome() {
+  viewer.camera.flyHome(1.5);
+}
+
+// ── UI helpers ─────────────────────────────────────────────────
+function addLayerToUI(label) {
+  const container = document.getElementById('layer-list');
+  document.getElementById('layer-empty').style.display = 'none';
+
+  const el = document.createElement('div');
+  el.className = 'layer-item';
+  el.id = 'layer-' + CSS.escape(label);
+  el.innerHTML = `
+    <div class="layer-dot"></div>
+    <div class="layer-name" title="${label}">${label}</div>
+    <button class="btn small" onclick="flyToTileset('${label}')">Fly</button>
+    <button class="btn small danger" onclick="removeTileset('${label}')">✕</button>`;
+  container.appendChild(el);
+}
+
+function markFileLoaded(label, loaded) {
+  const el = document.getElementById('file-' + CSS.escape(label));
+  if (!el) return;
+  el.classList.toggle('loaded', loaded);
+}
+
+function setStatus(msg, type) {
+  const bar = document.getElementById('status-bar');
+  bar.textContent = msg;
+  bar.className = type || '';
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1024 ** 3) return (b / 1024 / 1024).toFixed(1) + ' MB';
+  return (b / 1024 ** 3).toFixed(2) + ' GB';
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+// ── Boot ───────────────────────────────────────────────────────
+refreshFileList();
+</script>
+</body>
+</html>
