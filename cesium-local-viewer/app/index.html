@@ -457,7 +457,10 @@ const loadedTilesets = {};
 // ── Token ──────────────────────────────────────────────────────
 function applyToken() {
   const tok = document.getElementById('ion-token').value.trim();
-  if (!tok) { setStatus('Token cleared — using OpenStreetMap imagery.', 'info'); return; }
+  if (!tok) {
+    setStatus('Token cleared — using OpenStreetMap imagery.', 'info');
+    return;
+  }
   Cesium.Ion.defaultAccessToken = tok;
   setStatus('Ion token applied. Reload the page to switch base imagery.', 'ok');
 }
@@ -553,7 +556,10 @@ async function loadTileset(url, label) {
 
 function loadCustomUrl() {
   const url = document.getElementById('custom-url').value.trim();
-  if (!url) { setStatus('Please enter a URL.', 'error'); return; }
+  if (!url) {
+    setStatus('Please enter a URL.', 'error');
+    return;
+  }
   const label = url.split('/').pop() || url;
   loadTileset(url, label);
 }
@@ -576,7 +582,10 @@ function removeTileset(label) {
 // ── Fly to tileset ─────────────────────────────────────────────
 async function flyToTileset(label) {
   const ts = loadedTilesets[label];
-  if (!ts) { setStatus(`"${label}" is not loaded yet. Click Load first.`, 'error'); return; }
+  if (!ts) {
+    setStatus(`"${label}" is not loaded yet. Click Load first.`, 'error');
+    return;
+  }
   await viewer.zoomTo(ts);
 }
 
