@@ -49,6 +49,73 @@ docker compose down
 | **Ion token** | Optionally paste your [Cesium ion token](https://ion.cesium.com) for ion-hosted assets |
 | **Default imagery** | OpenStreetMap basemap — no token required out of the box |
 | **Range requests** | Nginx is configured to serve `.3tz` archives with full `Accept-Ranges: bytes` support, required by CesiumJS to stream data within the archive |
+| **Click-to-Photo** | Click any point on a loaded reef model to instantly see the original camera photos that covered that spot |
+
+---
+
+## Click-to-Photo Feature
+
+When a `.3tz` tileset has a companion **`cameras.json`** sidecar file, clicking anywhere on the 3D model shows a panel with the nearest original camera photos.
+
+### cameras.json format
+
+Place a file named `<dataset-name>.cameras.json` in the same `data/` folder as your `.3tz` file.
+
+**Example:** if your archive is `my-reef.3tz`, create `my-reef.cameras.json`:
+
+```json
+{
+  "image_base_url": "https://your-bucket.example.com/images/my-reef",
+  "thumbnail_base_url": "https://your-bucket.example.com/thumbs/my-reef",
+  "cameras": [
+    { "name": "IMG_0001", "lon": -157.1234, "lat": 21.4567, "height": -14.5 },
+    { "name": "IMG_0002", "lon": -157.1238, "lat": 21.4569, "height": -14.2 }
+  ]
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `image_base_url` | ✅ | Base URL for full-resolution images. Each image is fetched as `<base_url>/<name>.JPG` |
+| `thumbnail_base_url` | ✗ | Base URL for smaller preview images (falls back to `image_base_url` if omitted) |
+| `cameras[].name` | ✅ | Image filename stem (without extension), or full filename with extension |
+| `cameras[].lon` | ✅ | Longitude in decimal degrees (WGS 84) |
+| `cameras[].lat` | ✅ | Latitude in decimal degrees (WGS 84) |
+| `cameras[].height` | ✗ | Ellipsoidal height in metres (0 if omitted) |
+
+> **Note:** The `lon`/`lat`/`height` values must be in the same geographic reference frame (WGS 84) as your `.3tz` tileset.
+
+### Exporting camera positions from Metashape
+
+1. Open your Agisoft Metashape project.
+2. Go to **File → Export → Export Cameras…**
+3. Set the coordinate system to **WGS 84** (Geographic).
+4. Export as **CSV** or **JSON** (Metashape 2.x).
+5. Convert the export to the `cameras.json` format above.
+
+A minimal Python conversion script for a Metashape CSV export:
+
+```python
+import csv, json, pathlib
+
+# Metashape CSV columns: Label, X (lon), Y (lat), Z (height), …
+rows = list(csv.DictReader(open("cameras_export.csv")))
+out = {
+    "image_base_url": "https://your-bucket/images/my-reef",
+    "cameras": [
+        {"name": r["Label"], "lon": float(r["X"]), "lat": float(r["Y"]), "height": float(r["Z"])}
+        for r in rows
+    ]
+}
+pathlib.Path("my-reef.cameras.json").write_text(json.dumps(out, indent=2))
+```
+
+### How it works
+
+1. When you click **Load** for a `.3tz` file, the viewer automatically tries to fetch `<stem>.cameras.json` from `/data/`.
+2. If found, camera positions are stored as 3D Cartesian coordinates.
+3. When you click anywhere on the model, the viewer computes the 3D distance from the clicked point to every camera position and displays the 6 nearest photos in a slide-up panel.
+4. Click any thumbnail to open the full-resolution image in a lightbox viewer (keyboard: `←` / `→` to navigate, `Esc` to close).
 
 ---
 

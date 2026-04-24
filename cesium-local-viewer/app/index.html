@@ -327,6 +327,171 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Click hint ────────────────────────────────────────────── */
+    #click-hint {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(11,18,32,.80);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 12px;
+      color: var(--muted);
+      pointer-events: none;
+      z-index: 15;
+      transition: opacity .4s;
+    }
+    #click-hint.hidden { opacity: 0; }
+
+    /* ── Photo panel ───────────────────────────────────────────── */
+    #photo-panel {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(11,18,32,.96);
+      border-top: 1px solid var(--border);
+      transform: translateY(100%);
+      transition: transform .3s ease;
+      z-index: 20;
+      max-height: 290px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #photo-panel.open { transform: translateY(0); }
+
+    #photo-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #photo-panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    #photo-panel-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    #photo-panel-close:hover { color: var(--text); }
+
+    #photo-panel-grid {
+      display: flex;
+      gap: 10px;
+      padding: 10px 14px;
+      overflow-x: auto;
+      flex: 1;
+    }
+
+    #photo-panel-grid::-webkit-scrollbar { height: 4px; }
+    #photo-panel-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    #photo-panel-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .photo-card {
+      flex-shrink: 0;
+      width: 160px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .photo-card:hover { border-color: var(--accent); }
+
+    .photo-card img {
+      width: 100%;
+      height: 100px;
+      object-fit: cover;
+      background: #0a0f1c;
+      display: block;
+    }
+
+    .photo-card-info { padding: 5px 8px 7px; }
+
+    .photo-card-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .photo-card-dist { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    /* ── Lightbox ───────────────────────────────────────────────── */
+    #lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.92);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    #lightbox.open { display: flex; }
+
+    #lightbox-content {
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #lightbox-img {
+      max-width: 100%;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 6px;
+    }
+
+    #lightbox-caption { color: #ccc; font-size: 13px; text-align: center; }
+
+    .lb-btn {
+      position: absolute;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.20);
+      color: #fff;
+      border-radius: 50%;
+      width: 40px; height: 40px;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .lb-btn:hover { background: rgba(255,255,255,.25); }
+
+    #lightbox-close { top: 18px; right: 18px; }
+    #lightbox-prev  { top: 50%; left: 18px;  transform: translateY(-50%); }
+    #lightbox-next  { top: 50%; right: 18px; transform: translateY(-50%); }
   </style>
 </head>
 <body>
@@ -412,6 +577,30 @@
   <div id="cesium-container">
     <button id="toggle-sidebar" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
     <div id="cesiumContainer"></div>
+
+    <!-- Click hint -->
+    <div id="click-hint">🖱️ Click the reef model to find camera photos</div>
+
+    <!-- Photo panel (slide-up drawer) -->
+    <div id="photo-panel">
+      <div id="photo-panel-header">
+        <span id="photo-panel-title">📸 Nearest camera photos</span>
+        <button id="photo-panel-close" onclick="closePhotoPanel()" title="Close">✕</button>
+      </div>
+      <div id="photo-panel-grid"></div>
+    </div>
+
+  </div>
+
+  <!-- Lightbox (full-screen image viewer) -->
+  <div id="lightbox">
+    <button class="lb-btn" id="lightbox-close" onclick="closeLightbox()" title="Close">✕</button>
+    <button class="lb-btn" id="lightbox-prev"  onclick="navigateLightbox(-1)" title="Previous">◀</button>
+    <button class="lb-btn" id="lightbox-next"  onclick="navigateLightbox(1)"  title="Next">▶</button>
+    <div id="lightbox-content">
+      <img id="lightbox-img" src="" alt="" />
+      <div id="lightbox-caption"></div>
+    </div>
   </div>
 
 </div><!-- /layout -->
@@ -548,6 +737,9 @@ async function loadTileset(url, label) {
     addLayerToUI(label);
     markFileLoaded(label, true);
     setStatus(`"${label}" loaded successfully.`, 'ok');
+
+    // Try to load companion cameras.json sidecar (silent if absent)
+    await tryLoadCamerasForTileset(label);
   } catch (err) {
     setStatus(`Failed to load "${label}": ${err.message}`, 'error');
     console.error(err);
@@ -570,6 +762,7 @@ function removeTileset(label) {
   if (!ts) return;
   viewer.scene.primitives.remove(ts);
   delete loadedTilesets[label];
+  delete loadedCameras[label];
   document.getElementById('layer-' + CSS.escape(label))?.remove();
   markFileLoaded(label, false);
 
@@ -630,6 +823,209 @@ function formatBytes(b) {
 
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+// ── Camera data store ──────────────────────────────────────────
+// label -> { imageBaseUrl, thumbnailBaseUrl, cameras: [{name, cart3}] }
+const loadedCameras = {};
+
+// Entity placed at the last-clicked point
+let clickMarkerEntity = null;
+
+// Photo panel state
+let photoPanelItems = []; // [{name, thumbUrl, fullUrl, distanceM}]
+let lightboxIndex   = -1;
+
+// ── Auto-load cameras.json when a tileset is loaded ────────────
+async function tryLoadCamerasForTileset(label) {
+  const stem = label.replace(/\.3tz$/i, '');
+  const url  = `/data/${encodeURIComponent(stem)}.cameras.json`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return;                   // no sidecar file — that's fine
+    const data = await res.json();
+
+    const cameras = (data.cameras || []).map(c => ({
+      name:  c.name,
+      cart3: Cesium.Cartesian3.fromDegrees(
+        parseFloat(c.lon),
+        parseFloat(c.lat),
+        parseFloat(c.height) || 0
+      )
+    }));
+
+    loadedCameras[label] = {
+      imageBaseUrl:     (data.image_base_url     || '').replace(/\/$/, ''),
+      thumbnailBaseUrl: (data.thumbnail_base_url || data.image_base_url || '').replace(/\/$/, ''),
+      cameras
+    };
+
+    setStatus(`Loaded ${cameras.length} camera position${cameras.length !== 1 ? 's' : ''} for "${label}". Click the model to find photos.`, 'ok');
+    showClickHint(true);
+  } catch (err) {
+    console.warn(`Could not load cameras.json for "${label}":`, err);
+  }
+}
+
+// ── Cesium left-click handler ──────────────────────────────────
+viewer.scene.pickTranslucentDepth = false;
+
+const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+clickHandler.setInputAction(function (movement) {
+  // Prevent firing when the click lands on a UI element
+  if (movement.position.x === undefined) return;
+
+  const cartesian = viewer.scene.pickPosition(movement.position);
+  if (!Cesium.defined(cartesian)) return;
+
+  // Place / replace the yellow click-marker pin
+  if (clickMarkerEntity) viewer.entities.remove(clickMarkerEntity);
+  clickMarkerEntity = viewer.entities.add({
+    position: cartesian,
+    point: {
+      pixelSize:    14,
+      color:        Cesium.Color.YELLOW,
+      outlineColor: Cesium.Color.BLACK,
+      outlineWidth: 2,
+      heightReference: Cesium.HeightReference.NONE,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY
+    },
+    label: {
+      text:                    '📍',
+      font:                    '16px sans-serif',
+      pixelOffset:             new Cesium.Cartesian2(0, -22),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      showBackground:          false
+    }
+  });
+
+  findAndShowNearestCameras(cartesian);
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// ── Nearest-camera search ──────────────────────────────────────
+function findAndShowNearestCameras(clickedCartesian, topN = 6) {
+  const results = [];
+
+  for (const [label, camData] of Object.entries(loadedCameras)) {
+    for (const cam of camData.cameras) {
+      const dist     = Cesium.Cartesian3.distance(clickedCartesian, cam.cart3);
+      const ext      = /\.(jpe?g|png|webp|tif{1,2})$/i.test(cam.name) ? '' : '.JPG';
+      const thumbUrl = `${camData.thumbnailBaseUrl}/${cam.name}${ext}`;
+      const fullUrl  = `${camData.imageBaseUrl}/${cam.name}${ext}`;
+      results.push({ name: cam.name, thumbUrl, fullUrl, distanceM: dist });
+    }
+  }
+
+  if (results.length === 0) {
+    // No cameras loaded — open panel with a helpful message
+    showPhotoPanel([]);
+    return;
+  }
+
+  results.sort((a, b) => a.distanceM - b.distanceM);
+  showPhotoPanel(results.slice(0, topN));
+}
+
+// ── Photo panel ────────────────────────────────────────────────
+function showPhotoPanel(items) {
+  photoPanelItems = items;
+  const panel = document.getElementById('photo-panel');
+  const grid  = document.getElementById('photo-panel-grid');
+  const title = document.getElementById('photo-panel-title');
+
+  grid.innerHTML = '';
+
+  if (items.length === 0) {
+    title.textContent = '📸 No camera data loaded';
+    const msg = document.createElement('div');
+    msg.id = 'photo-panel-empty';
+    msg.innerHTML = `No <code>.cameras.json</code> sidecar found for the loaded tileset.<br>
+      See the <strong>README</strong> for how to create one from Metashape.`;
+    grid.appendChild(msg);
+  } else {
+    title.textContent = `📸 ${items.length} nearest camera photo${items.length !== 1 ? 's' : ''}`;
+
+    items.forEach((item, i) => {
+      const card = document.createElement('div');
+      card.className = 'photo-card';
+      card.title = `${item.name} — ${formatDistance(item.distanceM)}`;
+      card.onclick = () => openLightbox(i);
+
+      const img = document.createElement('img');
+      img.src = item.thumbUrl;
+      img.alt = item.name;
+      img.onerror = () => { img.style.display = 'none'; };
+
+      const info = document.createElement('div');
+      info.className = 'photo-card-info';
+      info.innerHTML = `
+        <div class="photo-card-name">${item.name}</div>
+        <div class="photo-card-dist">${formatDistance(item.distanceM)}</div>`;
+
+      card.appendChild(img);
+      card.appendChild(info);
+      grid.appendChild(card);
+    });
+  }
+
+  panel.classList.add('open');
+  showClickHint(false);
+}
+
+function closePhotoPanel() {
+  document.getElementById('photo-panel').classList.remove('open');
+}
+
+// ── Lightbox ───────────────────────────────────────────────────
+function openLightbox(index) {
+  lightboxIndex = index;
+  renderLightbox();
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+function navigateLightbox(dir) {
+  lightboxIndex = (lightboxIndex + dir + photoPanelItems.length) % photoPanelItems.length;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  const item = photoPanelItems[lightboxIndex];
+  if (!item) return;
+  document.getElementById('lightbox-img').src     = item.fullUrl;
+  document.getElementById('lightbox-caption').textContent =
+    `${item.name}  ·  ${formatDistance(item.distanceM)}  ·  ${lightboxIndex + 1} / ${photoPanelItems.length}`;
+  document.getElementById('lightbox-prev').style.display =
+    photoPanelItems.length > 1 ? 'flex' : 'none';
+  document.getElementById('lightbox-next').style.display =
+    photoPanelItems.length > 1 ? 'flex' : 'none';
+}
+
+// Close lightbox on backdrop click
+document.getElementById('lightbox').addEventListener('click', function (e) {
+  if (e.target === this) closeLightbox();
+});
+
+// Close lightbox on Escape key
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape')       closeLightbox();
+  if (e.key === 'ArrowLeft')    { if (document.getElementById('lightbox').classList.contains('open')) navigateLightbox(-1); }
+  if (e.key === 'ArrowRight')   { if (document.getElementById('lightbox').classList.contains('open')) navigateLightbox(1);  }
+});
+
+// ── Click hint visibility ──────────────────────────────────────
+function showClickHint(visible) {
+  document.getElementById('click-hint').classList.toggle('hidden', !visible);
+}
+
+// ── Distance formatter ─────────────────────────────────────────
+function formatDistance(m) {
+  if (m < 1)    return m.toFixed(2)  + ' m';
+  if (m < 1000) return m.toFixed(1)  + ' m';
+  return (m / 1000).toFixed(2) + ' km';
 }
 
 // ── Boot ───────────────────────────────────────────────────────
