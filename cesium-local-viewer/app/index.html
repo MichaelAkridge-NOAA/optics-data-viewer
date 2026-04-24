@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Cesium 3TZ Local Viewer · NOAA Optics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- CesiumJS 1.117 -->
+  <link rel="stylesheet" href="https://unpkg.com/cesium@1.117.0/Build/Cesium/Widgets/widgets.css" />
+  <script src="https://unpkg.com/cesium@1.117.0/Build/Cesium/Cesium.js"></script>
+
+  <style>
+    :root {
+      --bg: #0b1220;
+      --sidebar: #0f1a2e;
+      --card: #162036;
+      --border: rgba(255,255,255,.10);
+      --text: #e8eefc;
+      --muted: #7a93bc;
+      --accent: #2b79ff;
+      --accent-hover: #4a8fff;
+      --danger: #e74c3c;
+      --success: #27ae60;
+      --sidebar-w: 320px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    #layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    #sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    #sidebar-header {
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,.25);
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-row h1 {
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .header-row p {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .logo-circle {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    #sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* scrollbar */
+    #sidebar-body::-webkit-scrollbar { width: 5px; }
+    #sidebar-body::-webkit-scrollbar-track { background: transparent; }
+    #sidebar-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    /* Ion token */
+    .token-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .token-row input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .token-row input:focus {
+      border-color: var(--accent);
+    }
+
+    .token-row input::placeholder { color: var(--muted); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: #1e2e4a; border-color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn.danger  { border-color: var(--danger); color: var(--danger); }
+    .btn.danger:hover { background: rgba(231,76,60,.15); }
+    .btn.small { padding: 4px 8px; font-size: 11px; }
+
+    /* File list */
+    #file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .file-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color .15s;
+    }
+
+    .file-item:hover { border-color: var(--accent); }
+    .file-item.loaded { border-color: var(--success); }
+
+    .file-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .file-meta { flex: 1; min-width: 0; }
+
+    .file-name {
+      font-size: 12px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-size {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .file-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* Loaded layers */
+    #layer-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .layer-item {
+      background: var(--card);
+      border: 1px solid var(--success);
+      border-radius: 10px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .layer-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      flex-shrink: 0;
+    }
+
+    .layer-name {
+      flex: 1;
+      font-size: 12px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Custom URL */
+    .url-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .url-row input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .url-row input:focus { border-color: var(--accent); }
+    .url-row input::placeholder { color: var(--muted); }
+
+    /* Status bar */
+    #status-bar {
+      padding: 8px 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(0,0,0,.25);
+      min-height: 30px;
+    }
+
+    #status-bar.ok    { color: #5ddb8f; }
+    #status-bar.error { color: #e57373; }
+    #status-bar.info  { color: var(--accent); }
+
+    /* Empty states */
+    .empty-state {
+      text-align: center;
+      padding: 18px 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .empty-state span { font-size: 28px; display: block; margin-bottom: 6px; }
+
+    /* ── Cesium container ─────────────────────────────────────── */
+    #cesium-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #cesiumContainer {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Collapse button */
+    #toggle-sidebar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 20;
+      background: rgba(11,18,32,.85);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+      transition: background .15s;
+    }
+
+    #toggle-sidebar:hover { background: var(--accent); }
+
+    /* Sidebar hidden */
+    #sidebar.collapsed { display: none; }
+
+    /* ── Loading spinner ──────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Click hint ────────────────────────────────────────────── */
+    #click-hint {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(11,18,32,.80);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 12px;
+      color: var(--muted);
+      pointer-events: none;
+      z-index: 15;
+      transition: opacity .4s;
+    }
+    #click-hint.hidden { opacity: 0; }
+
+    /* ── Photo panel ───────────────────────────────────────────── */
+    #photo-panel {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(11,18,32,.96);
+      border-top: 1px solid var(--border);
+      transform: translateY(100%);
+      transition: transform .3s ease;
+      z-index: 20;
+      max-height: 290px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #photo-panel.open { transform: translateY(0); }
+
+    #photo-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #photo-panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    #photo-panel-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    #photo-panel-close:hover { color: var(--text); }
+
+    #photo-panel-grid {
+      display: flex;
+      gap: 10px;
+      padding: 10px 14px;
+      overflow-x: auto;
+      flex: 1;
+    }
+
+    #photo-panel-grid::-webkit-scrollbar { height: 4px; }
+    #photo-panel-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    #photo-panel-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .photo-card {
+      flex-shrink: 0;
+      width: 160px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .photo-card:hover { border-color: var(--accent); }
+
+    .photo-card img {
+      width: 100%;
+      height: 100px;
+      object-fit: cover;
+      background: #0a0f1c;
+      display: block;
+    }
+
+    .photo-card-info { padding: 5px 8px 7px; }
+
+    .photo-card-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .photo-card-dist { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    /* ── Lightbox ───────────────────────────────────────────────── */
+    #lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.92);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    #lightbox.open { display: flex; }
+
+    #lightbox-content {
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #lightbox-img {
+      max-width: 100%;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 6px;
+    }
+
+    #lightbox-caption { color: #ccc; font-size: 13px; text-align: center; }
+
+    .lb-btn {
+      position: absolute;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.20);
+      color: #fff;
+      border-radius: 50%;
+      width: 40px; height: 40px;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .lb-btn:hover { background: rgba(255,255,255,.25); }
+
+    #lightbox-close { top: 18px; right: 18px; }
+    #lightbox-prev  { top: 50%; left: 18px;  transform: translateY(-50%); }
+    #lightbox-next  { top: 50%; right: 18px; transform: translateY(-50%); }
+  </style>
+</head>
+<body>
+<div id="layout">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────── -->
+  <aside id="sidebar">
+
+    <div id="sidebar-header">
+      <div class="header-row">
+        <div class="logo-circle">🌐</div>
+        <div>
+          <h1>Cesium 3TZ Viewer</h1>
+          <p>NOAA Optics · Local Docker</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="sidebar-body">
+
+      <!-- Ion Token -->
+      <div>
+        <div class="section-label">Cesium Ion Token (optional)</div>
+        <div class="token-row">
+          <input id="ion-token" type="password"
+                 placeholder="Paste your ion access token…"
+                 title="Free token at https://ion.cesium.com" />
+          <button class="btn primary" onclick="applyToken()">Apply</button>
+        </div>
+        <div style="margin-top:5px;font-size:11px;color:var(--muted)">
+          Free token at <a href="https://ion.cesium.com" target="_blank"
+            style="color:var(--accent)">ion.cesium.com</a>.
+          Leave blank to use OpenStreetMap imagery.
+        </div>
+      </div>
+
+      <!-- Available .3tz files -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div class="section-label" style="margin:0">Available .3tz Files</div>
+          <button class="btn small" onclick="refreshFileList()">↻ Refresh</button>
+        </div>
+        <div id="file-list">
+          <div class="empty-state">
+            <span>⏳</span>
+            Scanning <code>/data/</code>…
+          </div>
+        </div>
+      </div>
+
+      <!-- Loaded layers -->
+      <div>
+        <div class="section-label">Loaded Layers</div>
+        <div id="layer-list">
+          <div class="empty-state" id="layer-empty">
+            <span>🗂️</span>No layers loaded yet.
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom URL load -->
+      <div>
+        <div class="section-label">Load by URL</div>
+        <div class="url-row">
+          <input id="custom-url" type="text"
+                 placeholder="https://… or /data/file.3tz" />
+          <button class="btn primary" onclick="loadCustomUrl()">Load</button>
+        </div>
+      </div>
+
+      <!-- Fly home -->
+      <button class="btn" style="width:100%" onclick="flyHome()">
+        🏠 Fly to Home (Earth)
+      </button>
+
+    </div><!-- /sidebar-body -->
+
+    <div id="status-bar">Ready — drop .3tz files into the <code>data/</code> folder.</div>
+
+  </aside><!-- /sidebar -->
+
+  <!-- ── Cesium globe ──────────────────────────────────────────── -->
+  <div id="cesium-container">
+    <button id="toggle-sidebar" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+    <div id="cesiumContainer"></div>
+
+    <!-- Click hint -->
+    <div id="click-hint">🖱️ Click the reef model to find camera photos</div>
+
+    <!-- Photo panel (slide-up drawer) -->
+    <div id="photo-panel">
+      <div id="photo-panel-header">
+        <span id="photo-panel-title">📸 Nearest camera photos</span>
+        <button id="photo-panel-close" onclick="closePhotoPanel()" title="Close">✕</button>
+      </div>
+      <div id="photo-panel-grid"></div>
+    </div>
+
+  </div>
+
+  <!-- Lightbox (full-screen image viewer) -->
+  <div id="lightbox">
+    <button class="lb-btn" id="lightbox-close" onclick="closeLightbox()" title="Close">✕</button>
+    <button class="lb-btn" id="lightbox-prev"  onclick="navigateLightbox(-1)" title="Previous">◀</button>
+    <button class="lb-btn" id="lightbox-next"  onclick="navigateLightbox(1)"  title="Next">▶</button>
+    <div id="lightbox-content">
+      <img id="lightbox-img" src="" alt="" />
+      <div id="lightbox-caption"></div>
+    </div>
+  </div>
+
+</div><!-- /layout -->
+
+<script>
+// ── Cesium initialisation ────────────────────────────────────────
+window.CESIUM_BASE_URL = 'https://unpkg.com/cesium@1.117.0/Build/Cesium/';
+
+// Start with a blank token; user can supply one via the UI.
+Cesium.Ion.defaultAccessToken = '';
+
+// Build viewer with OpenStreetMap imagery so no token is required
+const osmProvider = new Cesium.OpenStreetMapImageryProvider({
+  url: 'https://tile.openstreetmap.org/'
+});
+
+const viewer = new Cesium.Viewer('cesiumContainer', {
+  imageryProvider: osmProvider,
+  terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+  baseLayerPicker: false,
+  geocoder: false,
+  homeButton: true,
+  sceneModePicker: true,
+  navigationHelpButton: true,
+  animation: false,
+  timeline: false,
+  fullscreenButton: true,
+  vrButton: false,
+  infoBox: true,
+  selectionIndicator: true,
+  shadows: false,
+  shouldAnimate: false,
+});
+
+// Improve visual quality
+viewer.scene.globe.enableLighting = false;
+viewer.scene.skyBox.show = true;
+viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0b1220');
+
+// Map of loaded tilesets  { label: Cesium3DTileset }
+const loadedTilesets = {};
+
+// ── Token ──────────────────────────────────────────────────────
+function applyToken() {
+  const tok = document.getElementById('ion-token').value.trim();
+  if (!tok) {
+    setStatus('Token cleared — using OpenStreetMap imagery.', 'info');
+    return;
+  }
+  Cesium.Ion.defaultAccessToken = tok;
+  setStatus('Ion token applied. Reload the page to switch base imagery.', 'ok');
+}
+
+// ── File discovery ─────────────────────────────────────────────
+async function refreshFileList() {
+  const list = document.getElementById('file-list');
+  list.innerHTML = '<div class="empty-state"><span class="spinner"></span> Scanning…</div>';
+  setStatus('Scanning /data/ for .3tz files…', 'info');
+
+  try {
+    const res = await fetch('/data/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    let entries;
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('json')) {
+      entries = await res.json();
+    } else {
+      // Nginx autoindex HTML fallback — parse anchor hrefs
+      const html = await res.text();
+      const matches = [...html.matchAll(/href="([^"]+)"/g)];
+      entries = matches
+        .map(m => ({ name: m[1], type: 'file', size: 0 }))
+        .filter(e => !e.name.startsWith('?') && e.name !== '../');
+    }
+
+    const files = (entries || []).filter(e =>
+      e.type === 'file' && e.name.endsWith('.3tz')
+    );
+
+    if (files.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <span>📂</span>
+          No .3tz files found.<br>
+          Copy files into the <code>data/</code> folder and click&nbsp;↻&nbsp;Refresh.
+        </div>`;
+      setStatus('No .3tz files found in /data/.', '');
+      return;
+    }
+
+    list.innerHTML = '';
+    files.forEach(f => {
+      const size = f.size ? formatBytes(f.size) : '';
+      const el = document.createElement('div');
+      el.className = 'file-item' + (loadedTilesets[f.name] ? ' loaded' : '');
+      el.id = 'file-' + CSS.escape(f.name);
+      el.innerHTML = `
+        <div class="file-icon">🗺️</div>
+        <div class="file-meta">
+          <div class="file-name" title="${f.name}">${f.name}</div>
+          ${size ? `<div class="file-size">${size}</div>` : ''}
+        </div>
+        <div class="file-actions">
+          <button class="btn primary small" onclick="loadTileset('/data/${encodeURIComponent(f.name)}', '${f.name}')">Load</button>
+          <button class="btn small" onclick="flyToTileset('${f.name}')">Fly</button>
+        </div>`;
+      list.appendChild(el);
+    });
+
+    setStatus(`Found ${files.length} .3tz file${files.length !== 1 ? 's' : ''}.`, 'ok');
+  } catch (err) {
+    list.innerHTML = `<div class="empty-state"><span>⚠️</span>Could not reach /data/.<br><small>${err.message}</small></div>`;
+    setStatus('Error scanning /data/: ' + err.message, 'error');
+  }
+}
+
+// ── Load tileset ───────────────────────────────────────────────
+async function loadTileset(url, label) {
+  if (loadedTilesets[label]) {
+    setStatus(`"${label}" is already loaded. Use Fly to zoom to it.`, 'info');
+    return;
+  }
+
+  setStatus(`Loading "${label}"…`, 'info');
+
+  try {
+    const tileset = await Cesium.Cesium3DTileset.fromUrl(url);
+    viewer.scene.primitives.add(tileset);
+    loadedTilesets[label] = tileset;
+
+    await viewer.zoomTo(tileset);
+
+    addLayerToUI(label);
+    markFileLoaded(label, true);
+    setStatus(`"${label}" loaded successfully.`, 'ok');
+
+    // Try to load companion cameras.json sidecar (silent if absent)
+    await tryLoadCamerasForTileset(label);
+  } catch (err) {
+    setStatus(`Failed to load "${label}": ${err.message}`, 'error');
+    console.error(err);
+  }
+}
+
+function loadCustomUrl() {
+  const url = document.getElementById('custom-url').value.trim();
+  if (!url) {
+    setStatus('Please enter a URL.', 'error');
+    return;
+  }
+  const label = url.split('/').pop() || url;
+  loadTileset(url, label);
+}
+
+// ── Remove tileset ─────────────────────────────────────────────
+function removeTileset(label) {
+  const ts = loadedTilesets[label];
+  if (!ts) return;
+  viewer.scene.primitives.remove(ts);
+  delete loadedTilesets[label];
+  delete loadedCameras[label];
+  document.getElementById('layer-' + CSS.escape(label))?.remove();
+  markFileLoaded(label, false);
+
+  if (Object.keys(loadedTilesets).length === 0) {
+    document.getElementById('layer-empty').style.display = 'block';
+  }
+  setStatus(`"${label}" removed.`, 'info');
+}
+
+// ── Fly to tileset ─────────────────────────────────────────────
+async function flyToTileset(label) {
+  const ts = loadedTilesets[label];
+  if (!ts) {
+    setStatus(`"${label}" is not loaded yet. Click Load first.`, 'error');
+    return;
+  }
+  await viewer.zoomTo(ts);
+}
+
+function flyHome() {
+  viewer.camera.flyHome(1.5);
+}
+
+// ── UI helpers ─────────────────────────────────────────────────
+function addLayerToUI(label) {
+  const container = document.getElementById('layer-list');
+  document.getElementById('layer-empty').style.display = 'none';
+
+  const el = document.createElement('div');
+  el.className = 'layer-item';
+  el.id = 'layer-' + CSS.escape(label);
+  el.innerHTML = `
+    <div class="layer-dot"></div>
+    <div class="layer-name" title="${label}">${label}</div>
+    <button class="btn small" onclick="flyToTileset('${label}')">Fly</button>
+    <button class="btn small danger" onclick="removeTileset('${label}')">✕</button>`;
+  container.appendChild(el);
+}
+
+function markFileLoaded(label, loaded) {
+  const el = document.getElementById('file-' + CSS.escape(label));
+  if (!el) return;
+  el.classList.toggle('loaded', loaded);
+}
+
+function setStatus(msg, type) {
+  const bar = document.getElementById('status-bar');
+  bar.textContent = msg;
+  bar.className = type || '';
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1024 ** 3) return (b / 1024 / 1024).toFixed(1) + ' MB';
+  return (b / 1024 ** 3).toFixed(2) + ' GB';
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+// ── Camera data store ──────────────────────────────────────────
+// label -> { imageBaseUrl, thumbnailBaseUrl, cameras: [{name, cart3}] }
+const loadedCameras = {};
+
+// Entity placed at the last-clicked point
+let clickMarkerEntity = null;
+
+// Photo panel state
+let photoPanelItems = []; // [{name, thumbUrl, fullUrl, distanceM}]
+let lightboxIndex   = -1;
+
+// ── Auto-load cameras.json when a tileset is loaded ────────────
+async function tryLoadCamerasForTileset(label) {
+  const stem = label.replace(/\.3tz$/i, '');
+  const url  = `/data/${encodeURIComponent(stem)}.cameras.json`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return;                   // no sidecar file — that's fine
+    const data = await res.json();
+
+    const cameras = (data.cameras || []).map(c => ({
+      name:  c.name,
+      cart3: Cesium.Cartesian3.fromDegrees(
+        parseFloat(c.lon),
+        parseFloat(c.lat),
+        parseFloat(c.height) || 0
+      )
+    }));
+
+    loadedCameras[label] = {
+      imageBaseUrl:     (data.image_base_url     || '').replace(/\/$/, ''),
+      thumbnailBaseUrl: (data.thumbnail_base_url || data.image_base_url || '').replace(/\/$/, ''),
+      cameras
+    };
+
+    setStatus(`Loaded ${cameras.length} camera position${cameras.length !== 1 ? 's' : ''} for "${label}". Click the model to find photos.`, 'ok');
+    showClickHint(true);
+  } catch (err) {
+    console.warn(`Could not load cameras.json for "${label}":`, err);
+  }
+}
+
+// ── Cesium left-click handler ──────────────────────────────────
+viewer.scene.pickTranslucentDepth = false;
+
+const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+clickHandler.setInputAction(function (movement) {
+  // Prevent firing when the click lands on a UI element
+  if (movement.position.x === undefined) return;
+
+  const cartesian = viewer.scene.pickPosition(movement.position);
+  if (!Cesium.defined(cartesian)) return;
+
+  // Place / replace the yellow click-marker pin
+  if (clickMarkerEntity) viewer.entities.remove(clickMarkerEntity);
+  clickMarkerEntity = viewer.entities.add({
+    position: cartesian,
+    point: {
+      pixelSize:    14,
+      color:        Cesium.Color.YELLOW,
+      outlineColor: Cesium.Color.BLACK,
+      outlineWidth: 2,
+      heightReference: Cesium.HeightReference.NONE,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY
+    },
+    label: {
+      text:                    '📍',
+      font:                    '16px sans-serif',
+      pixelOffset:             new Cesium.Cartesian2(0, -22),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      showBackground:          false
+    }
+  });
+
+  findAndShowNearestCameras(cartesian);
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// ── Nearest-camera search ──────────────────────────────────────
+function findAndShowNearestCameras(clickedCartesian, topN = 6) {
+  const results = [];
+
+  for (const [label, camData] of Object.entries(loadedCameras)) {
+    for (const cam of camData.cameras) {
+      const dist     = Cesium.Cartesian3.distance(clickedCartesian, cam.cart3);
+      const ext      = /\.(jpe?g|png|webp|tif{1,2})$/i.test(cam.name) ? '' : '.JPG';
+      const thumbUrl = `${camData.thumbnailBaseUrl}/${cam.name}${ext}`;
+      const fullUrl  = `${camData.imageBaseUrl}/${cam.name}${ext}`;
+      results.push({ name: cam.name, thumbUrl, fullUrl, distanceM: dist });
+    }
+  }
+
+  if (results.length === 0) {
+    // No cameras loaded — open panel with a helpful message
+    showPhotoPanel([]);
+    return;
+  }
+
+  results.sort((a, b) => a.distanceM - b.distanceM);
+  showPhotoPanel(results.slice(0, topN));
+}
+
+// ── Photo panel ────────────────────────────────────────────────
+function showPhotoPanel(items) {
+  photoPanelItems = items;
+  const panel = document.getElementById('photo-panel');
+  const grid  = document.getElementById('photo-panel-grid');
+  const title = document.getElementById('photo-panel-title');
+
+  grid.innerHTML = '';
+
+  if (items.length === 0) {
+    title.textContent = '📸 No camera data loaded';
+    const msg = document.createElement('div');
+    msg.id = 'photo-panel-empty';
+    msg.innerHTML = `No <code>.cameras.json</code> sidecar found for the loaded tileset.<br>
+      See the <strong>README</strong> for how to create one from Metashape.`;
+    grid.appendChild(msg);
+  } else {
+    title.textContent = `📸 ${items.length} nearest camera photo${items.length !== 1 ? 's' : ''}`;
+
+    items.forEach((item, i) => {
+      const card = document.createElement('div');
+      card.className = 'photo-card';
+      card.title = `${item.name} — ${formatDistance(item.distanceM)}`;
+      card.onclick = () => openLightbox(i);
+
+      const img = document.createElement('img');
+      img.src = item.thumbUrl;
+      img.alt = item.name;
+      img.onerror = () => { img.style.display = 'none'; };
+
+      const info = document.createElement('div');
+      info.className = 'photo-card-info';
+      info.innerHTML = `
+        <div class="photo-card-name">${item.name}</div>
+        <div class="photo-card-dist">${formatDistance(item.distanceM)}</div>`;
+
+      card.appendChild(img);
+      card.appendChild(info);
+      grid.appendChild(card);
+    });
+  }
+
+  panel.classList.add('open');
+  showClickHint(false);
+}
+
+function closePhotoPanel() {
+  document.getElementById('photo-panel').classList.remove('open');
+}
+
+// ── Lightbox ───────────────────────────────────────────────────
+function openLightbox(index) {
+  lightboxIndex = index;
+  renderLightbox();
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+function navigateLightbox(dir) {
+  lightboxIndex = (lightboxIndex + dir + photoPanelItems.length) % photoPanelItems.length;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  const item = photoPanelItems[lightboxIndex];
+  if (!item) return;
+  document.getElementById('lightbox-img').src     = item.fullUrl;
+  document.getElementById('lightbox-caption').textContent =
+    `${item.name}  ·  ${formatDistance(item.distanceM)}  ·  ${lightboxIndex + 1} / ${photoPanelItems.length}`;
+  document.getElementById('lightbox-prev').style.display =
+    photoPanelItems.length > 1 ? 'flex' : 'none';
+  document.getElementById('lightbox-next').style.display =
+    photoPanelItems.length > 1 ? 'flex' : 'none';
+}
+
+// Close lightbox on backdrop click
+document.getElementById('lightbox').addEventListener('click', function (e) {
+  if (e.target === this) closeLightbox();
+});
+
+// Close lightbox on Escape key
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape')       closeLightbox();
+  if (e.key === 'ArrowLeft')    { if (document.getElementById('lightbox').classList.contains('open')) navigateLightbox(-1); }
+  if (e.key === 'ArrowRight')   { if (document.getElementById('lightbox').classList.contains('open')) navigateLightbox(1);  }
+});
+
+// ── Click hint visibility ──────────────────────────────────────
+function showClickHint(visible) {
+  document.getElementById('click-hint').classList.toggle('hidden', !visible);
+}
+
+// ── Distance formatter ─────────────────────────────────────────
+function formatDistance(m) {
+  if (m < 1)    return m.toFixed(2)  + ' m';
+  if (m < 1000) return m.toFixed(1)  + ' m';
+  return (m / 1000).toFixed(2) + ' km';
+}
+
+// ── Boot ───────────────────────────────────────────────────────
+refreshFileList();
+</script>
+</body>
+</html>
